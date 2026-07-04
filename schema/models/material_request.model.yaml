@@ -1,0 +1,127 @@
+# =============================================================================
+# Domain: Buying
+# Entity: MaterialRequest (+ MaterialRequestItem)
+# Description: Internal demand at the head of the supply pipeline — a request to
+# procure/transfer/subcontract. Converts into an RFQ or directly a Purchase Order.
+# =============================================================================
+
+models:
+  - name: MaterialRequest
+    collection: material_requests
+    description: "Internal demand to procure/transfer/subcontract"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique material-request identifier"
+
+      request_number:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Human reference (e.g. MR-2026-00042)"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id"
+
+      request_type:
+        type: MaterialRequestType
+        attributes: ["@default(purchase)"]
+        description: "Kind of demand"
+
+      status:
+        type: PurchaseDocStatus
+        attributes: ["@default(draft)"]
+        description: "Lifecycle status"
+
+      request_date:
+        type: date
+        attributes: ["@required"]
+        description: "Date raised"
+
+      schedule_date:
+        type: date?
+        description: "Required-by date"
+
+      notes:
+        type: string?
+        attributes: ["@max(1000)"]
+        description: "Free-text notes"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      items:
+        type: MaterialRequestItem[]
+        attributes: ["@one_to_many"]
+        description: "Requested lines"
+        inverse: request
+
+    indexes:
+      - type: unique
+        fields: [request_number]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [company_id, status]
+
+  - name: MaterialRequestItem
+    collection: material_request_items
+    description: "One requested line"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique line identifier"
+
+      request_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(MaterialRequest.id)"]
+        description: "Owning material request"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Catalog item # logical FK to catalog.Item.id"
+
+      quantity:
+        type: decimal
+        attributes: ["@required", "@precision(18,4)", "@non_negative"]
+        description: "Quantity requested"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      request:
+        type: MaterialRequest
+        attributes: ["@one", "@foreign_key(request_id)"]
+        description: "Owning material request"
+        inverse: items
+
+    indexes:
+      - type: index
+        fields: [request_id]
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enums:
+  - name: MaterialRequestType
+    description: "Kind of internal demand"
+    variants:
+      - name: purchase
+        description: "Buy from a supplier"
+        default: true
+      - name: transfer
+        description: "Move between warehouses (inventory concern)"
+      - name: subcontract
+        description: "Send raw materials for subcontracted work"

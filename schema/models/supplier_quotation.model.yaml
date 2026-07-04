@@ -1,0 +1,130 @@
+# =============================================================================
+# Domain: Buying
+# Entity: SupplierQuotation (+ SupplierQuotationItem)
+# Description: A supplier's priced offer (in response to an RFQ, or direct).
+# Converts into a Purchase Order on selection.
+# =============================================================================
+
+models:
+  - name: SupplierQuotation
+    collection: supplier_quotations
+    description: "A supplier's priced offer; convertible to a Purchase Order"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique supplier-quotation identifier"
+
+      quotation_number:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Human reference (e.g. SQ-2026-00042)"
+
+      rfq_id:
+        type: uuid?
+        attributes: ["@foreign_key(RequestForQuotation.id)"]
+        description: "Source RFQ (intra-module link; null for direct quotations)"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id"
+
+      supplier_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Quoting supplier # logical FK to party.Party.id"
+
+      status:
+        type: PurchaseDocStatus
+        attributes: ["@default(draft)"]
+        description: "Lifecycle status"
+
+      quotation_date:
+        type: date
+        attributes: ["@required"]
+        description: "Date quoted"
+
+      valid_till:
+        type: date?
+        description: "Offer expiry"
+
+      currency:
+        type: string
+        attributes: ["@default(\"IDR\")", "@max(3)"]
+        description: "ISO currency code"
+
+      notes:
+        type: string?
+        attributes: ["@max(1000)"]
+        description: "Free-text notes"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      items:
+        type: SupplierQuotationItem[]
+        attributes: ["@one_to_many"]
+        description: "Quoted lines"
+        inverse: quotation
+
+    indexes:
+      - type: unique
+        fields: [quotation_number]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [company_id, supplier_id, status]
+
+  - name: SupplierQuotationItem
+    collection: supplier_quotation_items
+    description: "One quoted line (rate + lead time)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique line identifier"
+
+      quotation_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(SupplierQuotation.id)"]
+        description: "Owning supplier quotation"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Catalog item # logical FK to catalog.Item.id"
+
+      quantity:
+        type: decimal
+        attributes: ["@required", "@precision(18,4)", "@non_negative"]
+        description: "Quantity quoted"
+
+      rate:
+        type: decimal
+        attributes: ["@required", "@precision(18,2)", "@non_negative"]
+        description: "Quoted unit price"
+
+      lead_time_days:
+        type: int?
+        description: "Quoted lead time in days"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      quotation:
+        type: SupplierQuotation
+        attributes: ["@one", "@foreign_key(quotation_id)"]
+        description: "Owning supplier quotation"
+        inverse: items
+
+    indexes:
+      - type: index
+        fields: [quotation_id]

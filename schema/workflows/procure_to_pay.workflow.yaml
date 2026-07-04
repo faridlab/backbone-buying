@@ -1,0 +1,49 @@
+# Procure-to-pay saga (buying) — MaterialRequest -> PO -> receipt -> (bill) -> completed.
+# Implemented by BuyingWriteService + the receipt seam; proven by tests/receipt_seam.rs (RSEAM-1).
+
+name: ProcureToPay
+description: |
+  A material request is sourced and committed as a Purchase Order; the confirmed PO drives inventory
+  to receive goods (asset post) and billing to raise the Purchase Invoice (A/P post); the PO
+  completes when fully received AND billed.
+
+version: 2
+
+trigger:
+  event: PurchaseOrderConfirmed
+  extract:
+    order_id: "event.order_id"
+
+config:
+  timeout: 30s
+  persistence: true
+
+context:
+  order_id: null
+
+steps:
+  - name: request_receipt
+    type: action
+    action: build_receipt_request        # -> ReceiptRequestEnvelope, ACL -> inventory ReceiptExpected
+    on_success: { next: await_receipt }
+    on_failure: { next: rejected }
+
+  - name: await_receipt
+    type: action
+    action: mark_received                 # inbound: inventory StockReceived -> received_qty
+    on_success: { next: await_billing }
+
+  - name: await_billing
+    type: action
+    action: mark_billed                   # inbound: billing PurchaseInvoicePosted -> billed_qty
+    on_success: { next: done }
+
+  - name: done
+    type: terminal
+    status: completed
+    reason: "PO fully received AND billed -> completed"
+
+  - name: rejected
+    type: terminal
+    status: failed
+    reason: "PO not confirmable / not found"

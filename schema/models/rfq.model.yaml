@@ -1,0 +1,151 @@
+# =============================================================================
+# Domain: Buying
+# Entity: RequestForQuotation (+ RfqItem, + RfqSupplier)
+# Description: Sourcing fan-out — ask N suppliers to quote M items. Lean: owns the
+# item list + the invited-supplier list; multi-supplier comparison UI is deferred
+# (brief §53). Converted from a MaterialRequest; suppliers respond with SupplierQuotation.
+# =============================================================================
+
+models:
+  - name: RequestForQuotation
+    collection: request_for_quotations
+    description: "Sourcing fan-out to invited suppliers"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique RFQ identifier"
+
+      rfq_number:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Human reference (e.g. RFQ-2026-00042)"
+
+      material_request_id:
+        type: uuid?
+        attributes: ["@foreign_key(MaterialRequest.id)"]
+        description: "Source material request (intra-module link)"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id"
+
+      status:
+        type: PurchaseDocStatus
+        attributes: ["@default(draft)"]
+        description: "Lifecycle status"
+
+      rfq_date:
+        type: date
+        attributes: ["@required"]
+        description: "Date issued"
+
+      response_due:
+        type: date?
+        description: "Quotation submission deadline"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      items:
+        type: RfqItem[]
+        attributes: ["@one_to_many"]
+        description: "Requested lines"
+        inverse: rfq
+      suppliers:
+        type: RfqSupplier[]
+        attributes: ["@one_to_many"]
+        description: "Invited suppliers"
+        inverse: rfq
+
+    indexes:
+      - type: unique
+        fields: [rfq_number]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [company_id, status]
+
+  - name: RfqItem
+    collection: rfq_items
+    description: "One line to be quoted"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique line identifier"
+
+      rfq_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(RequestForQuotation.id)"]
+        description: "Owning RFQ"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Catalog item # logical FK to catalog.Item.id"
+
+      quantity:
+        type: decimal
+        attributes: ["@required", "@precision(18,4)", "@non_negative"]
+        description: "Quantity to quote"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      rfq:
+        type: RequestForQuotation
+        attributes: ["@one", "@foreign_key(rfq_id)"]
+        description: "Owning RFQ"
+        inverse: items
+
+    indexes:
+      - type: index
+        fields: [rfq_id]
+
+  - name: RfqSupplier
+    collection: rfq_suppliers
+    description: "An invited supplier on an RFQ"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique row identifier"
+
+      rfq_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(RequestForQuotation.id)"]
+        description: "Owning RFQ"
+
+      supplier_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Invited supplier # logical FK to party.Party.id"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      rfq:
+        type: RequestForQuotation
+        attributes: ["@one", "@foreign_key(rfq_id)"]
+        description: "Owning RFQ"
+        inverse: suppliers
+
+    indexes:
+      - type: index
+        fields: [rfq_id]
+      - type: unique
+        fields: [rfq_id, supplier_id]
+        where: "deleted_at IS NULL"

@@ -1,0 +1,68 @@
+# =============================================================================
+# buying Hooks — PO lifecycle + write-path rules (spec of behavior in
+# src/application/service/buying_write_service.rs, proven in tests/).
+# =============================================================================
+
+module: buying
+version: 2
+
+state_machines:
+  - entity: MaterialRequest
+    field: status
+    initial: draft
+    states: [draft, submitted, ordered, cancelled]
+    transitions:
+      - { from: draft, to: submitted, on: submit }
+  - entity: SupplierQuotation
+    field: status
+    initial: draft
+    states: [draft, submitted, ordered, cancelled]
+    transitions:
+      - { from: submitted, to: ordered, on: convert_to_po }
+  # All bands live once inventory (receipt) + billing exist.
+  - entity: PurchaseOrder
+    field: status
+    initial: draft
+    states: [draft, to_receive, to_bill, to_receive_and_bill, completed, closed, cancelled]
+    transitions:
+      - { from: draft, to: to_receive_and_bill, on: confirm }
+      - { from: to_receive_and_bill, to: to_bill, on: fully_received }
+      - { from: to_receive_and_bill, to: to_receive, on: fully_billed }
+      - { from: to_bill, to: completed, on: fully_billed }
+      - { from: to_receive, to: completed, on: fully_received }
+      - { from: draft, to: cancelled, on: cancel }
+
+rules:
+  - id: R1
+    name: non_empty_document
+    when: create
+    assert: "count(lines) >= 1"
+    error_code: empty_document
+  - id: R2
+    name: non_negative
+    when: create
+    assert: "line.quantity >= 0 AND line.rate >= 0"
+    error_code: negative_quantity
+  - id: R3
+    name: unique_number
+    when: create
+    assert: "document number is unique"
+    error_code: duplicate_number
+  - id: R4
+    name: confirmable
+    when: confirm
+    assert: "purchase order is draft"
+    error_code: not_confirmable
+  - id: R5
+    name: three_way_match
+    when: complete
+    assert: "every line fully received AND fully billed"
+    error_code: null
+
+events:
+  PurchaseOrderConfirmed:
+    when: "a purchase order is confirmed"
+    payload: [order_id, company_id, supplier_id, grand_total, currency]
+  ReceiptRequested:
+    when: "a confirmed PO requests goods receipt"
+    payload: [order_id, company_id, supplier_id, currency, lines]

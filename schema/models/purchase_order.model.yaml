@@ -1,0 +1,234 @@
+# =============================================================================
+# Domain: Buying
+# Entity: PurchaseOrder (+ PurchaseOrderItem)
+# Description: The supply commitment. Drives inventory's Purchase Receipt (asset
+# post) via a ReceiptExpected request and billing's Purchase Invoice (A/P post) —
+# buying itself emits NO AccountingPost. 3-way-match watermarks received_qty /
+# billed_qty gate completion. Subcontracting is a subtype (order_kind=subcontract).
+# supplier/item/company/branch/warehouse are logical FKs.
+# =============================================================================
+
+models:
+  - name: PurchaseOrder
+    collection: purchase_orders
+    description: "Supply commitment to a supplier (procure-to-pay); drives receipt + billing via events"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique purchase-order identifier"
+
+      po_number:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Human reference (e.g. PO-2026-00042)"
+
+      supplier_quotation_id:
+        type: uuid?
+        attributes: ["@foreign_key(SupplierQuotation.id)"]
+        description: "Source supplier quotation (intra-module link; null for direct POs)"
+
+      order_kind:
+        type: OrderKind
+        attributes: ["@default(standard)"]
+        description: "Standard PO or subcontract (a PO whose lines are service + supplied-material BOM)"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Books owner # logical FK to organization.Company.id"
+
+      branch_id:
+        type: uuid?
+        attributes: ["@exclude_from_foreign_key_check"]
+        description: "Issuing branch # logical FK to organization.Branch.id"
+
+      supplier_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Supplier # logical FK to party.Party.id"
+
+      status:
+        type: PurchaseOrderStatus
+        attributes: ["@default(draft)"]
+        description: "Lifecycle status (receipt + billing watermarks encoded as states)"
+
+      order_date:
+        type: date
+        attributes: ["@required"]
+        description: "Date the order is placed"
+
+      schedule_date:
+        type: date?
+        description: "Requested/expected receipt date"
+
+      currency:
+        type: string
+        attributes: ["@default(\"IDR\")", "@max(3)"]
+        description: "ISO currency code"
+
+      subtotal:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,2)", "@non_negative"]
+        description: "Sum of line amounts before tax"
+
+      tax_rate:
+        type: decimal
+        attributes: ["@default(0)", "@precision(9,4)", "@non_negative"]
+        description: "Supplied PPN Input rate % (real tax from backbone-tax at invoice time)"
+
+      tax_amount:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,2)", "@non_negative"]
+        description: "Tax on subtotal"
+
+      total:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,2)", "@non_negative"]
+        description: "Grand total (subtotal + tax_amount)"
+
+      notes:
+        type: string?
+        attributes: ["@max(1000)"]
+        description: "Free-text terms/notes"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      items:
+        type: PurchaseOrderItem[]
+        attributes: ["@one_to_many"]
+        description: "Line items"
+        inverse: order
+
+    indexes:
+      - type: unique
+        fields: [po_number]
+        where: "deleted_at IS NULL"
+      - type: index
+        fields: [company_id, supplier_id, status]
+      - type: index
+        fields: [order_date]
+
+  - name: PurchaseOrderItem
+    collection: purchase_order_items
+    description: "One line of a purchase order (with 3-way-match watermarks)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique line identifier"
+
+      order_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(PurchaseOrder.id)"]
+        description: "Owning purchase order"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Catalog item # logical FK to catalog.Item.id"
+
+      warehouse_id:
+        type: uuid?
+        attributes: ["@exclude_from_foreign_key_check"]
+        description: "Receipt target warehouse # logical FK to inventory.Warehouse.id"
+
+      description:
+        type: string?
+        attributes: ["@max(300)"]
+        description: "Line description snapshot"
+
+      quantity:
+        type: decimal
+        attributes: ["@required", "@precision(18,4)", "@non_negative"]
+        description: "Quantity ordered"
+
+      rate:
+        type: decimal
+        attributes: ["@required", "@precision(18,2)", "@non_negative"]
+        description: "Unit price"
+
+      line_amount:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,2)", "@non_negative"]
+        description: "quantity * rate (computed by write path)"
+
+      received_qty:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,4)", "@non_negative"]
+        description: "Cumulative quantity received (advanced on inventory's PurchaseReceiptSubmitted)"
+
+      billed_qty:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,4)", "@non_negative"]
+        description: "Cumulative quantity invoiced (advanced on billing's PurchaseInvoicePosted)"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      order:
+        type: PurchaseOrder
+        attributes: ["@one", "@foreign_key(order_id)"]
+        description: "Owning purchase order"
+        inverse: items
+
+    indexes:
+      - type: index
+        fields: [order_id]
+
+# =============================================================================
+# Enums (shared across buying documents)
+# =============================================================================
+
+enums:
+  # Both bands live once inventory (receipt) + billing exist. Receipt band is proven via the
+  # buying<->inventory seam; billing band advances on PurchaseInvoicePosted (billing, later).
+  - name: PurchaseOrderStatus
+    description: "Purchase-order lifecycle (receipt + billing watermarks as states)"
+    variants:
+      - name: draft
+        description: "Being prepared"
+        default: true
+      - name: to_receive
+        description: "Confirmed; awaiting receipt only (fully billed)"
+      - name: to_bill
+        description: "Confirmed; awaiting billing only (fully received)"
+      - name: to_receive_and_bill
+        description: "Confirmed; awaiting both receipt and billing"
+      - name: completed
+        description: "Fully received and fully billed"
+      - name: closed
+        description: "Manually closed"
+      - name: cancelled
+        description: "Voided"
+
+  - name: OrderKind
+    description: "Standard purchase or subcontract subtype"
+    variants:
+      - name: standard
+        description: "Ordinary goods/services purchase"
+        default: true
+      - name: subcontract
+        description: "Service + supplied-material BOM (subcontracting folds in here, supply-chain §6.1)"
+
+  - name: PurchaseDocStatus
+    description: "Lifecycle for sourcing docs (material request / RFQ / supplier quotation)"
+    variants:
+      - name: draft
+        description: "Being prepared"
+        default: true
+      - name: submitted
+        description: "Issued / active"
+      - name: ordered
+        description: "Converted into a purchase order"
+      - name: cancelled
+        description: "Voided"
