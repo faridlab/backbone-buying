@@ -1,0 +1,18 @@
+# Seed Execution Order Configuration
+# Seeds are executed in the order defined in this file.
+# This ensures foreign key dependencies are satisfied.
+
+# Format: seed_name_seed (without .sql extension)
+#
+# Note: You can manually edit this file to customize the order.
+# Seeds not listed here will be executed after in alphabetical order.
+
+- material_request_seed
+- material_request_item_seed
+- purchase_order_seed
+- purchase_order_item_seed
+- request_for_quotation_seed
+- rfq_item_seed
+- rfq_supplier_seed
+- supplier_quotation_seed
+- supplier_quotation_item_seed
