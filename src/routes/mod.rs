@@ -12,14 +12,23 @@ use std::sync::Arc;
 // Import handlers
 use crate::presentation::http::{
     create_material_request_routes,
+    create_material_request_read_routes,
     create_material_request_item_routes,
+    create_material_request_item_read_routes,
     create_purchase_order_routes,
+    create_purchase_order_read_routes,
     create_purchase_order_item_routes,
+    create_purchase_order_item_read_routes,
     create_request_for_quotation_routes,
+    create_request_for_quotation_read_routes,
     create_rfq_item_routes,
+    create_rfq_item_read_routes,
     create_rfq_supplier_routes,
+    create_rfq_supplier_read_routes,
     create_supplier_quotation_routes,
-    create_supplier_quotation_item_routes
+    create_supplier_quotation_read_routes,
+    create_supplier_quotation_item_routes,
+    create_supplier_quotation_item_read_routes
 };
 
 // Import AppState for stateful routes
@@ -52,6 +61,24 @@ pub fn create_stateless_routes(module: &crate::BuyingModule) -> Router<()> {
         .merge(create_rfq_supplier_routes(module.rfq_supplier_service.clone()))
         .merge(create_supplier_quotation_routes(module.supplier_quotation_service.clone()))
         .merge(create_supplier_quotation_item_routes(module.supplier_quotation_item_service.clone()))
+}
+
+/// Read-only routes for the Buying module — every entity mounted READ-ONLY (the guarded base).
+///
+/// The generic `create_stateless_routes` exposes full mutable CRUD with no domain
+/// validation; this exposes only reads, so generic mutation can't bypass a write
+/// service's invariants. Extend it: `create_readonly_buying_routes(m).merge(my_validated_writes)`.
+pub fn create_readonly_buying_routes(module: &crate::BuyingModule) -> Router<()> {
+    Router::new()
+        .merge(create_material_request_read_routes(module.material_request_service.clone()))
+        .merge(create_material_request_item_read_routes(module.material_request_item_service.clone()))
+        .merge(create_purchase_order_read_routes(module.purchase_order_service.clone()))
+        .merge(create_purchase_order_item_read_routes(module.purchase_order_item_service.clone()))
+        .merge(create_request_for_quotation_read_routes(module.request_for_quotation_service.clone()))
+        .merge(create_rfq_item_read_routes(module.rfq_item_service.clone()))
+        .merge(create_rfq_supplier_read_routes(module.rfq_supplier_service.clone()))
+        .merge(create_supplier_quotation_read_routes(module.supplier_quotation_service.clone()))
+        .merge(create_supplier_quotation_item_read_routes(module.supplier_quotation_item_service.clone()))
 }
 
 /// Get all routes (stateless) for the Buying module.
