@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS buying.supplier_quotation_items (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     quotation_id UUID NOT NULL,
     item_id UUID NOT NULL,
-    quantity NUMERIC NOT NULL,
-    rate NUMERIC NOT NULL,
+    quantity NUMERIC(18, 4) NOT NULL CHECK (quantity >= 0),
+    rate NUMERIC(18, 2) NOT NULL CHECK (rate >= 0),
     lead_time_days INTEGER,
     metadata JSONB NOT NULL DEFAULT '{"created_at":null,"updated_at":null,"deleted_at":null,"created_by":null,"updated_by":null,"deleted_by":null}'::jsonb,
     PRIMARY KEY (id)

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS buying.material_request_items (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     request_id UUID NOT NULL,
     item_id UUID NOT NULL,
-    quantity NUMERIC NOT NULL,
+    quantity NUMERIC(18, 4) NOT NULL CHECK (quantity >= 0),
     metadata JSONB NOT NULL DEFAULT '{"created_at":null,"updated_at":null,"deleted_at":null,"created_by":null,"updated_by":null,"deleted_by":null}'::jsonb,
     PRIMARY KEY (id)
 );
