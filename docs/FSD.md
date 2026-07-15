@@ -22,9 +22,10 @@ warehouse→inventory.
   + `PurchaseOrderRef`.
 
 ## HTTP surface (presentation/http/guarded_routes.rs)
-`create_guarded_buying_routes(&BuyingModule, pool)` — read documents + validated `POST
-/purchase-orders` + `POST /purchase-orders/confirm`. No generic mutation. The receipt seam is
-service/job-driven.
+`create_guarded_buying_routes(&BuyingModule, pool, TenantVerifier)` — read documents + validated
+`POST /purchase-orders` + `POST /purchase-orders/confirm`. No generic mutation. The writes are
+tenant-guarded: `company_id`/`branch_id` come from the signed Bearer token (`TenantContext`), never
+from the request body. The receipt seam is service/job-driven.
 
 ## State machines
 - MR/RFQ/SQ: `draft → submitted → ordered` / `cancelled` (`PurchaseDocStatus`).

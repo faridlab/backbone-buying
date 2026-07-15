@@ -8,7 +8,11 @@
 
 use std::sync::Arc;
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{
+    extract::State, http::StatusCode, middleware::from_fn_with_state, response::IntoResponse,
+    routing::post, Json, Router,
+};
+use backbone_auth::tenant::{tenant_auth, TenantContext, TenantVerifier};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -54,8 +58,9 @@ struct CreatePoBody {
     po_number: String,
     #[serde(default)] supplier_quotation_id: Option<Uuid>,
     #[serde(default)] order_kind: Option<String>,
-    company_id: Uuid,
-    #[serde(default)] branch_id: Option<Uuid>,
+    // No `company_id` / `branch_id`: the tenant is derived from the signed token via
+    // `TenantContext`, never from the request body — a client must not be able to name the tenant
+    // it writes into.
     supplier_id: Uuid,
     order_date: chrono::NaiveDate,
     #[serde(default)] schedule_date: Option<chrono::NaiveDate>,
@@ -64,10 +69,14 @@ struct CreatePoBody {
     #[serde(default)] notes: Option<String>,
     lines: Vec<LineBody>,
 }
-async fn create_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<CreatePoBody>) -> axum::response::Response {
+async fn create_po(
+    State(svc): State<Arc<BuyingWriteService>>,
+    tenant: TenantContext,
+    Json(b): Json<CreatePoBody>,
+) -> axum::response::Response {
     let o = NewPurchaseOrder {
         po_number: b.po_number, supplier_quotation_id: b.supplier_quotation_id, order_kind: b.order_kind,
-        company_id: b.company_id, branch_id: b.branch_id, supplier_id: b.supplier_id, order_date: b.order_date,
+        company_id: tenant.company_id, branch_id: tenant.branch_id, supplier_id: b.supplier_id, order_date: b.order_date,
         schedule_date: b.schedule_date, currency: b.currency, tax_rate: b.tax_rate, notes: b.notes,
         lines: b.lines.into_iter().map(Into::into).collect(),
     };
@@ -87,20 +96,35 @@ async fn confirm_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<Co
     }
 }
 
-fn write_routes(svc: Arc<BuyingWriteService>) -> Router {
+fn write_routes(svc: Arc<BuyingWriteService>, verifier: TenantVerifier) -> Router {
     Router::new()
         .route("/purchase-orders", post(create_po))
         .route("/purchase-orders/confirm", post(confirm_po))
+        // Every write above is tenant-scoped: `tenant_auth` rejects a request whose token is absent,
+        // invalid, or carries no `company_id`, so a handler only ever runs with a proven tenant.
+        //
+        // `route_layer`, not `layer`: `layer` would also wrap this router's fallback, so once merged
+        // every *unmatched* path (e.g. the generic CRUD paths this surface deliberately does not
+        // mount) would answer 401 instead of 404 — leaking "auth required" for routes that do not
+        // exist, and masking the CRUD-bypass probes.
+        .route_layer(from_fn_with_state(verifier, tenant_auth))
         .with_state(svc)
 }
 
-/// Mount the buying module: read documents + validated creates. Generic mutation is not mounted.
-/// **Prefer this over `BuyingModule::all_crud_routes()` for any real deployment.**
-pub fn create_guarded_buying_routes(m: &BuyingModule, pool: PgPool) -> Router {
+/// Mount the buying module: read documents + validated, tenant-scoped creates. Generic mutation is
+/// not mounted. **Prefer this over `BuyingModule::all_crud_routes()` for any real deployment.**
+///
+/// The composing service builds one [`TenantVerifier`] from its JWT secret and passes it here; the
+/// write surface derives `company_id` from the token, so no tenant crosses the wire in a body.
+pub fn create_guarded_buying_routes(
+    m: &BuyingModule,
+    pool: PgPool,
+    verifier: TenantVerifier,
+) -> Router {
     let write = Arc::new(BuyingWriteService::new(pool));
     Router::new()
         .merge(create_material_request_read_routes(m.material_request_service.clone()))
         .merge(create_supplier_quotation_read_routes(m.supplier_quotation_service.clone()))
         .merge(create_purchase_order_read_routes(m.purchase_order_service.clone()))
-        .merge(write_routes(write))
+        .merge(write_routes(write, verifier))
 }
