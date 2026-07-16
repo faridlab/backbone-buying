@@ -8,7 +8,7 @@
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
-use backbone_auth::tenant::TenantVerifier;
+use backbone_auth::company::CompanyVerifier;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::Serialize;
 use sqlx::PgPool;
@@ -44,7 +44,7 @@ async fn module(pool: &PgPool) -> BuyingModule {
     BuyingModule::builder().with_database(pool.clone()).build().unwrap()
 }
 fn app(pool: &PgPool, m: &BuyingModule) -> axum::Router {
-    create_guarded_buying_routes(m, pool.clone(), TenantVerifier::hs256(SECRET))
+    create_guarded_buying_routes(m, pool.clone(), CompanyVerifier::hs256(SECRET))
 }
 
 /// Send a request with an optional bearer token.

@@ -12,7 +12,7 @@ use axum::{
     extract::State, http::StatusCode, middleware::from_fn_with_state, response::IntoResponse,
     routing::post, Json, Router,
 };
-use backbone_auth::tenant::{tenant_auth, TenantContext, TenantVerifier};
+use backbone_auth::company::{company_auth, CompanyContext, CompanyVerifier};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -59,7 +59,7 @@ struct CreatePoBody {
     #[serde(default)] supplier_quotation_id: Option<Uuid>,
     #[serde(default)] order_kind: Option<String>,
     // No `company_id` / `branch_id`: the tenant is derived from the signed token via
-    // `TenantContext`, never from the request body — a client must not be able to name the tenant
+    // `CompanyContext`, never from the request body — a client must not be able to name the tenant
     // it writes into.
     supplier_id: Uuid,
     order_date: chrono::NaiveDate,
@@ -71,7 +71,7 @@ struct CreatePoBody {
 }
 async fn create_po(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: TenantContext,
+    tenant: CompanyContext,
     Json(b): Json<CreatePoBody>,
 ) -> axum::response::Response {
     let o = NewPurchaseOrder {
@@ -96,30 +96,30 @@ async fn confirm_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<Co
     }
 }
 
-fn write_routes(svc: Arc<BuyingWriteService>, verifier: TenantVerifier) -> Router {
+fn write_routes(svc: Arc<BuyingWriteService>, verifier: CompanyVerifier) -> Router {
     Router::new()
         .route("/purchase-orders", post(create_po))
         .route("/purchase-orders/confirm", post(confirm_po))
-        // Every write above is tenant-scoped: `tenant_auth` rejects a request whose token is absent,
+        // Every write above is tenant-scoped: `company_auth` rejects a request whose token is absent,
         // invalid, or carries no `company_id`, so a handler only ever runs with a proven tenant.
         //
         // `route_layer`, not `layer`: `layer` would also wrap this router's fallback, so once merged
         // every *unmatched* path (e.g. the generic CRUD paths this surface deliberately does not
         // mount) would answer 401 instead of 404 — leaking "auth required" for routes that do not
         // exist, and masking the CRUD-bypass probes.
-        .route_layer(from_fn_with_state(verifier, tenant_auth))
+        .route_layer(from_fn_with_state(verifier, company_auth))
         .with_state(svc)
 }
 
 /// Mount the buying module: read documents + validated, tenant-scoped creates. Generic mutation is
 /// not mounted. **Prefer this over `BuyingModule::all_crud_routes()` for any real deployment.**
 ///
-/// The composing service builds one [`TenantVerifier`] from its JWT secret and passes it here; the
+/// The composing service builds one [`CompanyVerifier`] from its JWT secret and passes it here; the
 /// write surface derives `company_id` from the token, so no tenant crosses the wire in a body.
 pub fn create_guarded_buying_routes(
     m: &BuyingModule,
     pool: PgPool,
-    verifier: TenantVerifier,
+    verifier: CompanyVerifier,
 ) -> Router {
     let write = Arc::new(BuyingWriteService::new(pool));
     Router::new()
