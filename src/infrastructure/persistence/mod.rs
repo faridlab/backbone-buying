@@ -38,4 +38,22 @@ pub use backbone_orm::repository::{
 
 // Re-export custom persistence types
 // <<< CUSTOM
+// The hand-written buying SQL's parameter/projection types. Every repository listed here is declared
+// `user_owned` in metaphor.codegen.yaml — see the write service, which orchestrates them.
+pub use material_request_repository::{MaterialRequestSourceRow, NewMaterialRequestRow};
+pub use material_request_item_repository::{NewMaterialRequestItemRow, RequestedLineRow};
+pub use purchase_order_repository::{
+    ConfirmedOrderRow, MatchWatermarkRow, NewPurchaseOrderRow, PurchaseOrderHeaderRow,
+    PurchaseOrderRefRow,
+};
+pub use purchase_order_item_repository::{
+    AllocatableLineRow, MatchWatermark, NewPurchaseOrderItemRow, RemainingLineRow,
+};
+pub use request_for_quotation_repository::{NewRfqRow, RfqSourceRow};
+pub use rfq_item_repository::{NewRfqItemRow, RfqLineRow};
+pub use rfq_supplier_repository::NewRfqSupplierRow;
+pub use supplier_quotation_repository::{
+    NewQuotationFromRfqRow, NewSupplierQuotationRow, SupplierQuotationSourceRow,
+};
+pub use supplier_quotation_item_repository::{NewSupplierQuotationItemRow, QuotedLineRow};
 // END CUSTOM

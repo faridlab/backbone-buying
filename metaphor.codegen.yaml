@@ -13,6 +13,19 @@
 user_owned:
   - "src/application/service/buying_events.rs"
   - "src/application/service/buying_write_service.rs"
+  # Own the hand-written buying SQL (the procure-to-pay funnel's header+line inserts and state flips,
+  # the receipt seam's remaining-quantity read, the 3-way-match allocation's locking read + watermark
+  # bumps) that the write service orchestrates. Declared here — not renamed with a `_custom` suffix —
+  # so the generator skips them wholesale; this declaration is what makes editing them legitimate.
+  - "src/infrastructure/persistence/material_request_repository.rs"
+  - "src/infrastructure/persistence/material_request_item_repository.rs"
+  - "src/infrastructure/persistence/purchase_order_repository.rs"
+  - "src/infrastructure/persistence/purchase_order_item_repository.rs"
+  - "src/infrastructure/persistence/request_for_quotation_repository.rs"
+  - "src/infrastructure/persistence/rfq_item_repository.rs"
+  - "src/infrastructure/persistence/rfq_supplier_repository.rs"
+  - "src/infrastructure/persistence/supplier_quotation_repository.rs"
+  - "src/infrastructure/persistence/supplier_quotation_item_repository.rs"
   - "src/presentation/http/guarded_routes.rs"
   - "tests/buying_golden_cases.rs"
   - "tests/integrity_probes.rs"
