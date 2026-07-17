@@ -8,6 +8,7 @@
 //! inventory's `ReceiptExpected`); `mark_received` / `mark_billed` advance the 3-way-match
 //! watermarks and recompute the PO status. Buying emits NO `AccountingPost`.
 
+use backbone_orm::company_scope;
 use rust_decimal::{Decimal, RoundingStrategy};
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
@@ -189,7 +190,11 @@ impl BuyingWriteService {
         for l in &m.lines { if l.quantity < Decimal::ZERO { return Err(BuyingError::NegativeQuantity); } }
         let id = Uuid::new_v4();
         let rt = m.request_type.unwrap_or_else(|| "purchase".into());
+        // RLS scope (ADR-0008): company is on the DTO — bind it onto our own transaction so the
+        // header+lines insert passes the WITH CHECK fence. Explicit `company_id` binds stay as
+        // defense-in-depth.
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_company_on(&mut tx, m.company_id).await?;
         let r = sqlx::query(
             r#"INSERT INTO buying.material_requests
                 (id, request_number, company_id, request_type, status, request_date, schedule_date, notes)
@@ -217,24 +222,32 @@ impl BuyingWriteService {
         &self, request_id: Uuid, rfq_number: String, response_due: Option<chrono::NaiveDate>,
         supplier_ids: &[Uuid],
     ) -> Result<Uuid, BuyingError> {
-        let mr = sqlx::query(
-            r#"SELECT company_id, status::text AS st FROM buying.material_requests
-               WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(request_id).fetch_optional(&self.db_pool).await?
+        // RLS scope (ADR-0008), ID-only pattern: identified by the MR id alone — the reads ride the
+        // request-dedicated connection (which carries the caller's `app.company_id`), so another
+        // company's MR simply isn't found. The company read off the row then binds our transaction.
+        let mr = company_scope::fetch_optional_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT company_id, status::text AS st FROM buying.material_requests
+                   WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(request_id),
+        ).await?
         .ok_or(BuyingError::SourceNotFound(request_id))?;
         let company_id: Uuid = mr.get("company_id");
         if mr.get::<String, _>("st") == "cancelled" {
             return Err(BuyingError::SourceNotConvertible(request_id.to_string()));
         }
-        let items = sqlx::query(
-            r#"SELECT item_id, quantity FROM buying.material_request_items
-               WHERE request_id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(request_id).fetch_all(&self.db_pool).await?;
+        let items = company_scope::fetch_all_rows_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT item_id, quantity FROM buying.material_request_items
+                   WHERE request_id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(request_id),
+        ).await?;
 
         let id = Uuid::new_v4();
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_company_on(&mut tx, company_id).await?;
         let r = sqlx::query(
             r#"INSERT INTO buying.request_for_quotations
                 (id, rfq_number, material_request_id, company_id, status, rfq_date, response_due)
@@ -269,25 +282,31 @@ impl BuyingWriteService {
         &self, rfq_id: Uuid, quotation_number: String, supplier_id: Uuid,
         quoted_rates: &[(Uuid, Decimal)], // (item_id, rate)
     ) -> Result<Uuid, BuyingError> {
-        let rfq = sqlx::query(
-            r#"SELECT company_id, status::text AS st FROM buying.request_for_quotations
-               WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(rfq_id).fetch_optional(&self.db_pool).await?
+        // RLS scope (ADR-0008), ID-only pattern — see `convert_material_request_to_rfq`.
+        let rfq = company_scope::fetch_optional_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT company_id, status::text AS st FROM buying.request_for_quotations
+                   WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(rfq_id),
+        ).await?
         .ok_or(BuyingError::SourceNotFound(rfq_id))?;
         let company_id: Uuid = rfq.get("company_id");
         if rfq.get::<String, _>("st") == "cancelled" {
             return Err(BuyingError::SourceNotConvertible(rfq_id.to_string()));
         }
-        let items = sqlx::query(
-            r#"SELECT item_id, quantity FROM buying.rfq_items
-               WHERE rfq_id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(rfq_id).fetch_all(&self.db_pool).await?;
+        let items = company_scope::fetch_all_rows_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT item_id, quantity FROM buying.rfq_items
+                   WHERE rfq_id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(rfq_id),
+        ).await?;
         let rate_of = |item: Uuid| quoted_rates.iter().find(|(i, _)| *i == item).map(|(_, r)| *r).unwrap_or(Decimal::ZERO);
 
         let id = Uuid::new_v4();
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_company_on(&mut tx, company_id).await?;
         let r = sqlx::query(
             r#"INSERT INTO buying.supplier_quotations
                 (id, quotation_number, rfq_id, company_id, supplier_id, status, quotation_date, currency)
@@ -316,20 +335,25 @@ impl BuyingWriteService {
     pub async fn convert_supplier_quotation_to_po(
         &self, quotation_id: Uuid, po_number: String, tax_rate: Decimal,
     ) -> Result<Uuid, BuyingError> {
-        let sq = sqlx::query(
-            r#"SELECT company_id, supplier_id, currency, status::text AS st
-               FROM buying.supplier_quotations WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(quotation_id).fetch_optional(&self.db_pool).await?
+        // RLS scope (ADR-0008), ID-only pattern — see `convert_material_request_to_rfq`.
+        let sq = company_scope::fetch_optional_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT company_id, supplier_id, currency, status::text AS st
+                   FROM buying.supplier_quotations WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(quotation_id),
+        ).await?
         .ok_or(BuyingError::SourceNotFound(quotation_id))?;
         if sq.get::<String, _>("st") != "submitted" {
             return Err(BuyingError::SourceNotConvertible(quotation_id.to_string()));
         }
-        let items = sqlx::query(
-            r#"SELECT item_id, quantity, rate FROM buying.supplier_quotation_items
-               WHERE quotation_id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(quotation_id).fetch_all(&self.db_pool).await?;
+        let items = company_scope::fetch_all_rows_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT item_id, quantity, rate FROM buying.supplier_quotation_items
+                   WHERE quotation_id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(quotation_id),
+        ).await?;
         if items.is_empty() {
             return Err(BuyingError::EmptyDocument);
         }
@@ -341,11 +365,12 @@ impl BuyingWriteService {
             rate: it.get("rate"),
         }).collect();
 
+        let sq_company: Uuid = sq.get("company_id");
         let order_id = self.create_purchase_order(NewPurchaseOrder {
             po_number,
             supplier_quotation_id: Some(quotation_id),
             order_kind: None,
-            company_id: sq.get("company_id"),
+            company_id: sq_company,
             branch_id: None,
             supplier_id: sq.get("supplier_id"),
             order_date: chrono::Utc::now().date_naive(),
@@ -356,18 +381,29 @@ impl BuyingWriteService {
             lines,
         }).await?;
 
-        sqlx::query("UPDATE buying.supplier_quotations SET status='ordered'::purchase_doc_status WHERE id=$1")
-            .bind(quotation_id).execute(&self.db_pool).await?;
+        // The SQ's company was just read off its row — scope the status flip on it explicitly, so this
+        // is correct for non-request callers too.
+        company_scope::with_company_scope(
+            Some(sq_company),
+            company_scope::execute_scoped(
+                &self.db_pool,
+                sqlx::query("UPDATE buying.supplier_quotations SET status='ordered'::purchase_doc_status WHERE id=$1")
+                    .bind(quotation_id),
+            ),
+        ).await?;
         Ok(order_id)
     }
 
     /// Load the exported `PurchaseOrderRef` (the brief §42 cross-module DTO) for one PO.
     pub async fn purchase_order_ref(&self, order_id: Uuid) -> Result<PurchaseOrderRef, BuyingError> {
-        let row = sqlx::query(
-            r#"SELECT supplier_id, company_id, order_kind::text AS kind, total, currency
-               FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(order_id).fetch_optional(&self.db_pool).await?
+        // RLS scope (ADR-0008), ID-only pattern: read rides the request-dedicated connection.
+        let row = company_scope::fetch_optional_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT supplier_id, company_id, order_kind::text AS kind, total, currency
+                   FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(order_id),
+        ).await?
         .ok_or(BuyingError::OrderNotFound(order_id))?;
         Ok(PurchaseOrderRef {
             id: order_id,
@@ -385,7 +421,9 @@ impl BuyingWriteService {
         let (priced, _sub, _tax, _tot) = price_document(&q.lines, Decimal::ZERO)?;
         let id = Uuid::new_v4();
         let currency = q.currency.unwrap_or_else(|| "IDR".into());
+        // RLS scope (ADR-0008): company is on the DTO — bind it onto our own transaction.
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_company_on(&mut tx, q.company_id).await?;
         let r = sqlx::query(
             r#"INSERT INTO buying.supplier_quotations
                 (id, quotation_number, rfq_id, company_id, supplier_id, status, quotation_date, valid_till, currency)
@@ -412,7 +450,9 @@ impl BuyingWriteService {
         let id = Uuid::new_v4();
         let currency = o.currency.unwrap_or_else(|| "IDR".into());
         let kind = o.order_kind.unwrap_or_else(|| "standard".into());
+        // RLS scope (ADR-0008): company is on the DTO — bind it onto our own transaction.
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_company_on(&mut tx, o.company_id).await?;
         let r = sqlx::query(
             r#"INSERT INTO buying.purchase_orders
                 (id, po_number, supplier_quotation_id, order_kind, company_id, branch_id, supplier_id,
@@ -443,12 +483,16 @@ impl BuyingWriteService {
     /// Confirm a draft PO → `to_receive_and_bill` (awaiting both receipt and billing). Emits
     /// `PurchaseOrderConfirmed`.
     pub async fn confirm_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        let row = sqlx::query(
-            r#"UPDATE buying.purchase_orders SET status='to_receive_and_bill'::purchase_order_status
-               WHERE id=$1 AND status='draft'::purchase_order_status AND (metadata->>'deleted_at') IS NULL
-               RETURNING company_id, supplier_id, total, currency"#,
-        )
-        .bind(order_id).fetch_optional(&self.db_pool).await?
+        // RLS scope (ADR-0008), ID-only pattern: the UPDATE ... RETURNING rides the request-dedicated
+        // connection, so it can only confirm a PO in the caller's own company.
+        let row = company_scope::fetch_optional_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders SET status='to_receive_and_bill'::purchase_order_status
+                   WHERE id=$1 AND status='draft'::purchase_order_status AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id, supplier_id, total, currency"#,
+            ).bind(order_id),
+        ).await?
         .ok_or_else(|| BuyingError::NotConfirmable(order_id.to_string()))?;
         self.sink.publish(BuyingEvent::PurchaseOrderConfirmed(PurchaseOrderConfirmed {
             order_id, company_id: row.get("company_id"), supplier_id: row.get("supplier_id"),
@@ -463,21 +507,26 @@ impl BuyingWriteService {
     /// maps it into inventory's `ReceiptExpected`). Requests the not-yet-received quantity per line.
     /// Emits `ReceiptRequested`.
     pub async fn build_receipt_request(&self, order_id: Uuid) -> Result<ReceiptRequestEnvelope, BuyingError> {
-        let hdr = sqlx::query(
-            r#"SELECT company_id, supplier_id, currency, status::text AS st
-               FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
-        )
-        .bind(order_id).fetch_optional(&self.db_pool).await?
+        // RLS scope (ADR-0008), ID-only pattern: read-only, reads ride the request-dedicated connection.
+        let hdr = company_scope::fetch_optional_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT company_id, supplier_id, currency, status::text AS st
+                   FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+            ).bind(order_id),
+        ).await?
         .ok_or(BuyingError::OrderNotFound(order_id))?;
         if hdr.get::<String, _>("st") == "draft" {
             return Err(BuyingError::NotConfirmable(order_id.to_string()));
         }
-        let rows = sqlx::query(
-            r#"SELECT item_id, rate, (quantity - received_qty) AS remaining
-               FROM buying.purchase_order_items
-               WHERE order_id=$1 AND (metadata->>'deleted_at') IS NULL AND (quantity - received_qty) > 0"#,
-        )
-        .bind(order_id).fetch_all(&self.db_pool).await?;
+        let rows = company_scope::fetch_all_rows_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT item_id, rate, (quantity - received_qty) AS remaining
+                   FROM buying.purchase_order_items
+                   WHERE order_id=$1 AND (metadata->>'deleted_at') IS NULL AND (quantity - received_qty) > 0"#,
+            ).bind(order_id),
+        ).await?;
         let lines: Vec<ReceiptRequestLine> = rows.iter().map(|r| ReceiptRequestLine {
             item_id: r.get("item_id"), quantity: r.get("remaining"), rate: r.get("rate"),
         }).collect();
@@ -493,7 +542,13 @@ impl BuyingWriteService {
     /// received quantity across the item's PO lines, filling each up to `quantity` (the 3-way-match
     /// ceiling — no over-receipt tolerance configured, council 2026-07-05). Rejects over-receipt.
     pub async fn mark_received(&self, order_id: Uuid, receipts: &[(Uuid, Decimal)]) -> Result<(), BuyingError> {
+        // RLS scope (ADR-0008): this method carries NO company — it is identified by the PO id alone.
+        // Under HTTP the request-dedicated connection supplies the scope. When driven by an EVENT
+        // (inventory's `StockReceived`), the CALLER must wrap this in
+        // `with_company_scope(Some(event.company_id))` — the event carries the company — or the
+        // allocation reads/writes below fail closed.
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_current_company(&mut tx).await?;
         for (item_id, qty) in receipts {
             // capacity per line = quantity - received_qty
             if let Err(e) = Self::allocate(&mut tx, order_id, *item_id, *qty, "received_qty", "quantity",
@@ -516,7 +571,11 @@ impl BuyingWriteService {
     /// the billed quantity across the item's lines, capped at `received_qty` (invoice ≤ receipt —
     /// the 3-way-match invariant). Rejects over-billing.
     pub async fn mark_billed(&self, order_id: Uuid, billed: &[(Uuid, Decimal)]) -> Result<(), BuyingError> {
+        // RLS scope (ADR-0008): no company on this method — see `mark_received`. When driven by an
+        // EVENT (billing's `PurchaseInvoicePosted`), the CALLER must wrap this in
+        // `with_company_scope(Some(event.company_id))`.
         let mut tx = self.db_pool.begin().await?;
+        company_scope::bind_current_company(&mut tx).await?;
         for (item_id, qty) in billed {
             // capacity per line = received_qty - billed_qty
             if let Err(e) = Self::allocate(&mut tx, order_id, *item_id, *qty, "billed_qty", "received_qty",
@@ -567,16 +626,21 @@ impl BuyingWriteService {
     /// fully received AND fully billed; else `to_receive` / `to_bill` / `to_receive_and_bill`. Emits
     /// `PurchaseOrderFullyReceived` / `PurchaseOrderFullyBilled` on the transition into each milestone.
     async fn recompute_order_status(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        let row = sqlx::query(
-            r#"SELECT po.company_id, po.status::text AS prior,
-                      bool_and(i.received_qty >= i.quantity) AS received_all,
-                      bool_and(i.billed_qty >= i.quantity) AS billed_all
-               FROM buying.purchase_order_items i
-               JOIN buying.purchase_orders po ON po.id = i.order_id
-               WHERE i.order_id=$1 AND (i.metadata->>'deleted_at') IS NULL
-               GROUP BY po.company_id, po.status"#,
-        )
-        .bind(order_id).fetch_one(&self.db_pool).await?;
+        // RLS scope (ADR-0008), ID-only pattern: no company argument — this runs under whatever scope
+        // its caller (`mark_received` / `mark_billed`) established, i.e. the request connection under
+        // HTTP or the event caller's `with_company_scope`.
+        let row = company_scope::fetch_one_row_scoped(
+            &self.db_pool,
+            sqlx::query(
+                r#"SELECT po.company_id, po.status::text AS prior,
+                          bool_and(i.received_qty >= i.quantity) AS received_all,
+                          bool_and(i.billed_qty >= i.quantity) AS billed_all
+                   FROM buying.purchase_order_items i
+                   JOIN buying.purchase_orders po ON po.id = i.order_id
+                   WHERE i.order_id=$1 AND (i.metadata->>'deleted_at') IS NULL
+                   GROUP BY po.company_id, po.status"#,
+            ).bind(order_id),
+        ).await?;
         let company_id: Uuid = row.get("company_id");
         let prior: String = row.get("prior");
         let received_all = row.get::<Option<bool>, _>("received_all").unwrap_or(false);
@@ -587,11 +651,17 @@ impl BuyingWriteService {
             (false, true) => "to_receive",
             (false, false) => "to_receive_and_bill",
         };
-        sqlx::query(
-            r#"UPDATE buying.purchase_orders SET status=$2::purchase_order_status
-               WHERE id=$1 AND status = ANY(ARRAY['to_receive','to_bill','to_receive_and_bill']::purchase_order_status[])"#,
-        )
-        .bind(order_id).bind(next).execute(&self.db_pool).await?;
+        // The PO's company was just read off the row above — scope the status flip on it explicitly.
+        company_scope::with_company_scope(
+            Some(company_id),
+            company_scope::execute_scoped(
+                &self.db_pool,
+                sqlx::query(
+                    r#"UPDATE buying.purchase_orders SET status=$2::purchase_order_status
+                       WHERE id=$1 AND status = ANY(ARRAY['to_receive','to_bill','to_receive_and_bill']::purchase_order_status[])"#,
+                ).bind(order_id).bind(next),
+            ),
+        ).await?;
 
         // Milestone events on the FIRST transition into full receipt / full billing.
         let was_received = matches!(prior.as_str(), "to_bill" | "completed");

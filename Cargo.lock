@@ -243,12 +243,13 @@ dependencies = [
 [[package]]
 name = "backbone-auth"
 version = "2.0.0"
-source = "git+https://github.com/faridlab/backbone-framework?branch=main#58b0e968d2673d348f76413e4e10de1c92255f40"
+source = "git+https://github.com/faridlab/backbone-framework?branch=main#938d7b9b6eeb7c2e189eb7dabea558c513726b84"
 dependencies = [
  "anyhow",
  "argon2",
  "async-trait",
  "axum",
+ "backbone-orm",
  "chrono",
  "email_address",
  "jsonwebtoken",
@@ -309,7 +310,7 @@ dependencies = [
 [[package]]
 name = "backbone-core"
 version = "2.0.0"
-source = "git+https://github.com/faridlab/backbone-framework?branch=main#58b0e968d2673d348f76413e4e10de1c92255f40"
+source = "git+https://github.com/faridlab/backbone-framework?branch=main#938d7b9b6eeb7c2e189eb7dabea558c513726b84"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -368,7 +369,7 @@ dependencies = [
 [[package]]
 name = "backbone-messaging"
 version = "2.0.0"
-source = "git+https://github.com/faridlab/backbone-framework?branch=main#58b0e968d2673d348f76413e4e10de1c92255f40"
+source = "git+https://github.com/faridlab/backbone-framework?branch=main#938d7b9b6eeb7c2e189eb7dabea558c513726b84"
 dependencies = [
  "async-trait",
  "chrono",
@@ -383,7 +384,7 @@ dependencies = [
 [[package]]
 name = "backbone-orm"
 version = "2.0.0"
-source = "git+https://github.com/faridlab/backbone-framework?branch=main#58b0e968d2673d348f76413e4e10de1c92255f40"
+source = "git+https://github.com/faridlab/backbone-framework?branch=main#938d7b9b6eeb7c2e189eb7dabea558c513726b84"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -816,7 +817,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1706,7 +1707,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2565,7 +2566,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2854,7 +2855,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3179,7 +3180,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
