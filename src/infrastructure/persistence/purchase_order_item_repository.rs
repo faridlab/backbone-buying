@@ -46,6 +46,7 @@ impl PurchaseOrderItemRepository {
 pub struct NewPurchaseOrderItemRow<'a> {
     pub id: Uuid,
     pub order_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub warehouse_id: Option<Uuid>,
     pub description: Option<&'a str>,
@@ -114,10 +115,10 @@ impl PurchaseOrderItemRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.purchase_order_items
-                (id, order_id, item_id, warehouse_id, description, quantity, rate, line_amount)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)"#,
+                (id, order_id, company_id, item_id, warehouse_id, description, quantity, rate, line_amount)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"#,
         )
-        .bind(l.id).bind(l.order_id).bind(l.item_id).bind(l.warehouse_id).bind(l.description)
+        .bind(l.id).bind(l.order_id).bind(l.company_id).bind(l.item_id).bind(l.warehouse_id).bind(l.description)
         .bind(l.quantity).bind(l.rate).bind(l.line_amount)
         .execute(conn)
         .await?;

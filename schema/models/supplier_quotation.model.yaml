@@ -94,6 +94,11 @@ models:
         attributes: ["@required", "@foreign_key(SupplierQuotation.id)"]
         description: "Owning supplier quotation"
 
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company (denormalized from SupplierQuotation for ADR-0010 direct RLS) # logical FK to organization.Company.id"
+
       item_id:
         type: uuid
         attributes: ["@required", "@exclude_from_foreign_key_check"]

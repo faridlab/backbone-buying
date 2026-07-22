@@ -44,6 +44,7 @@ impl MaterialRequestItemRepository {
 pub struct NewMaterialRequestItemRow {
     pub id: Uuid,
     pub request_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
 }
@@ -67,9 +68,9 @@ impl MaterialRequestItemRepository {
         l: &NewMaterialRequestItemRow,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT INTO buying.material_request_items (id, request_id, item_id, quantity) VALUES ($1,$2,$3,$4)",
+            "INSERT INTO buying.material_request_items (id, request_id, company_id, item_id, quantity) VALUES ($1,$2,$3,$4,$5)",
         )
-        .bind(l.id).bind(l.request_id).bind(l.item_id).bind(l.quantity)
+        .bind(l.id).bind(l.request_id).bind(l.company_id).bind(l.item_id).bind(l.quantity)
         .execute(conn)
         .await?;
         Ok(())

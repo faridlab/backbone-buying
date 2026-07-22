@@ -43,6 +43,7 @@ impl RfqItemRepository {
 pub struct NewRfqItemRow {
     pub id: Uuid,
     pub rfq_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
 }
@@ -65,9 +66,9 @@ impl RfqItemRepository {
         l: &NewRfqItemRow,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT INTO buying.rfq_items (id, rfq_id, item_id, quantity) VALUES ($1,$2,$3,$4)",
+            "INSERT INTO buying.rfq_items (id, rfq_id, company_id, item_id, quantity) VALUES ($1,$2,$3,$4,$5)",
         )
-        .bind(l.id).bind(l.rfq_id).bind(l.item_id).bind(l.quantity)
+        .bind(l.id).bind(l.rfq_id).bind(l.company_id).bind(l.item_id).bind(l.quantity)
         .execute(conn)
         .await?;
         Ok(())

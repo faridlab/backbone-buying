@@ -129,6 +129,11 @@ models:
         attributes: ["@required", "@foreign_key(PurchaseOrder.id)"]
         description: "Owning purchase order"
 
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company (denormalized from PurchaseOrder for ADR-0010 direct RLS) # logical FK to organization.Company.id"
+
       item_id:
         type: uuid
         attributes: ["@required", "@exclude_from_foreign_key_check"]

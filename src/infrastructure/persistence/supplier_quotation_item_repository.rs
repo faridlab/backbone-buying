@@ -44,6 +44,7 @@ impl SupplierQuotationItemRepository {
 pub struct NewSupplierQuotationItemRow {
     pub id: Uuid,
     pub quotation_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -69,9 +70,9 @@ impl SupplierQuotationItemRepository {
         l: &NewSupplierQuotationItemRow,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT INTO buying.supplier_quotation_items (id, quotation_id, item_id, quantity, rate) VALUES ($1,$2,$3,$4,$5)",
+            "INSERT INTO buying.supplier_quotation_items (id, quotation_id, company_id, item_id, quantity, rate) VALUES ($1,$2,$3,$4,$5,$6)",
         )
-        .bind(l.id).bind(l.quotation_id).bind(l.item_id).bind(l.quantity).bind(l.rate)
+        .bind(l.id).bind(l.quotation_id).bind(l.company_id).bind(l.item_id).bind(l.quantity).bind(l.rate)
         .execute(conn)
         .await?;
         Ok(())

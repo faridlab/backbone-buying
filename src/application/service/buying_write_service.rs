@@ -250,7 +250,7 @@ impl BuyingWriteService {
         }
         for l in &m.lines {
             self.repos.material_request_items.insert_item(&mut tx, &NewMaterialRequestItemRow {
-                id: Uuid::new_v4(), request_id: id, item_id: l.item_id, quantity: l.quantity,
+                id: Uuid::new_v4(), request_id: id, company_id: m.company_id, item_id: l.item_id, quantity: l.quantity,
             }).await?;
         }
         tx.commit().await?;
@@ -292,12 +292,12 @@ impl BuyingWriteService {
         }
         for it in &items {
             self.repos.rfq_items.insert_item(&mut tx, &NewRfqItemRow {
-                id: Uuid::new_v4(), rfq_id: id, item_id: it.item_id, quantity: it.quantity,
+                id: Uuid::new_v4(), rfq_id: id, company_id, item_id: it.item_id, quantity: it.quantity,
             }).await?;
         }
         for sup in supplier_ids {
             self.repos.rfq_suppliers.insert_supplier(&mut tx, &NewRfqSupplierRow {
-                id: Uuid::new_v4(), rfq_id: id, supplier_id: *sup,
+                id: Uuid::new_v4(), rfq_id: id, company_id, supplier_id: *sup,
             }).await?;
         }
         self.repos.material_requests.mark_ordered(&mut tx, request_id).await?;
@@ -339,7 +339,7 @@ impl BuyingWriteService {
         }
         for it in &items {
             self.repos.supplier_quotation_items.insert_item(&mut tx, &NewSupplierQuotationItemRow {
-                id: Uuid::new_v4(), quotation_id: id, item_id: it.item_id,
+                id: Uuid::new_v4(), quotation_id: id, company_id, item_id: it.item_id,
                 quantity: it.quantity, rate: rate_of(it.item_id),
             }).await?;
         }
@@ -437,7 +437,7 @@ impl BuyingWriteService {
         }
         for p in &priced {
             self.repos.supplier_quotation_items.insert_item(&mut tx, &NewSupplierQuotationItemRow {
-                id: Uuid::new_v4(), quotation_id: id, item_id: p.item_id,
+                id: Uuid::new_v4(), quotation_id: id, company_id: q.company_id, item_id: p.item_id,
                 quantity: p.quantity, rate: p.rate,
             }).await?;
         }
@@ -477,7 +477,7 @@ impl BuyingWriteService {
         }
         for p in &priced {
             self.repos.purchase_order_items.insert_item(&mut tx, &NewPurchaseOrderItemRow {
-                id: Uuid::new_v4(), order_id: id, item_id: p.item_id, warehouse_id: p.warehouse_id,
+                id: Uuid::new_v4(), order_id: id, company_id: o.company_id, item_id: p.item_id, warehouse_id: p.warehouse_id,
                 description: p.description.as_deref(), quantity: p.quantity, rate: p.rate,
                 line_amount: p.line_amount,
             }).await?;
