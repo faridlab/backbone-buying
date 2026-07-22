@@ -303,6 +303,9 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrder {
     fn search_fields() -> &'static [&'static str] {
         &["po_number", "currency"]
     }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
+    }
 }
 
 /// Builder for PurchaseOrder entity

@@ -4,8 +4,12 @@
 -- but extended to the five child tables whose only route to the company used to be a JOIN.
 --
 -- For each child: ADD COLUMN company_id UUID nullable → backfill from the parent (verified
--- parent FK below) → SET NOT NULL → add the FK to organization.companies → ENABLE + FORCE
+-- parent FK below) → SET NOT NULL → ENABLE + FORCE
 -- RLS → CREATE POLICY USING/WITH CHECK (company_id = NULLIF(current_setting('app.company_id', true), '')::uuid).
+--
+-- No hard FK to organization.companies is added: like every other catalog/billing/selling child,
+-- company_id is a LOGICAL FK only (modules own their own schema, cross-module hard FKs are avoided
+-- so each module stays independently deployable). RLS is the fence, not the FK.
 --
 -- Parent FK map (each child has exactly one parent FK → no ambiguity):
 --   material_request_items.request_id     → buying.material_requests.id
@@ -26,12 +30,6 @@ UPDATE buying.material_request_items AS c
    AND c.company_id IS NULL;
 
 ALTER TABLE buying.material_request_items ALTER COLUMN company_id SET NOT NULL;
-
-ALTER TABLE buying.material_request_items
-    DROP CONSTRAINT IF EXISTS fk_material_request_items_company_id;
-ALTER TABLE buying.material_request_items
-    ADD CONSTRAINT fk_material_request_items_company_id
-    FOREIGN KEY (company_id) REFERENCES organization.companies (id);
 
 ALTER TABLE buying.material_request_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE buying.material_request_items FORCE  ROW LEVEL SECURITY;
@@ -54,12 +52,6 @@ UPDATE buying.purchase_order_items AS c
 
 ALTER TABLE buying.purchase_order_items ALTER COLUMN company_id SET NOT NULL;
 
-ALTER TABLE buying.purchase_order_items
-    DROP CONSTRAINT IF EXISTS fk_purchase_order_items_company_id;
-ALTER TABLE buying.purchase_order_items
-    ADD CONSTRAINT fk_purchase_order_items_company_id
-    FOREIGN KEY (company_id) REFERENCES organization.companies (id);
-
 ALTER TABLE buying.purchase_order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE buying.purchase_order_items FORCE  ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS purchase_order_items_company_isolation ON buying.purchase_order_items;
@@ -80,12 +72,6 @@ UPDATE buying.rfq_items AS c
    AND c.company_id IS NULL;
 
 ALTER TABLE buying.rfq_items ALTER COLUMN company_id SET NOT NULL;
-
-ALTER TABLE buying.rfq_items
-    DROP CONSTRAINT IF EXISTS fk_rfq_items_company_id;
-ALTER TABLE buying.rfq_items
-    ADD CONSTRAINT fk_rfq_items_company_id
-    FOREIGN KEY (company_id) REFERENCES organization.companies (id);
 
 ALTER TABLE buying.rfq_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE buying.rfq_items FORCE  ROW LEVEL SECURITY;
@@ -108,12 +94,6 @@ UPDATE buying.rfq_suppliers AS c
 
 ALTER TABLE buying.rfq_suppliers ALTER COLUMN company_id SET NOT NULL;
 
-ALTER TABLE buying.rfq_suppliers
-    DROP CONSTRAINT IF EXISTS fk_rfq_suppliers_company_id;
-ALTER TABLE buying.rfq_suppliers
-    ADD CONSTRAINT fk_rfq_suppliers_company_id
-    FOREIGN KEY (company_id) REFERENCES organization.companies (id);
-
 ALTER TABLE buying.rfq_suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE buying.rfq_suppliers FORCE  ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS rfq_suppliers_company_isolation ON buying.rfq_suppliers;
@@ -134,12 +114,6 @@ UPDATE buying.supplier_quotation_items AS c
    AND c.company_id IS NULL;
 
 ALTER TABLE buying.supplier_quotation_items ALTER COLUMN company_id SET NOT NULL;
-
-ALTER TABLE buying.supplier_quotation_items
-    DROP CONSTRAINT IF EXISTS fk_supplier_quotation_items_company_id;
-ALTER TABLE buying.supplier_quotation_items
-    ADD CONSTRAINT fk_supplier_quotation_items_company_id
-    FOREIGN KEY (company_id) REFERENCES organization.companies (id);
 
 ALTER TABLE buying.supplier_quotation_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE buying.supplier_quotation_items FORCE  ROW LEVEL SECURITY;

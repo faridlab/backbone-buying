@@ -45,13 +45,14 @@ pub struct RfqSupplierPaginatedResult {
 #[derive(Debug, Clone, Default)]
 pub struct RfqSupplierFilter {
     pub rfq_id: Option<Uuid>,
+    pub company_id: Option<Uuid>,
     pub supplier_id: Option<Uuid>,
 }
 
 impl RfqSupplierFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.rfq_id.is_some() || self.supplier_id.is_some()
+        self.rfq_id.is_some() || self.company_id.is_some() || self.supplier_id.is_some()
     }
 }
 

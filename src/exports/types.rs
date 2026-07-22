@@ -111,6 +111,7 @@ impl From<MaterialRequestItemId> for Uuid {
 pub struct MaterialRequestItemDto {
     pub id: MaterialRequestItemId,
     pub request_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub metadata: serde_json::Value,
@@ -236,6 +237,7 @@ impl From<PurchaseOrderItemId> for Uuid {
 pub struct PurchaseOrderItemDto {
     pub id: PurchaseOrderItemId,
     pub order_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub warehouse_id: Option<Uuid>,
     pub description: Option<String>,
@@ -358,6 +360,7 @@ impl From<RfqItemId> for Uuid {
 pub struct RfqItemDto {
     pub id: RfqItemId,
     pub rfq_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub metadata: serde_json::Value,
@@ -414,6 +417,7 @@ impl From<RfqSupplierId> for Uuid {
 pub struct RfqSupplierDto {
     pub id: RfqSupplierId,
     pub rfq_id: Uuid,
+    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub metadata: serde_json::Value,
 }
@@ -532,6 +536,7 @@ impl From<SupplierQuotationItemId> for Uuid {
 pub struct SupplierQuotationItemDto {
     pub id: SupplierQuotationItemId,
     pub quotation_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,

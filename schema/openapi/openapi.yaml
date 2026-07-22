@@ -3488,6 +3488,7 @@ components:
       required:
         - id
         - request_id
+        - company_id
         - item_id
         - quantity
         - metadata
@@ -3496,6 +3497,9 @@ components:
           type: string
           format: uuid
         request_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3523,11 +3527,15 @@ components:
       type: object
       required:
         - request_id
+        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         request_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3542,11 +3550,15 @@ components:
       type: object
       required:
         - request_id
+        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         request_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3561,6 +3573,9 @@ components:
       type: object
       properties:
         request_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3848,6 +3863,7 @@ components:
       required:
         - id
         - order_id
+        - company_id
         - item_id
         - quantity
         - rate
@@ -3860,6 +3876,9 @@ components:
           type: string
           format: uuid
         order_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3903,6 +3922,7 @@ components:
       type: object
       required:
         - order_id
+        - company_id
         - item_id
         - quantity
         - rate
@@ -3912,6 +3932,9 @@ components:
         - metadata
       properties:
         order_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3942,6 +3965,7 @@ components:
       type: object
       required:
         - order_id
+        - company_id
         - item_id
         - quantity
         - rate
@@ -3951,6 +3975,9 @@ components:
         - metadata
       properties:
         order_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -3981,6 +4008,9 @@ components:
       type: object
       properties:
         order_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4167,6 +4197,7 @@ components:
       required:
         - id
         - rfq_id
+        - company_id
         - item_id
         - quantity
         - metadata
@@ -4175,6 +4206,9 @@ components:
           type: string
           format: uuid
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4202,11 +4236,15 @@ components:
       type: object
       required:
         - rfq_id
+        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4221,11 +4259,15 @@ components:
       type: object
       required:
         - rfq_id
+        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4240,6 +4282,9 @@ components:
       type: object
       properties:
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4265,6 +4310,7 @@ components:
       required:
         - id
         - rfq_id
+        - company_id
         - supplier_id
         - metadata
       properties:
@@ -4272,6 +4318,9 @@ components:
           type: string
           format: uuid
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -4297,10 +4346,14 @@ components:
       type: object
       required:
         - rfq_id
+        - company_id
         - supplier_id
         - metadata
       properties:
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -4313,10 +4366,14 @@ components:
       type: object
       required:
         - rfq_id
+        - company_id
         - supplier_id
         - metadata
       properties:
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -4329,6 +4386,9 @@ components:
       type: object
       properties:
         rfq_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -4543,6 +4603,7 @@ components:
       required:
         - id
         - quotation_id
+        - company_id
         - item_id
         - quantity
         - rate
@@ -4552,6 +4613,9 @@ components:
           type: string
           format: uuid
         quotation_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4585,12 +4649,16 @@ components:
       type: object
       required:
         - quotation_id
+        - company_id
         - item_id
         - quantity
         - rate
         - metadata
       properties:
         quotation_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4611,12 +4679,16 @@ components:
       type: object
       required:
         - quotation_id
+        - company_id
         - item_id
         - quantity
         - rate
         - metadata
       properties:
         quotation_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:
@@ -4637,6 +4709,9 @@ components:
       type: object
       properties:
         quotation_id:
+          type: string
+          format: uuid
+        company_id:
           type: string
           format: uuid
         item_id:

@@ -247,6 +247,9 @@ impl backbone_orm::EntityRepoMeta for MaterialRequest {
     fn search_fields() -> &'static [&'static str] {
         &["request_number"]
     }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
+    }
 }
 
 /// Builder for MaterialRequest entity

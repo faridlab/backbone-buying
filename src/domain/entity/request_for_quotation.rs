@@ -241,6 +241,9 @@ impl backbone_orm::EntityRepoMeta for RequestForQuotation {
     fn search_fields() -> &'static [&'static str] {
         &["rfq_number"]
     }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
+    }
 }
 
 /// Builder for RequestForQuotation entity

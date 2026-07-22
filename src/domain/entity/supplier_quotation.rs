@@ -263,6 +263,9 @@ impl backbone_orm::EntityRepoMeta for SupplierQuotation {
     fn search_fields() -> &'static [&'static str] {
         &["quotation_number", "currency"]
     }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
+    }
 }
 
 /// Builder for SupplierQuotation entity

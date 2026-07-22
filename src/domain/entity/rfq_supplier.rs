@@ -49,6 +49,7 @@ impl std::ops::Deref for RfqSupplierId {
 pub struct RfqSupplier {
     pub id: Uuid,
     pub rfq_id: Uuid,
+    pub company_id: Uuid,
     pub supplier_id: Uuid,
     #[serde(default)]
     #[sqlx(json)]
@@ -62,10 +63,11 @@ impl RfqSupplier {
     }
 
     /// Create a new RfqSupplier with required fields
-    pub fn new(rfq_id: Uuid, supplier_id: Uuid) -> Self {
+    pub fn new(rfq_id: Uuid, company_id: Uuid, supplier_id: Uuid) -> Self {
         Self {
             id: Uuid::new_v4(),
             rfq_id,
+            company_id,
             supplier_id,
             metadata: AuditMetadata::default(),
         }
@@ -133,6 +135,9 @@ impl RfqSupplier {
                 "rfq_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.rfq_id = v; }
                 }
+                "company_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
+                }
                 "supplier_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.supplier_id = v; }
                 }
@@ -191,11 +196,15 @@ impl backbone_orm::EntityRepoMeta for RfqSupplier {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("rfq_id".to_string(), "uuid".to_string());
+        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &[]
+    }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("rfq", "request_for_quotations", "rfqId")]
@@ -209,6 +218,7 @@ impl backbone_orm::EntityRepoMeta for RfqSupplier {
 #[derive(Debug, Clone, Default)]
 pub struct RfqSupplierBuilder {
     rfq_id: Option<Uuid>,
+    company_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
 }
 
@@ -216,6 +226,12 @@ impl RfqSupplierBuilder {
     /// Set the rfq_id field (required)
     pub fn rfq_id(mut self, value: Uuid) -> Self {
         self.rfq_id = Some(value);
+        self
+    }
+
+    /// Set the company_id field (required)
+    pub fn company_id(mut self, value: Uuid) -> Self {
+        self.company_id = Some(value);
         self
     }
 
@@ -230,11 +246,13 @@ impl RfqSupplierBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<RfqSupplier, String> {
         let rfq_id = self.rfq_id.ok_or_else(|| "rfq_id is required".to_string())?;
+        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let supplier_id = self.supplier_id.ok_or_else(|| "supplier_id is required".to_string())?;
 
         Ok(RfqSupplier {
             id: Uuid::new_v4(),
             rfq_id,
+            company_id,
             supplier_id,
             metadata: AuditMetadata::default(),
         })

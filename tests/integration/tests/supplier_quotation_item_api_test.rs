@@ -25,6 +25,7 @@ impl TestDataGenerator for SupplierQuotationItemTestData {
         json!({
             "id": Uuid::new_v4().to_string(),
             "quotation_id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_id": Uuid::new_v4().to_string(),
             "quantity": 0,
             "rate": 0,
@@ -38,6 +39,7 @@ impl TestDataGenerator for SupplierQuotationItemTestData {
         json!({
             "id": id,
             "quotation_id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_id": Uuid::new_v4().to_string(),
             "quantity": 0,
             "rate": 0,

@@ -25,6 +25,7 @@ impl TestDataGenerator for RfqItemTestData {
         json!({
             "id": Uuid::new_v4().to_string(),
             "rfq_id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_id": Uuid::new_v4().to_string(),
             "quantity": 0,
             "metadata": json!({}),
@@ -36,6 +37,7 @@ impl TestDataGenerator for RfqItemTestData {
         json!({
             "id": id,
             "rfq_id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_id": Uuid::new_v4().to_string(),
             "quantity": 0,
             "metadata": json!({}),

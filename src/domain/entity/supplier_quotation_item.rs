@@ -50,6 +50,7 @@ impl std::ops::Deref for SupplierQuotationItemId {
 pub struct SupplierQuotationItem {
     pub id: Uuid,
     pub quotation_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -66,10 +67,11 @@ impl SupplierQuotationItem {
     }
 
     /// Create a new SupplierQuotationItem with required fields
-    pub fn new(quotation_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal) -> Self {
+    pub fn new(quotation_id: Uuid, company_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal) -> Self {
         Self {
             id: Uuid::new_v4(),
             quotation_id,
+            company_id,
             item_id,
             quantity,
             rate,
@@ -150,6 +152,9 @@ impl SupplierQuotationItem {
                 "quotation_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.quotation_id = v; }
                 }
+                "company_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
+                }
                 "item_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.item_id = v; }
                 }
@@ -217,11 +222,15 @@ impl backbone_orm::EntityRepoMeta for SupplierQuotationItem {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("quotation_id".to_string(), "uuid".to_string());
+        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("item_id".to_string(), "uuid".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &[]
+    }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("quotation", "supplier_quotations", "quotationId")]
@@ -235,6 +244,7 @@ impl backbone_orm::EntityRepoMeta for SupplierQuotationItem {
 #[derive(Debug, Clone, Default)]
 pub struct SupplierQuotationItemBuilder {
     quotation_id: Option<Uuid>,
+    company_id: Option<Uuid>,
     item_id: Option<Uuid>,
     quantity: Option<Decimal>,
     rate: Option<Decimal>,
@@ -245,6 +255,12 @@ impl SupplierQuotationItemBuilder {
     /// Set the quotation_id field (required)
     pub fn quotation_id(mut self, value: Uuid) -> Self {
         self.quotation_id = Some(value);
+        self
+    }
+
+    /// Set the company_id field (required)
+    pub fn company_id(mut self, value: Uuid) -> Self {
+        self.company_id = Some(value);
         self
     }
 
@@ -277,6 +293,7 @@ impl SupplierQuotationItemBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<SupplierQuotationItem, String> {
         let quotation_id = self.quotation_id.ok_or_else(|| "quotation_id is required".to_string())?;
+        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let item_id = self.item_id.ok_or_else(|| "item_id is required".to_string())?;
         let quantity = self.quantity.ok_or_else(|| "quantity is required".to_string())?;
         let rate = self.rate.ok_or_else(|| "rate is required".to_string())?;
@@ -284,6 +301,7 @@ impl SupplierQuotationItemBuilder {
         Ok(SupplierQuotationItem {
             id: Uuid::new_v4(),
             quotation_id,
+            company_id,
             item_id,
             quantity,
             rate,

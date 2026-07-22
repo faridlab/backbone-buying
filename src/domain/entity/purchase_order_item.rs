@@ -50,6 +50,7 @@ impl std::ops::Deref for PurchaseOrderItemId {
 pub struct PurchaseOrderItem {
     pub id: Uuid,
     pub order_id: Uuid,
+    pub company_id: Uuid,
     pub item_id: Uuid,
     pub warehouse_id: Option<Uuid>,
     pub description: Option<String>,
@@ -70,10 +71,11 @@ impl PurchaseOrderItem {
     }
 
     /// Create a new PurchaseOrderItem with required fields
-    pub fn new(order_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal, line_amount: Decimal, received_qty: Decimal, billed_qty: Decimal) -> Self {
+    pub fn new(order_id: Uuid, company_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal, line_amount: Decimal, received_qty: Decimal, billed_qty: Decimal) -> Self {
         Self {
             id: Uuid::new_v4(),
             order_id,
+            company_id,
             item_id,
             warehouse_id: None,
             description: None,
@@ -164,6 +166,9 @@ impl PurchaseOrderItem {
                 "order_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.order_id = v; }
                 }
+                "company_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
+                }
                 "item_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.item_id = v; }
                 }
@@ -243,12 +248,16 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrderItem {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("order_id".to_string(), "uuid".to_string());
+        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("item_id".to_string(), "uuid".to_string());
         m.insert("warehouse_id".to_string(), "uuid".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &[]
+    }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("order", "purchase_orders", "orderId")]
@@ -262,6 +271,7 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrderItem {
 #[derive(Debug, Clone, Default)]
 pub struct PurchaseOrderItemBuilder {
     order_id: Option<Uuid>,
+    company_id: Option<Uuid>,
     item_id: Option<Uuid>,
     warehouse_id: Option<Uuid>,
     description: Option<String>,
@@ -276,6 +286,12 @@ impl PurchaseOrderItemBuilder {
     /// Set the order_id field (required)
     pub fn order_id(mut self, value: Uuid) -> Self {
         self.order_id = Some(value);
+        self
+    }
+
+    /// Set the company_id field (required)
+    pub fn company_id(mut self, value: Uuid) -> Self {
+        self.company_id = Some(value);
         self
     }
 
@@ -332,6 +348,7 @@ impl PurchaseOrderItemBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<PurchaseOrderItem, String> {
         let order_id = self.order_id.ok_or_else(|| "order_id is required".to_string())?;
+        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let item_id = self.item_id.ok_or_else(|| "item_id is required".to_string())?;
         let quantity = self.quantity.ok_or_else(|| "quantity is required".to_string())?;
         let rate = self.rate.ok_or_else(|| "rate is required".to_string())?;
@@ -339,6 +356,7 @@ impl PurchaseOrderItemBuilder {
         Ok(PurchaseOrderItem {
             id: Uuid::new_v4(),
             order_id,
+            company_id,
             item_id,
             warehouse_id: self.warehouse_id,
             description: self.description,

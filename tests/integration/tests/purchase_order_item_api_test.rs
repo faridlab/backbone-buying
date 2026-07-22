@@ -25,6 +25,7 @@ impl TestDataGenerator for PurchaseOrderItemTestData {
         json!({
             "id": Uuid::new_v4().to_string(),
             "order_id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_id": Uuid::new_v4().to_string(),
             "warehouse_id": null,
             "description": null,
@@ -42,6 +43,7 @@ impl TestDataGenerator for PurchaseOrderItemTestData {
         json!({
             "id": id,
             "order_id": Uuid::new_v4().to_string(),
+            "company_id": Uuid::new_v4().to_string(),
             "item_id": Uuid::new_v4().to_string(),
             "warehouse_id": null,
             "description": null,
