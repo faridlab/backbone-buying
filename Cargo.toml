@@ -1,6 +1,6 @@
 [package]
 name = "backbone-buying"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2021"
 description = "Buying: Material Request -> RFQ -> Supplier Quotation -> Purchase Order; drives inventory Purchase Receipt via ReceiptExpected (procure-to-pay intent, 3-way-match watermarks)"
 
