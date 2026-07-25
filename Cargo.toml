@@ -1,6 +1,6 @@
 [package]
 name = "backbone-buying"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Buying: Material Request -> RFQ -> Supplier Quotation -> Purchase Order; drives inventory Purchase Receipt via ReceiptExpected (procure-to-pay intent, 3-way-match watermarks)"
 
@@ -87,6 +87,9 @@ rand = "0.8"
 # TEST-ONLY edges: the receipt-seam test drives the REAL backbone-inventory + backbone-accounting
 # through in-test ACL adapters. Dev-dependencies ONLY — the shipped buying library has ZERO normal
 # edges (verify: `cargo tree -e normal -i backbone-inventory` / `-i backbone-accounting` are empty).
-backbone-inventory = { path = "../backbone-inventory" }
-backbone-accounting = { path = "../backbone-accounting" }
+#
+# Dual-mode: committed source is the git tag (prod/standalone/CI); .cargo/config.toml (gitignored)
+# patches them to ../backbone-* for local workspace dev. See .cargo/config.toml.example.
+backbone-inventory = { git = "https://github.com/faridlab/backbone-inventory", tag = "v0.3.1" }
+backbone-accounting = { git = "https://github.com/faridlab/backbone-accounting", tag = "v0.4.0" }
 async-trait = "0.1"
