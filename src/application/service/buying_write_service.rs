@@ -527,56 +527,71 @@ impl BuyingWriteService {
     /// Record a receipt against a PO (inbound handler for inventory's `StockReceived`): allocate the
     /// received quantity across the item's PO lines, filling each up to `quantity` (the 3-way-match
     /// ceiling — no over-receipt tolerance configured, council 2026-07-05). Rejects over-receipt.
-    pub async fn mark_received(&self, order_id: Uuid, receipts: &[(Uuid, Decimal)]) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008): this method carries NO company — it is identified by the PO id alone.
-        // Under HTTP the request-dedicated connection supplies the scope. When driven by an EVENT
-        // (inventory's `StockReceived`), the CALLER must wrap this in
-        // `with_company_scope(Some(event.company_id))` — the event carries the company — or the
-        // allocation reads/writes below fail closed.
-        let mut tx = self.db_pool.begin().await?;
-        company_scope::bind_current_company(&mut tx).await?;
-        for (item_id, qty) in receipts {
-            // capacity per line = quantity - received_qty
-            if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Received,
-                BuyingError::OverReceipt { item_id: *item_id }).await {
-                drop(tx); // roll back — no partial receipt
-                if matches!(e, BuyingError::OverReceipt { .. }) {
-                    // §33: broadcast the variance so an async consumer sees it, not just the caller.
-                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                        order_id, item_id: *item_id, kind: "over_receipt".into(),
-                    }));
+    pub async fn mark_received(
+        &self,
+        order_id: Uuid,
+        company_id: Uuid,
+        receipts: &[(Uuid, Decimal)],
+    ) -> Result<(), BuyingError> {
+        // RLS scope (ADR-0008): company on the parameter — scope the received-qty writes + status
+        // recompute so they run with `app.company_id` set. The inbound handler for inventory's
+        // `StockReceived` passes the event's company; an event/job caller can no longer forget to.
+        company_scope::with_company_scope(Some(company_id), async move {
+            let mut tx = self.db_pool.begin().await?;
+            company_scope::bind_company_on(&mut tx, company_id).await?;
+            for (item_id, qty) in receipts {
+                // capacity per line = quantity - received_qty
+                if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Received,
+                    BuyingError::OverReceipt { item_id: *item_id }).await {
+                    drop(tx); // roll back — no partial receipt
+                    if matches!(e, BuyingError::OverReceipt { .. }) {
+                        // §33: broadcast the variance so an async consumer sees it, not just the caller.
+                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                            order_id, item_id: *item_id, kind: "over_receipt".into(),
+                        }));
+                    }
+                    return Err(e);
                 }
-                return Err(e);
             }
-        }
-        tx.commit().await?;
-        self.recompute_order_status(order_id).await
+            tx.commit().await?;
+            self.recompute_order_status(order_id).await?;
+            Ok(())
+        }).await
     }
 
     /// Record billing against a PO (inbound handler for billing's `PurchaseInvoicePosted`): allocate
     /// the billed quantity across the item's lines, capped at `received_qty` (invoice ≤ receipt —
     /// the 3-way-match invariant). Rejects over-billing.
-    pub async fn mark_billed(&self, order_id: Uuid, billed: &[(Uuid, Decimal)]) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008): no company on this method — see `mark_received`. When driven by an
-        // EVENT (billing's `PurchaseInvoicePosted`), the CALLER must wrap this in
-        // `with_company_scope(Some(event.company_id))`.
-        let mut tx = self.db_pool.begin().await?;
-        company_scope::bind_current_company(&mut tx).await?;
-        for (item_id, qty) in billed {
-            // capacity per line = received_qty - billed_qty
-            if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Billed,
-                BuyingError::OverBilling { item_id: *item_id }).await {
-                drop(tx); // roll back — no partial billing
-                if matches!(e, BuyingError::OverBilling { .. }) {
-                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                        order_id, item_id: *item_id, kind: "over_billing".into(),
-                    }));
+    pub async fn mark_billed(
+        &self,
+        order_id: Uuid,
+        company_id: Uuid,
+        billed: &[(Uuid, Decimal)],
+    ) -> Result<(), BuyingError> {
+        // RLS scope (ADR-0008): company on the parameter — the allocation tx binds it explicitly
+        // (`bind_company_on`), and the status recompute runs inside the scope. The inbound handler for
+        // billing's `PurchaseInvoicePosted` passes the event's company; an event/job caller can no
+        // longer forget to scope the `FOR UPDATE` reads inside `allocate`.
+        company_scope::with_company_scope(Some(company_id), async move {
+            let mut tx = self.db_pool.begin().await?;
+            company_scope::bind_company_on(&mut tx, company_id).await?;
+            for (item_id, qty) in billed {
+                // capacity per line = received_qty - billed_qty
+                if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Billed,
+                    BuyingError::OverBilling { item_id: *item_id }).await {
+                    drop(tx); // roll back — no partial billing
+                    if matches!(e, BuyingError::OverBilling { .. }) {
+                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                            order_id, item_id: *item_id, kind: "over_billing".into(),
+                        }));
+                    }
+                    return Err(e);
                 }
-                return Err(e);
             }
-        }
-        tx.commit().await?;
-        self.recompute_order_status(order_id).await
+            tx.commit().await?;
+            self.recompute_order_status(order_id).await?;
+            Ok(())
+        }).await
     }
 
     /// Allocate `qty` of `item_id` across a PO's lines, advancing `watermark` up to each line's cap

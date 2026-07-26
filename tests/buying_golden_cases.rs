@@ -74,19 +74,19 @@ async fn over_receipt_and_over_billing_rejected() {
     w.confirm_purchase_order(id).await.unwrap();
 
     // Receiving 12 against a PO of 10 is refused; no over-receipt.
-    let e = w.mark_received(id, &[(item, d("12"))]).await.unwrap_err();
+    let e = w.mark_received(id, company, &[(item, d("12"))]).await.unwrap_err();
     assert!(matches!(e, BuyingError::OverReceipt { .. }));
     let rq0: Decimal = sqlx::query_scalar("SELECT received_qty FROM buying.purchase_order_items WHERE order_id=$1").bind(id).fetch_one(&pool).await.unwrap();
     assert_eq!(rq0, d("0.0000"), "rejected receipt leaves the watermark untouched");
 
     // Receive exactly 10; then billing 15 against 10 received is refused (invoice > receipt).
-    w.mark_received(id, &[(item, d("10"))]).await.unwrap();
-    let e = w.mark_billed(id, &[(item, d("15"))]).await.unwrap_err();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    let e = w.mark_billed(id, company, &[(item, d("15"))]).await.unwrap_err();
     assert!(matches!(e, BuyingError::OverBilling { .. }));
     let bq0: Decimal = sqlx::query_scalar("SELECT billed_qty FROM buying.purchase_order_items WHERE order_id=$1").bind(id).fetch_one(&pool).await.unwrap();
     assert_eq!(bq0, d("0.0000"), "rejected billing leaves the watermark untouched");
     // Billing exactly 10 completes it.
-    w.mark_billed(id, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "completed");
 }
 
@@ -99,9 +99,9 @@ async fn watermarks_gate_completion() {
     let id = po(&w, company, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id).await.unwrap();
 
-    w.mark_received(id, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "to_bill", "received, awaiting billing");
-    w.mark_billed(id, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "completed", "received AND billed → completed");
     let (rq, bq): (Decimal, Decimal) = sqlx::query_as("SELECT received_qty, billed_qty FROM buying.purchase_order_items WHERE order_id=$1")
         .bind(id).fetch_one(&pool).await.unwrap();
@@ -117,7 +117,7 @@ async fn partial_receipt_requests_remainder() {
     let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
     let id = po(&w, company, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id).await.unwrap();
-    w.mark_received(id, &[(item, d("4"))]).await.unwrap();
+    w.mark_received(id, company, &[(item, d("4"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "to_receive_and_bill", "partial receipt, still awaiting both");
     let req = w.build_receipt_request(id).await.unwrap();
     assert_eq!(req.lines[0].quantity, d("6.0000"), "requests only the un-received remainder");

@@ -114,7 +114,7 @@ async fn variance_broadcasts_three_way_match_failed() {
     }).await.unwrap();
     w.confirm_purchase_order(po).await.unwrap();
     // over-receipt → rejected AND broadcast.
-    assert!(w.mark_received(po, &[(item, d("12"))]).await.is_err());
+    assert!(w.mark_received(po, company, &[(item, d("12"))]).await.is_err());
     assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_receipt")));
 }
 
@@ -132,9 +132,9 @@ async fn completion_milestones_emitted() {
         lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
     }).await.unwrap();
     w.confirm_purchase_order(po).await.unwrap();
-    w.mark_received(po, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyReceived(_))), "fully received milestone");
-    w.mark_billed(po, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyBilled(_))), "fully billed milestone");
     // Received milestone fired exactly once (not re-emitted on the billing recompute).
     let n_recv = rec.events.lock().unwrap().iter().filter(|e| matches!(e, BuyingEvent::PurchaseOrderFullyReceived(_))).count();
@@ -160,14 +160,14 @@ async fn duplicate_mark_billed_is_contained_not_doubled() {
         lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
     }).await.unwrap();
     w.confirm_purchase_order(po).await.unwrap();
-    w.mark_received(po, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
 
     // First bill applies fully + emits the FullyBilled milestone.
-    w.mark_billed(po, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyBilled(_))), "first bill → fully billed");
 
     // The duplicate is REJECTED — allocate sees no remaining capacity (received 10 − billed 10 = 0).
-    let err = w.mark_billed(po, &[(item, d("10"))]).await.unwrap_err();
+    let err = w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap_err();
     assert!(matches!(err, BuyingError::OverBilling { .. }), "duplicate bill rejected as OverBilling, got {err:?}");
     assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_billing")),
         "duplicate bill broadcasts ThreeWayMatchFailed{{over_billing}}");

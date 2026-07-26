@@ -127,11 +127,11 @@ async fn procure_to_pay_receipt_across_three_modules() {
         InventoryEvent::StockReceived(s) if s.source_po_id == Some(po) => Some(s.clone()), _ => None,
     }).expect("StockReceived for our PO");
     assert_eq!(received.total_value, d("1000000.00"));
-    buying.mark_received(po, &[(item, d("10"))]).await.unwrap();
+    buying.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, po).await, "to_bill", "received, awaiting billing");
 
     // 5) simulated billing completes the 3-way match.
-    buying.mark_billed(po, &[(item, d("10"))]).await.unwrap();
+    buying.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, po).await, "completed");
 
     // inventory Bin holds the received stock at the PO rate.
