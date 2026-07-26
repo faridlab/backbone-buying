@@ -13,6 +13,14 @@
 user_owned:
   - "src/application/service/buying_events.rs"
   - "src/application/service/buying_write_service.rs"
+  # The write surface, chunked out of buying_write_service.rs. Each is an `impl BuyingWriteService`
+  # block; the shared vocabulary (input structs, Repos, errors, money helpers) stays in
+  # buying_write_service.rs.
+  - "src/application/service/buying_material_request.rs"
+  - "src/application/service/buying_quotation.rs"
+  - "src/application/service/buying_order_create.rs"
+  - "src/application/service/buying_order_lifecycle.rs"
+  - "src/application/service/buying_receipt.rs"
   # Own the hand-written buying SQL (the procure-to-pay funnel's header+line inserts and state flips,
   # the receipt seam's remaining-quantity read, the 3-way-match allocation's locking read + watermark
   # bumps) that the write service orchestrates. Declared here — not renamed with a `_custom` suffix —

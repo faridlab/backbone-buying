@@ -403,6 +403,7 @@ dependencies = [
 [[package]]
 name = "backbone-inventory"
 version = "0.3.1"
+source = "git+https://github.com/faridlab/backbone-inventory?tag=v0.3.1#04af892ad419b9834ce517be5c377df5e6be7f5c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4526,3 +4527,7 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+
+[[patch.unused]]
+name = "backbone-inventory"
+version = "0.3.2"
