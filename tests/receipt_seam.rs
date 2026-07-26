@@ -91,7 +91,7 @@ async fn procure_to_pay_receipt_across_three_modules() {
     let recorder = RecordingInvSink::default();
     let inventory = InventoryWriteService::with_sink(pool.clone(), Arc::new(recorder.clone()));
     let intake = DeliveryIntake::new(pool.clone());
-    let gl = GlAdapter { svc: PostingService::new(pool.clone()) };
+    let gl = GlAdapter { svc: PostingService::new(Arc::new(backbone_accounting::infrastructure::persistence::SqlxPostingRepository::new(pool.clone()))) };
 
     let wh = inventory.create_warehouse(NewWarehouse { company_id: company, code: uq("WH"), name: "Main".into(), warehouse_type: None, parent_warehouse_id: None, is_group: false }).await.unwrap();
 
