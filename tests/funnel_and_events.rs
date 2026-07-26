@@ -140,3 +140,41 @@ async fn completion_milestones_emitted() {
     let n_recv = rec.events.lock().unwrap().iter().filter(|e| matches!(e, BuyingEvent::PurchaseOrderFullyReceived(_))).count();
     assert_eq!(n_recv, 1);
 }
+
+// BFC-5 (council 2026-07-26, ADR-002 §4 receiver-side containment): a duplicate `mark_billed` — the
+// receiver-side shape of a duplicate `PurchaseInvoicePosted` — is contained by buying's own allocate
+// cap (billed_qty ≤ received_qty). The first call applies + emits PurchaseOrderFullyBilled; the second
+// is rejected with OverBilling + a ThreeWayMatchFailed{kind:"over_billing"} broadcast, and billed_qty
+// stays at 10 (NOT silently double-advanced). Proves the receiver defends in depth if the sender's
+// emit-once gate (IP-4) ever leaks a duplicate through.
+#[tokio::test]
+async fn duplicate_mark_billed_is_contained_not_doubled() {
+    let pool = pool().await;
+    let rec = Rec::default();
+    let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let po = w.create_purchase_order(NewPurchaseOrder {
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
+        currency: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
+    }).await.unwrap();
+    w.confirm_purchase_order(po).await.unwrap();
+    w.mark_received(po, &[(item, d("10"))]).await.unwrap();
+
+    // First bill applies fully + emits the FullyBilled milestone.
+    w.mark_billed(po, &[(item, d("10"))]).await.unwrap();
+    assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyBilled(_))), "first bill → fully billed");
+
+    // The duplicate is REJECTED — allocate sees no remaining capacity (received 10 − billed 10 = 0).
+    let err = w.mark_billed(po, &[(item, d("10"))]).await.unwrap_err();
+    assert!(matches!(err, BuyingError::OverBilling { .. }), "duplicate bill rejected as OverBilling, got {err:?}");
+    assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_billing")),
+        "duplicate bill broadcasts ThreeWayMatchFailed{{over_billing}}");
+
+    // billed_qty did NOT double-advance — the containment that refutes the old "silent corruption" claim.
+    let billed: Decimal = sqlx::query_scalar(
+        "SELECT billed_qty FROM buying.purchase_order_items WHERE order_id=$1 AND item_id=$2")
+        .bind(po).bind(item).fetch_one(&pool).await.unwrap();
+    assert_eq!(billed, d("10.0000"), "billed_qty contained at 10 — no silent double-advance");
+}
