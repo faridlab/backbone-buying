@@ -100,6 +100,40 @@ impl MatchWatermark {
     }
 }
 
+/// Which 3-way-match watermark a REVERSE allocation (purchase return / credit note) decrements, and the
+/// per-line capacity expression for how much may be removed.
+///
+/// Mirror of [`MatchWatermark`] for the reverse direction. A purchase return decrements `received_qty`,
+/// capped at the *un-billed* received portion (`received_qty - billed_qty`): the `po_items_three_way_match`
+/// CHECK forbids `billed_qty > received_qty`, so already-billed goods must be credited before they can be
+/// returned. A credit note decrements `billed_qty`, capped at `billed_qty` (always CHECK-safe).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReverseWatermark {
+    /// Decrement `received_qty`; capacity is `received_qty - billed_qty` (the un-billed received goods).
+    Returned,
+    /// Decrement `billed_qty`; capacity is `billed_qty`.
+    Credited,
+}
+
+impl ReverseWatermark {
+    /// The column this reverse allocation subtracts from.
+    fn col(self) -> &'static str {
+        match self {
+            ReverseWatermark::Returned => "received_qty",
+            ReverseWatermark::Credited => "billed_qty",
+        }
+    }
+
+    /// The SQL expression for how much may be removed per line. Interpolated into SQL — kept closed over
+    /// two known-good expressions by the enum, exactly like [`MatchWatermark::col`].
+    fn capacity_sql(self) -> &'static str {
+        match self {
+            ReverseWatermark::Returned => "(received_qty - billed_qty)",
+            ReverseWatermark::Credited => "billed_qty",
+        }
+    }
+}
+
 /// Hand-written PurchaseOrderItem SQL. Lives here (not in the write service) per the module's 4-layer
 /// rule. The allocation DECISION (does total capacity cover the quantity? which line takes what?)
 /// stays in the service — this layer only locks, reads capacity, and bumps a watermark.
@@ -189,6 +223,47 @@ impl PurchaseOrderItemRepository {
         let sql = format!(
             "UPDATE buying.purchase_order_items SET {col} = {col} + $2 WHERE id=$1",
             col = watermark.col(),
+        );
+        sqlx::query(&sql).bind(line_id).bind(qty).execute(conn).await?;
+        Ok(())
+    }
+
+    /// Lock an item's PO lines `FOR UPDATE` and return each one's reverse capacity (how much may be
+    /// REMOVED) for a return or credit note, in fill order (`ORDER BY id`). Mirror of
+    /// [`Self::lock_lines_for_allocation`] for the reverse direction. Caller-owned-tx contract: the lock
+    /// must be held, and the capacity read consistent with the [`Self::subtract_from_watermark`] calls
+    /// that follow, for the whole reverse allocation.
+    pub async fn lock_lines_for_reverse(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        order_id: Uuid,
+        item_id: Uuid,
+        rw: ReverseWatermark,
+    ) -> Result<Vec<AllocatableLineRow>, sqlx::Error> {
+        let sql = format!(
+            "SELECT id, {cap} AS capacity FROM buying.purchase_order_items \
+             WHERE order_id=$1 AND item_id=$2 AND (metadata->>'deleted_at') IS NULL ORDER BY id FOR UPDATE",
+            cap = rw.capacity_sql(),
+        );
+        let rows = sqlx::query(&sql).bind(order_id).bind(item_id).fetch_all(conn).await?;
+        Ok(rows.iter().map(|r| AllocatableLineRow {
+            id: r.get("id"),
+            capacity: r.get("capacity"),
+        }).collect())
+    }
+
+    /// Subtract `qty` from one line's watermark column. Mirror of [`Self::add_to_watermark`] for the
+    /// reverse direction. Same caller-owned-tx contract — runs under the lock that read the capacity.
+    pub async fn subtract_from_watermark(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        line_id: Uuid,
+        rw: ReverseWatermark,
+        qty: Decimal,
+    ) -> Result<(), sqlx::Error> {
+        let sql = format!(
+            "UPDATE buying.purchase_order_items SET {col} = {col} - $2 WHERE id=$1",
+            col = rw.col(),
         );
         sqlx::query(&sql).bind(line_id).bind(qty).execute(conn).await?;
         Ok(())

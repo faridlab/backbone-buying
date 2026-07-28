@@ -251,7 +251,7 @@ impl PurchaseOrderRepository {
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET status=$2::purchase_order_status
-                   WHERE id=$1 AND status = ANY(ARRAY['to_receive','to_bill','to_receive_and_bill']::purchase_order_status[])"#,
+                   WHERE id=$1 AND status = ANY(ARRAY['to_receive','to_bill','to_receive_and_bill','completed']::purchase_order_status[])"#,
             ).bind(order_id).bind(status),
         )
         .await?;

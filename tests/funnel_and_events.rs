@@ -178,3 +178,35 @@ async fn duplicate_mark_billed_is_contained_not_doubled() {
         .bind(po).bind(item).fetch_one(&pool).await.unwrap();
     assert_eq!(billed, d("10.0000"), "billed_qty contained at 10 — no silent double-advance");
 }
+
+// BFC-6 (council 2026-07-28): reverse-direction events — mark_credited emits CreditNoted and
+// mark_returned emits PurchaseReturned; an over-return broadcasts ThreeWayMatchFailed{over_return}.
+#[tokio::test]
+async fn reverse_events_emitted() {
+    let pool = pool().await;
+    let rec = Rec::default();
+    let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let po = w.create_purchase_order(NewPurchaseOrder {
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
+        currency: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
+    }).await.unwrap();
+    w.confirm_purchase_order(po).await.unwrap();
+    w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
+
+    // A credit note for 3 of the 10 billed emits CreditNoted.
+    w.mark_credited(po, company, &[(item, d("3"))]).await.unwrap();
+    assert!(rec.has(|e| matches!(e, BuyingEvent::CreditNoted(_))), "credit note emits CreditNoted");
+
+    // The credit freed 3 of the received goods; returning them emits PurchaseReturned.
+    w.mark_returned(po, company, &[(item, d("3"))]).await.unwrap();
+    assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseReturned(_))), "purchase return emits PurchaseReturned");
+
+    // Now received_qty == billed_qty == 7 → returnable portion is 0; a further return broadcasts over_return.
+    assert!(w.mark_returned(po, company, &[(item, d("1"))]).await.is_err());
+    assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_return")),
+        "over-return broadcasts ThreeWayMatchFailed{{over_return}}");
+}

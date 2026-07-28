@@ -22,7 +22,7 @@ use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use crate::infrastructure::persistence::MatchWatermark;
+use crate::infrastructure::persistence::{MatchWatermark, ReverseWatermark};
 
 use super::buying_events::{
     BuyingEvent, PurchaseOrderMilestone, ReceiptRequestEnvelope, ReceiptRequestLine, ThreeWayMatchFailed,
@@ -124,6 +124,81 @@ impl BuyingWriteService {
         }).await
     }
 
+    /// Record a purchase return against a PO (inbound handler for inventory's `StockReturned`): reverse-
+    /// allocate the returned qty across the item's PO lines, decrementing `received_qty`, capped at the
+    /// un-billed received portion (`received_qty - billed_qty`). Rejects over-return — already-billed goods
+    /// must be credited ([`Self::mark_credited`]) before they can be returned (the DB CHECK
+    /// `billed_qty <= received_qty` is the backstop). Broadcasts `ThreeWayMatchFailed` on over-return;
+    /// `PurchaseReturned` on success. Mirrors [`Self::mark_received`] in the reverse direction.
+    pub async fn mark_returned(
+        &self,
+        order_id: Uuid,
+        company_id: Uuid,
+        returns: &[(Uuid, Decimal)],
+    ) -> Result<(), BuyingError> {
+        // RLS scope (ADR-0008): company on the parameter — scope the received-qty writes + status
+        // recompute so they run with `app.company_id` set. The inbound handler for inventory's
+        // `StockReturned` passes the event's company; an event/job caller can no longer forget to scope.
+        company_scope::with_company_scope(Some(company_id), async move {
+            let mut tx = self.db_pool.begin().await?;
+            company_scope::bind_company_on(&mut tx, company_id).await?;
+            for (item_id, qty) in returns {
+                // reverse capacity per line = received_qty - billed_qty (un-billed received goods)
+                if let Err(e) = self.deallocate(&mut tx, order_id, *item_id, *qty, ReverseWatermark::Returned,
+                    BuyingError::OverReturn { item_id: *item_id }).await {
+                    drop(tx); // roll back — no partial return
+                    if matches!(e, BuyingError::OverReturn { .. }) {
+                        // §33: broadcast the variance so an async consumer sees it, not just the caller.
+                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                            order_id, item_id: *item_id, kind: "over_return".into(),
+                        }));
+                    }
+                    return Err(e);
+                }
+            }
+            tx.commit().await?;
+            self.recompute_order_status(order_id).await?;
+            self.sink.publish(BuyingEvent::PurchaseReturned(PurchaseOrderMilestone { order_id, company_id }));
+            Ok(())
+        }).await
+    }
+
+    /// Record a credit note against a PO (inbound handler for billing's `PurchaseCreditPosted`): reverse-
+    /// allocate the credited qty across the item's PO lines, decrementing `billed_qty`, capped at
+    /// `billed_qty` (always CHECK-safe — reducing `billed_qty` preserves `billed_qty <= received_qty`).
+    /// Rejects over-credit. Broadcasts `ThreeWayMatchFailed` on over-credit; `CreditNoted` on success.
+    /// Mirrors [`Self::mark_billed`] in the reverse direction.
+    pub async fn mark_credited(
+        &self,
+        order_id: Uuid,
+        company_id: Uuid,
+        credits: &[(Uuid, Decimal)],
+    ) -> Result<(), BuyingError> {
+        // RLS scope (ADR-0008): company on the parameter — the allocation tx binds it explicitly
+        // (`bind_company_on`), and the status recompute runs inside the scope.
+        company_scope::with_company_scope(Some(company_id), async move {
+            let mut tx = self.db_pool.begin().await?;
+            company_scope::bind_company_on(&mut tx, company_id).await?;
+            for (item_id, qty) in credits {
+                // reverse capacity per line = billed_qty
+                if let Err(e) = self.deallocate(&mut tx, order_id, *item_id, *qty, ReverseWatermark::Credited,
+                    BuyingError::OverCredit { item_id: *item_id }).await {
+                    drop(tx); // roll back — no partial credit
+                    if matches!(e, BuyingError::OverCredit { .. }) {
+                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                            order_id, item_id: *item_id, kind: "over_credit".into(),
+                        }));
+                    }
+                    return Err(e);
+                }
+            }
+            tx.commit().await?;
+            self.recompute_order_status(order_id).await?;
+            self.sink.publish(BuyingEvent::CreditNoted(PurchaseOrderMilestone { order_id, company_id }));
+            Ok(())
+        }).await
+    }
+
     /// Allocate `qty` of `item_id` across a PO's lines, advancing `watermark` up to each line's cap
     /// (fill-in-order). Rejects with `over_err` if the total remaining capacity is exceeded — so
     /// `received_qty <= quantity` and `billed_qty <= received_qty` hold per line (3-way match).
@@ -149,6 +224,37 @@ impl BuyingWriteService {
             let take = if qty < cap { qty } else { cap };
             self.repos.purchase_order_items
                 .add_to_watermark(&mut *tx, line.id, watermark, take).await?;
+            qty -= take;
+        }
+        Ok(())
+    }
+
+    /// The reverse of [`Self::allocate`]: remove `qty` of `item_id` across a PO's lines, decrementing
+    /// `rw`'s column down to each line's reverse capacity (fill-in-order). Rejects with `over_err` if the
+    /// total reverse capacity is exceeded — so `received_qty <= quantity`, `billed_qty <= received_qty`,
+    /// and non-negativity all hold per line (the DB CHECK is the backstop). Correct even when a PO has
+    /// several lines of the same item.
+    ///
+    /// As with `allocate`, the DECISION lives here (the service owns the business rule); the lock/read/
+    /// bump SQL lives in `PurchaseOrderItemRepository`. Both repo calls take the caller's `tx`, so the
+    /// `FOR UPDATE` lock taken by the capacity read is still held when the decrements run.
+    async fn deallocate(
+        &self, tx: &mut sqlx::PgConnection, order_id: Uuid, item_id: Uuid, mut qty: Decimal,
+        rw: ReverseWatermark, over_err: BuyingError,
+    ) -> Result<(), BuyingError> {
+        let lines = self.repos.purchase_order_items
+            .lock_lines_for_reverse(&mut *tx, order_id, item_id, rw).await?;
+        let total_cap: Decimal = lines.iter().map(|r| r.capacity).sum();
+        if qty > total_cap {
+            return Err(over_err);
+        }
+        for line in &lines {
+            if qty <= Decimal::ZERO { break; }
+            let cap = line.capacity;
+            if cap <= Decimal::ZERO { continue; }
+            let take = if qty < cap { qty } else { cap };
+            self.repos.purchase_order_items
+                .subtract_from_watermark(&mut *tx, line.id, rw, take).await?;
             qty -= take;
         }
         Ok(())

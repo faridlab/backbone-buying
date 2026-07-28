@@ -28,13 +28,14 @@ pub struct DocumentRaised {
     pub source_id: Option<Uuid>,
 }
 
-/// A 3-way-match variance was detected and REJECTED (over-receipt or over-billing). §33: mismatch
-/// flagged before billing — broadcast so an async consumer can react, not just the synchronous caller.
+/// A 3-way-match variance was detected and REJECTED (over-receipt, over-billing, over-return, or
+/// over-credit). §33: mismatch flagged before billing — broadcast so an async consumer can react, not just
+/// the synchronous caller.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ThreeWayMatchFailed {
     pub order_id: Uuid,
     pub item_id: Uuid,
-    /// "over_receipt" | "over_billing".
+    /// "over_receipt" | "over_billing" | "over_return" | "over_credit".
     pub kind: String,
 }
 
@@ -89,6 +90,12 @@ pub enum BuyingEvent {
     ThreeWayMatchFailed(ThreeWayMatchFailed),
     PurchaseOrderFullyReceived(PurchaseOrderMilestone),
     PurchaseOrderFullyBilled(PurchaseOrderMilestone),
+    /// A purchase return reduced `received_qty` (goods sent back to the supplier). Reverse direction of
+    /// [`BuyingEvent::PurchaseOrderFullyReceived`]; may reopen a `completed` PO to `to_receive`.
+    PurchaseReturned(PurchaseOrderMilestone),
+    /// A credit note reduced `billed_qty` (supplier-issued invoice correction). Reverse direction of
+    /// [`BuyingEvent::PurchaseOrderFullyBilled`]; may reopen a `completed` PO to `to_bill`.
+    CreditNoted(PurchaseOrderMilestone),
 }
 
 /// Sink for buying domain events. Fire-and-forget; a real adapter wires a bus, tests record.

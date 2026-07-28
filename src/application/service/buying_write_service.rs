@@ -117,6 +117,10 @@ pub enum BuyingError {
     OverReceipt { item_id: Uuid },
     /// 3-way match: cannot bill more than received (invoice ≤ receipt).
     OverBilling { item_id: Uuid },
+    /// 3-way match: cannot return more than the un-billed received portion (credit the billed goods first).
+    OverReturn { item_id: Uuid },
+    /// 3-way match: cannot credit more than has been billed.
+    OverCredit { item_id: Uuid },
     Db(sqlx::Error),
 }
 
@@ -132,6 +136,8 @@ impl BuyingError {
             BuyingError::SourceNotConvertible(_) => "source_not_convertible".into(),
             BuyingError::OverReceipt { .. } => "over_receipt".into(),
             BuyingError::OverBilling { .. } => "over_billing".into(),
+            BuyingError::OverReturn { .. } => "over_return".into(),
+            BuyingError::OverCredit { .. } => "over_credit".into(),
             BuyingError::Db(_) => "internal_error".into(),
         }
     }

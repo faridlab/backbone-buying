@@ -47,7 +47,7 @@ pub use purchase_order_repository::{
     PurchaseOrderRefRow,
 };
 pub use purchase_order_item_repository::{
-    AllocatableLineRow, MatchWatermark, NewPurchaseOrderItemRow, RemainingLineRow,
+    AllocatableLineRow, MatchWatermark, NewPurchaseOrderItemRow, RemainingLineRow, ReverseWatermark,
 };
 pub use request_for_quotation_repository::{NewRfqRow, RfqSourceRow};
 pub use rfq_item_repository::{NewRfqItemRow, RfqLineRow};

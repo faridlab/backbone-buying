@@ -177,3 +177,96 @@ async fn subcontract_order_kind() {
     assert_eq!(kind, "subcontract");
 }
 
+// BGC-8 (council 2026-07-28): reverse watermarks — a credit note decrements billed_qty and reopens a
+// completed PO; a purchase return decrements received_qty and reopens it. The 3-way-match invariants
+// survive reversal (billed ≤ received ≤ ordered; non-negative).
+async fn wms(pool: &PgPool, id: Uuid) -> (Decimal, Decimal) {
+    let (rq, bq): (Decimal, Decimal) = sqlx::query_as(
+        "SELECT received_qty, billed_qty FROM buying.purchase_order_items WHERE order_id=$1")
+        .bind(id).fetch_one(pool).await.unwrap();
+    (rq, bq)
+}
+
+// A credit note for 3 of 10 billed reopens a completed PO: billed_qty 10→7, status completed→to_bill.
+#[tokio::test]
+async fn credit_note_reopens_completed() {
+    let pool = pool().await;
+    let w = BuyingWriteService::new(pool.clone());
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let id = po(&w, company, item, "10", "100000", "0").await;
+    w.confirm_purchase_order(id).await.unwrap();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+    assert_eq!(po_status(&pool, id).await, "completed");
+
+    w.mark_credited(id, company, &[(item, d("3"))]).await.unwrap();
+    assert_eq!(wms(&pool, id).await, (d("10.0000"), d("7.0000")), "credit decrements billed_qty only");
+    assert_eq!(po_status(&pool, id).await, "to_bill", "received all, no longer fully billed");
+}
+
+// A return of 4 of 10 received (none billed) reopens the PO: received_qty 10→6, status to_bill→to_receive_and_bill.
+#[tokio::test]
+async fn purchase_return_reopens_po() {
+    let pool = pool().await;
+    let w = BuyingWriteService::new(pool.clone());
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let id = po(&w, company, item, "10", "100000", "0").await;
+    w.confirm_purchase_order(id).await.unwrap();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    assert_eq!(po_status(&pool, id).await, "to_bill");
+
+    w.mark_returned(id, company, &[(item, d("4"))]).await.unwrap();
+    assert_eq!(wms(&pool, id).await, (d("6.0000"), d("0.0000")), "return decrements received_qty only");
+    assert_eq!(po_status(&pool, id).await, "to_receive_and_bill", "no longer fully received");
+}
+
+// All received goods are billed → returnable portion is 0; a return is refused (credit first).
+#[tokio::test]
+async fn over_return_on_billed_goods_rejected() {
+    let pool = pool().await;
+    let w = BuyingWriteService::new(pool.clone());
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let id = po(&w, company, item, "10", "100000", "0").await;
+    w.confirm_purchase_order(id).await.unwrap();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+
+    let e = w.mark_returned(id, company, &[(item, d("1"))]).await.unwrap_err();
+    assert!(matches!(e, BuyingError::OverReturn { .. }));
+    assert_eq!(wms(&pool, id).await, (d("10.0000"), d("10.0000")), "rejected return leaves watermarks untouched");
+}
+
+// Only 7 of 10 received were billed → crediting 10 is refused.
+#[tokio::test]
+async fn over_credit_rejected() {
+    let pool = pool().await;
+    let w = BuyingWriteService::new(pool.clone());
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let id = po(&w, company, item, "10", "100000", "0").await;
+    w.confirm_purchase_order(id).await.unwrap();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, company, &[(item, d("7"))]).await.unwrap();
+
+    let e = w.mark_credited(id, company, &[(item, d("10"))]).await.unwrap_err();
+    assert!(matches!(e, BuyingError::OverCredit { .. }));
+    let (_, bq) = wms(&pool, id).await;
+    assert_eq!(bq, d("7.0000"), "rejected credit leaves billed_qty untouched");
+}
+
+// Credit 3 first (frees 3 received from billing), then return 3 — billed ≤ received holds throughout.
+#[tokio::test]
+async fn return_after_credit_chain() {
+    let pool = pool().await;
+    let w = BuyingWriteService::new(pool.clone());
+    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let id = po(&w, company, item, "10", "100000", "0").await;
+    w.confirm_purchase_order(id).await.unwrap();
+    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+
+    w.mark_credited(id, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_returned(id, company, &[(item, d("3"))]).await.unwrap();
+    assert_eq!(wms(&pool, id).await, (d("7.0000"), d("7.0000")), "credit then return keeps billed ≤ received");
+    assert_eq!(po_status(&pool, id).await, "to_receive_and_bill");
+}
+
