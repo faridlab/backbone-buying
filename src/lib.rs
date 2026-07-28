@@ -61,15 +61,15 @@ use sqlx::PgPool;
 /// let router = buying.all_crud_routes();
 /// ```
 pub struct BuyingModule {
-    pub material_request_service: Arc<MaterialRequestService>,
-    pub material_request_item_service: Arc<MaterialRequestItemService>,
-    pub purchase_order_service: Arc<PurchaseOrderService>,
-    pub purchase_order_item_service: Arc<PurchaseOrderItemService>,
-    pub request_for_quotation_service: Arc<RequestForQuotationService>,
-    pub rfq_item_service: Arc<RfqItemService>,
-    pub rfq_supplier_service: Arc<RfqSupplierService>,
-    pub supplier_quotation_service: Arc<SupplierQuotationService>,
-    pub supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
+    pub(crate) material_request_service: Arc<MaterialRequestService>,
+    pub(crate) material_request_item_service: Arc<MaterialRequestItemService>,
+    pub(crate) purchase_order_service: Arc<PurchaseOrderService>,
+    pub(crate) purchase_order_item_service: Arc<PurchaseOrderItemService>,
+    pub(crate) request_for_quotation_service: Arc<RequestForQuotationService>,
+    pub(crate) rfq_item_service: Arc<RfqItemService>,
+    pub(crate) rfq_supplier_service: Arc<RfqSupplierService>,
+    pub(crate) supplier_quotation_service: Arc<SupplierQuotationService>,
+    pub(crate) supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
 }
 
 impl BuyingModule {
