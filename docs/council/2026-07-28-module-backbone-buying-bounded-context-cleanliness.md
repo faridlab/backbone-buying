@@ -27,7 +27,7 @@ Unwind the fold: drop the regen's content changes to the 6 already-shipped April
 | 4 | Mirror ADR-0008 / ADR-0010 (or a local ADR-003 pointer) into `backbone-buying/docs/adr/` so in-module readers see WHY `company_id` is NOT NULL on every child table. | low-medium — doc-only; closes the "reader can't see the tenancy rationale" gap the context seat flagged. Model is already correct. | trivial. | easy | None — pure documentation addition. |
 
 ## Parking lot
-- Purchase RETURN (reduce `received_qty`) and CREDIT NOTE (reduce `billed_qty`) — the monotonic-watermark model cannot represent them. Raised by domain-expert. Scope: future P2P domain-model enhancement at root, not a bounded-context-cleanliness item. Already deferred per "council 2026-07-05"; keep as a named, intentional scope cut.
+- Purchase RETURN (reduce `received_qty`) and CREDIT NOTE (reduce `billed_qty`) — the monotonic-watermark model cannot represent them. Raised by domain-expert. Scope: future P2P domain-model enhancement at root, not a bounded-context-cleanliness item. Already deferred per "council 2026-07-05"; keep as a named, intentional scope cut. **→ RESOLVED 2026-07-28: implemented in [ADR-004](../../adr/ADR-004-reverse-watermarks.md) (`mark_returned` / `mark_credited`, shipped in backbone-buying 0.3.3).**
 - Over-receipt tolerance — raised by domain-expert; same deferral bucket as above.
 - SSoT-propagation / cross-module cargo-dependency posture — touched by steelman (zero hard deps in normal build, proven by `tests/receipt_seam.rs`); already verified clean by the orchestrator, no action under this lens.
 
