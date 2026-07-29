@@ -5,8 +5,6 @@
 //! These services provide the public API for other modules.
 //! They only expose read operations - writes go through events.
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -104,21 +102,6 @@ pub trait BuyingQueryService: Send + Sync {
     /// Check if SupplierQuotationItem exists
     async fn supplier_quotation_item_exists(&self, id: SupplierQuotationItemId) -> Result<bool>;
 
-}
-
-// ============================================================================
-// QUERY SERVICE IMPLEMENTATION
-// ============================================================================
-
-/// Default implementation of BuyingQueryService
-pub struct BuyingQueryServiceImpl<R> {
-    repository: Arc<R>,
-}
-
-impl<R> BuyingQueryServiceImpl<R> {
-    pub fn new(repository: Arc<R>) -> Self {
-        Self { repository }
-    }
 }
 
 // ============================================================================
