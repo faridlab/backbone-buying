@@ -110,7 +110,7 @@ async fn procure_to_pay_receipt_across_three_modules() {
     assert_eq!(req.lines.len(), 1);
     let pr = intake.on_receipt_expected(ReceiptExpected {
         receipt_number: uq("PR"), company_id: req.company_id, branch_id: None, supplier_id: req.supplier_id,
-        source_po_id: Some(req.order_id), warehouse_id: wh, posting_date: day(),
+        source_po_id: Some(req.order_id), warehouse_id: wh, posting_date: day(), currency: "IDR".into(),
         inventory_account_id: coa["1300"], grir_account_id: coa["2150"],
         lines: req.lines.iter().map(|l| InvReceiptLine { item_id: l.item_id, quantity: l.quantity, rate: l.rate }).collect(),
     }).await.unwrap();
