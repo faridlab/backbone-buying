@@ -12,6 +12,28 @@
 module: buying
 version: 2
 schema: buying
+
+# -----------------------------------------------------------------------------
+# Company fence (ADR-0014) — module-level declaration; the DSL admits exactly
+# one per module, so the per-entity posture is realized by column nullability:
+#
+#   shared_blank  : nullable company_id — NULL rows are first-class shared rows
+#                   (the port of Odoo's `[False]` escape). Applies to MASTER
+#                   DATA that is shared across companies.
+#   strict        : NOT NULL company_id — the `company_id IS NULL` arm of the
+#                   shared_blank predicate is dead on these tables, making
+#                   them behaviorally strict. Applies to TRANSACTIONS and
+#                   their configuration rows.
+#
+# Posture map (entity -> realized fence, all under this one declaration):
+#   MaterialRequest       -> strict (@required company_id)
+#   RequestForQuotation   -> strict
+#   SupplierQuotation    -> strict
+#   PurchaseOrder         -> strict
+#   all header/line items -> strict
+# -----------------------------------------------------------------------------
+company_fence: strict
+
 description: "Buying: Material Request -> RFQ -> Supplier Quotation -> Purchase Order. Procure-to-pay intent; drives inventory Purchase Receipt (asset post) via ReceiptExpected and billing Purchase Invoice (A/P). Emits no AccountingPost."
 
 config:
