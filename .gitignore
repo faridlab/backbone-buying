@@ -27,3 +27,4 @@ graphify-out/
 # Local Cargo override — redirects backbone-inventory/backbone-accounting git dev-deps to ../backbone-*
 # in dev. .cargo/config.toml.example is tracked as the template; the real file stays local.
 .cargo/config.toml
+.cargo/config.toml.quarantined
