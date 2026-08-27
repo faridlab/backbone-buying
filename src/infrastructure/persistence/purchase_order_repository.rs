@@ -44,7 +44,9 @@ impl PurchaseOrderRepository {
 /// Mirrors the raw column shape rather than the `PurchaseOrder` entity: `order_kind` binds as `&str`
 /// and is cast at the DB (`$4::order_kind`), so a bad value fails as a DB error rather than a
 /// deserialize panic. `status` is not a field — the INSERT hard-codes `'draft'`. The money columns
-/// carry the SERVER-computed totals (2dp half-up), not anything the caller sent.
+/// carry the SERVER-computed totals (2dp half-up), not anything the caller sent. `currency_rate` is
+/// the order-time snapshot the caller resolved (1 for same-currency POs — the create gate enforces
+/// that a foreign-currency PO carries a real rate).
 pub struct NewPurchaseOrderRow<'a> {
     pub id: Uuid,
     pub po_number: &'a str,
@@ -56,6 +58,8 @@ pub struct NewPurchaseOrderRow<'a> {
     pub order_date: chrono::NaiveDate,
     pub schedule_date: Option<chrono::NaiveDate>,
     pub currency: &'a str,
+    pub currency_rate: Decimal,
+    pub agreement_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -78,25 +82,46 @@ pub struct PurchaseOrderHeaderRow {
     pub supplier_id: Uuid,
     pub currency: String,
     pub status: String,
+    pub order_kind: String,
 }
 
-/// The PO fields returned by a successful confirmation.
+/// The PO fields returned by a successful confirmation (either entry path into `purchase`).
 pub struct ConfirmedOrderRow {
     pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub total: Decimal,
     pub currency: String,
+    pub order_kind: String,
 }
 
-/// A PO's two 3-way-match watermarks aggregated across its lines, plus the status it held BEFORE the
-/// recompute (the milestone events fire on the transition, so the prior value is load-bearing).
-///
-/// `received_all`/`billed_all` are `Option<bool>`: `bool_and` over zero rows yields NULL.
-pub struct MatchWatermarkRow {
+/// Everything the double-validation gate and the lifecycle guards need to decide, read in one
+/// scoped query: the money (with its currency snapshot), the current state, and the lock flag.
+pub struct OrderGateRow {
     pub company_id: Uuid,
-    pub prior: String,
+    pub supplier_id: Uuid,
+    pub total: Decimal,
+    pub currency: String,
+    pub currency_rate: Decimal,
+    pub status: String,
+    pub order_kind: String,
+    pub locked: bool,
+    pub has_live_billed_lines: bool,
+}
+
+/// A PO's delivery/billing maturity aggregates across its live lines, plus the two computes it held
+/// BEFORE the recompute (the milestone events fire on the transition, so the prior values are
+/// load-bearing).
+///
+/// The `Option<bool>` aggregates are `bool_and`/`bool_or` over zero rows → NULL.
+pub struct MaturityRow {
+    pub company_id: Uuid,
+    pub order_kind: String,
+    pub prior_receipt: String,
+    pub prior_invoice: String,
     pub received_all: Option<bool>,
-    pub billed_all: Option<bool>,
+    pub any_received: Option<bool>,
+    pub any_to_invoice: Option<bool>,
+    pub any_billed: Option<bool>,
 }
 
 /// Hand-written PurchaseOrder SQL. Lives here (not in the write service) per the module's 4-layer
@@ -117,11 +142,13 @@ impl PurchaseOrderRepository {
         sqlx::query(
             r#"INSERT INTO buying.purchase_orders
                 (id, po_number, supplier_quotation_id, order_kind, company_id, branch_id, supplier_id,
-                 status, order_date, schedule_date, currency, subtotal, tax_rate, tax_amount, total, notes)
-               VALUES ($1,$2,$3,$4::order_kind,$5,$6,$7,'draft'::purchase_order_status,$8,$9,$10,$11,$12,$13,$14,$15)"#,
+                 status, order_date, schedule_date, currency, currency_rate, agreement_id,
+                 subtotal, tax_rate, tax_amount, total, notes)
+               VALUES ($1,$2,$3,$4::order_kind,$5,$6,$7,'draft'::purchase_order_status,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)"#,
         )
         .bind(o.id).bind(o.po_number).bind(o.supplier_quotation_id).bind(o.order_kind).bind(o.company_id)
         .bind(o.branch_id).bind(o.supplier_id).bind(o.order_date).bind(o.schedule_date).bind(o.currency)
+        .bind(o.currency_rate).bind(o.agreement_id)
         .bind(o.subtotal).bind(o.tax_rate).bind(o.tax_amount).bind(o.total).bind(o.notes)
         .execute(conn)
         .await?;
@@ -164,7 +191,7 @@ impl PurchaseOrderRepository {
         let row = company_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT company_id, supplier_id, currency, status::text AS st
+                r#"SELECT company_id, supplier_id, currency, status::text AS st, order_kind::text AS kind
                    FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(order_id),
         )
@@ -174,26 +201,69 @@ impl PurchaseOrderRepository {
             supplier_id: r.get("supplier_id"),
             currency: r.get("currency"),
             status: r.get("st"),
+            order_kind: r.get("kind"),
         }))
     }
 
-    /// Confirm a `draft` PO → `to_receive_and_bill`, returning the fields the confirmation event
-    /// carries. State-guarded on `draft`, so `Ok(None)` = absent or not confirmable.
-    ///
-    /// ID-only: the `UPDATE ... RETURNING` rides the request-dedicated connection carrying the
-    /// caller's `app.company_id`, so it can only confirm a PO in the caller's own company.
-    pub async fn confirm(
+    /// Read everything the lifecycle gates need for one PO. `Ok(None)` = not found (or another
+    /// company's — the read rides the request-dedicated connection under the caller's RLS scope).
+    pub async fn fetch_gate_row(
         &self,
         pool: &PgPool,
         order_id: Uuid,
-    ) -> Result<Option<ConfirmedOrderRow>, sqlx::Error> {
+    ) -> Result<Option<OrderGateRow>, sqlx::Error> {
         let row = company_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"UPDATE buying.purchase_orders SET status='to_receive_and_bill'::purchase_order_status
-                   WHERE id=$1 AND status='draft'::purchase_order_status AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id, supplier_id, total, currency"#,
+                r#"SELECT po.company_id, po.supplier_id, po.total, po.currency, po.currency_rate,
+                          po.status::text AS st, po.order_kind::text AS kind, po.locked,
+                          EXISTS (SELECT 1 FROM buying.purchase_order_items i
+                                  WHERE i.order_id = po.id
+                                    AND (i.metadata->>'deleted_at') IS NULL
+                                    AND i.billed_qty > 0) AS has_live_billed_lines
+                   FROM buying.purchase_orders po
+                   WHERE po.id=$1 AND (po.metadata->>'deleted_at') IS NULL"#,
             ).bind(order_id),
+        )
+        .await?;
+        Ok(row.map(|r| OrderGateRow {
+            company_id: r.get("company_id"),
+            supplier_id: r.get("supplier_id"),
+            total: r.get("total"),
+            currency: r.get("currency"),
+            currency_rate: r.get("currency_rate"),
+            status: r.get("st"),
+            order_kind: r.get("kind"),
+            locked: r.get("locked"),
+            has_live_billed_lines: r.get("has_live_billed_lines"),
+        }))
+    }
+
+    /// Enter the operational state: `status='purchase'` + stamp `date_approve`, from either entry
+    /// path (confirm with the gate passed, or manager approve). State-guarded on the allowed
+    /// sources so a stale double-fire is a no-op (`Ok(None)`).
+    ///
+    /// ID-only: the `UPDATE ... RETURNING` rides the request-dedicated connection carrying the
+    /// caller's `app.company_id`, so it can only confirm a PO in the caller's own company.
+    pub async fn enter_purchase(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+        from: &[&str],
+    ) -> Result<Option<ConfirmedOrderRow>, sqlx::Error> {
+        let from_list = from.iter().map(|s| format!("'{}'", s)).collect::<Vec<_>>().join(",");
+        let sql = format!(
+            r#"UPDATE buying.purchase_orders
+                  SET status='purchase'::purchase_order_status, date_approve=CURRENT_DATE
+                WHERE id=$1
+                  AND status = ANY(ARRAY[{from_list}]::purchase_order_status[])
+                  AND (metadata->>'deleted_at') IS NULL
+                RETURNING company_id, supplier_id, total, currency, order_kind::text AS kind"#,
+            from_list = from_list,
+        );
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(&sql).bind(order_id),
         )
         .await?;
         Ok(row.map(|r| ConfirmedOrderRow {
@@ -201,58 +271,215 @@ impl PurchaseOrderRepository {
             supplier_id: r.get("supplier_id"),
             total: r.get("total"),
             currency: r.get("currency"),
+            order_kind: r.get("kind"),
         }))
     }
 
-    /// Aggregate a PO's 3-way-match watermarks across its lines, alongside its current (pre-recompute)
-    /// status.
-    ///
-    /// ID-only: no company argument — this runs under whatever scope its caller established, i.e. the
-    /// request connection under HTTP, or an event caller's `with_company_scope`.
-    pub async fn fetch_match_watermarks(
+    /// Park a confirm in `to_approve` (the double-validation gate refused it). State-guarded on
+    /// draft/sent; `Ok(None)` = not parkable from its current state.
+    pub async fn park_for_approval(
         &self,
         pool: &PgPool,
         order_id: Uuid,
-    ) -> Result<MatchWatermarkRow, sqlx::Error> {
-        let row = company_scope::fetch_one_row_scoped(
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT po.company_id, po.status::text AS prior,
-                          bool_and(i.received_qty >= i.quantity) AS received_all,
-                          bool_and(i.billed_qty >= i.quantity) AS billed_all
-                   FROM buying.purchase_order_items i
-                   JOIN buying.purchase_orders po ON po.id = i.order_id
-                   WHERE i.order_id=$1 AND (i.metadata->>'deleted_at') IS NULL
-                   GROUP BY po.company_id, po.status"#,
+                r#"UPDATE buying.purchase_orders SET status='to_approve'::purchase_order_status
+                   WHERE id=$1 AND status = ANY(ARRAY['draft','sent']::purchase_order_status[])
+                     AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(MatchWatermarkRow {
-            company_id: row.get("company_id"),
-            prior: row.get("prior"),
-            received_all: row.get("received_all"),
-            billed_all: row.get("billed_all"),
-        })
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
     }
 
-    /// Flip a PO's status to the recomputed value. Guarded to the three in-flight statuses, so a
-    /// `draft` or `cancelled` PO is never dragged forward by a stray watermark recompute.
-    ///
-    /// `status` binds as `&str` and is cast at the DB (`$2::purchase_order_status`). A write outside
-    /// any transaction: the caller wraps this in `with_company_scope(Some(company))` using the company
-    /// it just read off the PO's own row, so this is correct for non-request callers too.
-    pub async fn update_status(
+    /// Reset to `draft` from any non-draft state (cancelled included — cancelled→draft must be
+    /// reachable). `date_approve` is deliberately NOT cleared: it records that an approval once
+    /// happened. `Ok(None)` = already draft or absent.
+    pub async fn reset_to_draft(
         &self,
         pool: &PgPool,
         order_id: Uuid,
-        status: &str,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders SET status='draft'::purchase_order_status
+                   WHERE id=$1 AND status = ANY(ARRAY['sent','to_approve','purchase','cancelled']::purchase_order_status[])
+                     AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id"#,
+            ).bind(order_id),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+    }
+
+    /// Cancel from any live state. State-guarded here; the G4 (locked) and G5 (billed) triggers on
+    /// the table are the DB backstop — the service pre-checks so the caller gets the typed error.
+    pub async fn cancel(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders SET status='cancelled'::purchase_order_status
+                   WHERE id=$1 AND status = ANY(ARRAY['draft','sent','to_approve','purchase']::purchase_order_status[])
+                     AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id"#,
+            ).bind(order_id),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+    }
+
+    /// `draft` → `sent` (the print/send step). `Ok(None)` = not in draft.
+    pub async fn mark_sent(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders SET status='sent'::purchase_order_status
+                   WHERE id=$1 AND status='draft'::purchase_order_status
+                     AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id"#,
+            ).bind(order_id),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+    }
+
+    /// Flip the lock flag. Orthogonal to the lifecycle band; state-guarded to live rows only.
+    pub async fn set_locked(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+        locked: bool,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders SET locked=$2
+                   WHERE id=$1 AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id"#,
+            ).bind(order_id).bind(locked),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+    }
+
+    /// Stamp `acknowledged=true` (the reminder suppressor). Guarded to the operational state, so a
+    /// draft or cancelled PO cannot be acknowledged.
+    pub async fn set_acknowledged(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders SET acknowledged=true
+                   WHERE id=$1 AND status='purchase'::purchase_order_status
+                     AND (metadata->>'deleted_at') IS NULL
+                   RETURNING company_id"#,
+            ).bind(order_id),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+    }
+
+    /// Soft-delete a cancelled PO (the G8 verb; the trigger backstops any raw attempt on a live
+    /// row). `Ok(None)` = absent or not cancelled.
+    pub async fn soft_delete_cancelled(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_orders
+                      SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(NOW()))
+                    WHERE id=$1 AND status='cancelled'::purchase_order_status
+                      AND (metadata->>'deleted_at') IS NULL
+                    RETURNING company_id"#,
+            ).bind(order_id),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+    }
+
+    /// Aggregate a PO's delivery/billing maturity across its live lines, alongside the two computes
+    /// it held BEFORE the recompute (the milestone events fire on the transition into
+    /// `full`/`invoiced`, so the priors are load-bearing). The `any_to_invoice` expression is the
+    /// same per-line CASE the maturity compute and the allocation caps use — one formula, three
+    /// surfaces (migration CHECK, allocation cap, maturity recompute).
+    ///
+    /// ID-only: no company argument — this runs under whatever scope its caller established, i.e. the
+    /// request connection under HTTP, or an event caller's `with_company_scope`.
+    pub async fn fetch_maturity(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+    ) -> Result<MaturityRow, sqlx::Error> {
+        let row = company_scope::fetch_one_row_scoped(
+            pool,
+            sqlx::query(
+                r#"SELECT po.company_id,
+                          po.order_kind::text AS kind,
+                          po.receipt_status::text AS prior_receipt,
+                          po.invoice_status::text AS prior_invoice,
+                          bool_and(i.received_qty >= i.quantity) AS received_all,
+                          bool_or(i.received_qty > 0) AS any_received,
+                          bool_or((CASE WHEN i.purchase_method='purchase' THEN i.quantity ELSE i.received_qty END) - i.billed_qty <> 0) AS any_to_invoice,
+                          bool_or(i.billed_qty > 0) AS any_billed
+                   FROM buying.purchase_order_items i
+                   JOIN buying.purchase_orders po ON po.id = i.order_id
+                   WHERE i.order_id=$1 AND (i.metadata->>'deleted_at') IS NULL
+                   GROUP BY po.company_id, po.order_kind, po.receipt_status, po.invoice_status"#,
+            ).bind(order_id),
+        )
+        .await?;
+        Ok(MaturityRow {
+            company_id: row.get("company_id"),
+            order_kind: row.get("kind"),
+            prior_receipt: row.get("prior_receipt"),
+            prior_invoice: row.get("prior_invoice"),
+            received_all: row.get("received_all"),
+            any_received: row.get("any_received"),
+            any_to_invoice: row.get("any_to_invoice"),
+            any_billed: row.get("any_billed"),
+        })
+    }
+
+    /// Write the recomputed maturity computes. Guarded to the operational state so a `draft` or
+    /// `cancelled` PO is never dragged forward by a stray recompute — the band has no watermark
+    /// states, the computes ARE the maturity record.
+    ///
+    /// The two enum values bind as `&str` and cast at the DB. A write outside any transaction: the
+    /// caller wraps this in `with_company_scope(Some(company))` using the company it just read off
+    /// the PO's own row, so this is correct for non-request callers too.
+    pub async fn update_maturity(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+        receipt_status: &str,
+        invoice_status: &str,
     ) -> Result<(), sqlx::Error> {
         company_scope::execute_scoped(
             pool,
             sqlx::query(
-                r#"UPDATE buying.purchase_orders SET status=$2::purchase_order_status
-                   WHERE id=$1 AND status = ANY(ARRAY['to_receive','to_bill','to_receive_and_bill','completed']::purchase_order_status[])"#,
-            ).bind(order_id).bind(status),
+                r#"UPDATE buying.purchase_orders
+                      SET receipt_status=$2::purchase_receipt_status,
+                          invoice_status=$3::purchase_invoice_status
+                    WHERE id=$1 AND status='purchase'::purchase_order_status"#,
+            ).bind(order_id).bind(receipt_status).bind(invoice_status),
         )
         .await?;
         Ok(())

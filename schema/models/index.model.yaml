@@ -30,6 +30,10 @@ schema: buying
 #   RequestForQuotation   -> strict
 #   SupplierQuotation    -> strict
 #   PurchaseOrder         -> strict
+#   PurchaseCompanySetting -> strict (NOT NULL company_id, one row per company)
+#   SupplierReminderSetting -> strict (NOT NULL company_id, one row per company+supplier)
+#   PurchaseAgreement / PurchaseAgreementLine -> strict (line carries direct company_id per ADR-0010)
+#   SupplierPrice         -> strict
 #   all header/line items -> strict
 # -----------------------------------------------------------------------------
 company_fence: strict
@@ -89,3 +93,7 @@ imports:
   - rfq.model.yaml
   - supplier_quotation.model.yaml
   - purchase_order.model.yaml
+  - purchase_company_setting.model.yaml
+  - supplier_reminder_setting.model.yaml
+  - purchase_agreement.model.yaml
+  - supplier_price.model.yaml

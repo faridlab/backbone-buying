@@ -1,0 +1,82 @@
+# =============================================================================
+# Domain: Buying
+# Entity: SupplierPrice
+# Description: The validated supplier-price row minted per agreement line when
+# an agreement is confirmed — the buying-owned equivalent of a supplier price
+# overlay, with the correction that it is written ONLY by the agreement verbs
+# (confirm / price-edit propagate / close-or-cancel unlink) through validated
+# transactions. There is deliberately NO CRUD route mounted on this table and
+# no other write surface: prices are negotiated data, not free-form input.
+# =============================================================================
+
+models:
+  - name: SupplierPrice
+    collection: supplier_prices
+    description: "Supplier price minted from a confirmed agreement line (written only by the agreement verbs)"
+
+    # No HTTP surface on this table: prices are negotiated data minted/unlinked/re-priced by the
+    # agreement verbs (confirm / update_agreement_line_price / close / cancel) through validated
+    # transactions — never a free-form CRUD write. Disabling the handler generator here keeps the
+    # 12-endpoint Backbone CRUD surface from ever being mounted on it; the CRUD API test and the
+    # seeder are disabled with it (a test against unmounted routes and a seed writer would both
+    # re-open the write surface the verbs are supposed to own exclusively).
+    generators:
+      disabled:
+        - handler
+        - integration-test
+        - seeder
+        - openapi
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique supplier-price row identifier"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id — STRICT-fenced"
+
+      supplier_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Supplier the price applies to # logical FK to party.Party.id"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Catalog item # logical FK to catalog.Item.id"
+
+      price:
+        type: decimal
+        attributes: ["@required", "@precision(18,2)", "@positive"]
+        description: "Unit price (mirrors the agreement line's rate; propagates on line price edits)"
+
+      currency:
+        type: string
+        attributes: ["@default(\"IDR\")", "@max(3)"]
+        description: "ISO currency code the price is denominated in"
+
+      agreement_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Agreement the price was minted from # logical FK to buying.PurchaseAgreement.id"
+
+      agreement_line_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Agreement line the price mirrors # logical FK to buying.PurchaseAgreementLine.id"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    indexes:
+      - type: unique
+        fields: [company_id, supplier_id, item_id, agreement_line_id]
+        where: "deleted_at IS NULL"
+        description: "One price row per company+supplier+item+agreement-line"
+      - type: index
+        fields: [agreement_id]

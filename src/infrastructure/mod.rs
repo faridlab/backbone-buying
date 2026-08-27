@@ -5,4 +5,7 @@
 pub mod persistence;
 
 // <<< CUSTOM
+// The module's scheduled job. `jobs/` is declared `user_owned` in metaphor.codegen.yaml
+// (whole-tree glob), matching the inventory module's job layout.
+pub mod jobs;
 // END CUSTOM

@@ -33,4 +33,10 @@ events: {}
 # =============================================================================
 # Scheduled jobs
 # =============================================================================
-scheduled_jobs: {}
+scheduled_jobs:
+  send_receipt_reminder:
+    schedule: "0 7 * * *"
+    handler: send_receipt_reminder
+    posture: pull
+    commit_policy: single_transaction
+    pickup_lock: true

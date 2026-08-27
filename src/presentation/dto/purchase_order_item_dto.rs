@@ -19,6 +19,8 @@ use validator::Validate;
 
 use crate::domain::entity::PurchaseOrderItem;
 use crate::domain::entity::AuditMetadata;
+use crate::domain::entity::PurchaseMethod;
+use crate::domain::entity::QtyReceivedMethod;
 
 // =============================================================================
 // Create DTO
@@ -55,6 +57,10 @@ pub struct CreatePurchaseOrderItemDto {
     pub received_qty: Decimal,
     #[serde(alias = "billed_qty")]
     pub billed_qty: Decimal,
+    #[serde(alias = "qty_received_method")]
+    pub qty_received_method: QtyReceivedMethod,
+    #[serde(alias = "purchase_method")]
+    pub purchase_method: PurchaseMethod,
 }
 
 // =============================================================================
@@ -92,6 +98,10 @@ pub struct UpdatePurchaseOrderItemDto {
     pub received_qty: Decimal,
     #[serde(alias = "billed_qty")]
     pub billed_qty: Decimal,
+    #[serde(alias = "qty_received_method")]
+    pub qty_received_method: QtyReceivedMethod,
+    #[serde(alias = "purchase_method")]
+    pub purchase_method: PurchaseMethod,
 }
 
 // =============================================================================
@@ -131,12 +141,16 @@ pub struct PatchPurchaseOrderItemDto {
     pub received_qty: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "billed_qty")]
     pub billed_qty: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "qty_received_method")]
+    pub qty_received_method: Option<QtyReceivedMethod>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "purchase_method")]
+    pub purchase_method: Option<PurchaseMethod>,
 }
 
 impl PatchPurchaseOrderItemDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.order_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.warehouse_id.is_some() || self.description.is_some() || self.quantity.is_some() || self.rate.is_some() || self.line_amount.is_some() || self.received_qty.is_some() || self.billed_qty.is_some()
+        self.order_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.warehouse_id.is_some() || self.description.is_some() || self.quantity.is_some() || self.rate.is_some() || self.line_amount.is_some() || self.received_qty.is_some() || self.billed_qty.is_some() || self.qty_received_method.is_some() || self.purchase_method.is_some()
     }
 }
 
@@ -167,6 +181,8 @@ pub struct PurchaseOrderItemResponseDto {
     pub line_amount: Decimal,
     pub received_qty: Decimal,
     pub billed_qty: Decimal,
+    pub qty_received_method: QtyReceivedMethod,
+    pub purchase_method: PurchaseMethod,
     pub metadata: AuditMetadata,
 }
 
@@ -248,6 +264,8 @@ impl From<PurchaseOrderItem> for PurchaseOrderItemResponseDto {
             line_amount: entity.line_amount,
             received_qty: entity.received_qty,
             billed_qty: entity.billed_qty,
+            qty_received_method: entity.qty_received_method,
+            purchase_method: entity.purchase_method,
             metadata: entity.metadata,
         }
     }
@@ -280,6 +298,8 @@ impl From<CreatePurchaseOrderItemDto> for PurchaseOrderItem {
             line_amount: dto.line_amount,
             received_qty: dto.received_qty,
             billed_qty: dto.billed_qty,
+            qty_received_method: dto.qty_received_method,
+            purchase_method: dto.purchase_method,
             metadata: AuditMetadata::default(),
         }
     }
@@ -299,6 +319,8 @@ impl From<&PurchaseOrderItem> for PurchaseOrderItemResponseDto {
             line_amount: entity.line_amount.clone(),
             received_qty: entity.received_qty.clone(),
             billed_qty: entity.billed_qty.clone(),
+            qty_received_method: entity.qty_received_method.clone(),
+            purchase_method: entity.purchase_method.clone(),
             metadata: entity.metadata.clone(),
         }
     }
@@ -322,6 +344,8 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseOrderItemDto> for PurchaseOrder
         self.line_amount = dto.line_amount;
         self.received_qty = dto.received_qty;
         self.billed_qty = dto.billed_qty;
+        self.qty_received_method = dto.qty_received_method;
+        self.purchase_method = dto.purchase_method;
         Ok(self)
     }
 }

@@ -42,7 +42,10 @@ impl PurchaseOrderItemRepository {
 }
 
 /// The exact row a purchase-order line insert writes. `line_amount` is the SERVER-computed
-/// `money(quantity * rate)`, not anything the caller sent.
+/// `money(quantity * rate)`, not anything the caller sent. The two method columns carry the
+/// caller-resolved tier (defaulted to the schema defaults upstream): `qty_received_method` picks
+/// who advances `received_qty` (the receipt seam or an operator), `purchase_method` picks the
+/// billing-capacity formula.
 pub struct NewPurchaseOrderItemRow<'a> {
     pub id: Uuid,
     pub order_id: Uuid,
@@ -53,32 +56,49 @@ pub struct NewPurchaseOrderItemRow<'a> {
     pub quantity: Decimal,
     pub rate: Decimal,
     pub line_amount: Decimal,
+    pub qty_received_method: &'a str,
+    pub purchase_method: &'a str,
 }
 
-/// A PO line's not-yet-received quantity, as requested by the receipt seam.
+/// A PO line's not-yet-received quantity, as requested by the receipt seam. Only
+/// `stock_moves` lines appear — a `manual` line's received quantity is set by an operator, so
+/// inventory is never asked to expect it.
 pub struct RemainingLineRow {
     pub item_id: Uuid,
     pub rate: Decimal,
     pub remaining: Decimal,
 }
 
-/// A locked PO line and its remaining capacity against one 3-way-match watermark.
+/// A locked PO line and its remaining capacity against one 3-way-match watermark, with the
+/// identity the per-receipt event carries (`item_id` + `rate`).
 pub struct AllocatableLineRow {
     pub id: Uuid,
+    pub item_id: Uuid,
+    pub rate: Decimal,
     pub capacity: Decimal,
 }
 
-/// Which 3-way-match watermark an allocation advances, and the column that caps it.
+/// One manually-received line's identity, returned by the manual receipt write.
+pub struct ManualReceiptRow {
+    pub item_id: Uuid,
+    pub rate: Decimal,
+}
+
+/// Which 3-way-match watermark an allocation advances, and the SQL that caps it.
 ///
-/// The two variants encode the 3-way-match invariant as column pairs: a receipt fills `received_qty`
-/// up to the ordered `quantity`; billing fills `billed_qty` up to `received_qty` (invoice ≤ receipt).
-/// Modelled as an enum rather than a pair of `&str` because these identifiers are interpolated into
-/// SQL — the enum is what keeps that interpolation closed over two known-good column pairs.
+/// The two variants encode the 3-way-match invariant: a receipt fills `received_qty` up to the
+/// ordered `quantity`; billing fills `billed_qty` up to the line's billing capacity — `received_qty`
+/// for `on_received` lines (invoice ≤ receipt) but `quantity` for `purchase`-method lines
+/// (order-driven service lines may bill ahead of receipt). The billed cap is the SAME per-line CASE
+/// the `po_items_three_way_match` CHECK and the maturity recompute use — one formula, three
+/// surfaces. Modelled as an enum rather than pairs of `&str` because these identifiers are
+/// interpolated into SQL — the enum is what keeps that interpolation closed over known-good
+/// expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatchWatermark {
-    /// `received_qty`, capped at `quantity`.
+    /// `received_qty`, capped at `quantity`; only `stock_moves` lines participate.
     Received,
-    /// `billed_qty`, capped at `received_qty`.
+    /// `billed_qty`, capped at the per-line billing capacity (the `purchase_method` CASE).
     Billed,
 }
 
@@ -91,11 +111,19 @@ impl MatchWatermark {
         }
     }
 
-    /// The column that caps it.
+    /// The SQL expression that caps it.
     fn cap_col(self) -> &'static str {
         match self {
             MatchWatermark::Received => "quantity",
-            MatchWatermark::Billed => "received_qty",
+            MatchWatermark::Billed => "(CASE WHEN purchase_method='purchase' THEN quantity ELSE received_qty END)",
+        }
+    }
+
+    /// Extra row filter for this watermark's participant set: seam receipts skip `manual` lines.
+    fn filter_sql(self) -> &'static str {
+        match self {
+            MatchWatermark::Received => " AND qty_received_method='stock_moves'",
+            MatchWatermark::Billed => "",
         }
     }
 }
@@ -125,10 +153,12 @@ impl ReverseWatermark {
     }
 
     /// The SQL expression for how much may be removed per line. Interpolated into SQL — kept closed over
-    /// two known-good expressions by the enum, exactly like [`MatchWatermark::col`].
+    /// two known-good expressions by the enum, exactly like [`MatchWatermark::col`]. The return cap
+    /// clamps at 0 because a `purchase`-method line may hold `billed_qty > received_qty` (it billed
+    /// ahead of receipt) — its returnable portion is zero until the credit note lands.
     fn capacity_sql(self) -> &'static str {
         match self {
-            ReverseWatermark::Returned => "(received_qty - billed_qty)",
+            ReverseWatermark::Returned => "GREATEST(received_qty - billed_qty, 0)",
             ReverseWatermark::Credited => "billed_qty",
         }
     }
@@ -149,17 +179,21 @@ impl PurchaseOrderItemRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.purchase_order_items
-                (id, order_id, company_id, item_id, warehouse_id, description, quantity, rate, line_amount)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"#,
+                (id, order_id, company_id, item_id, warehouse_id, description, quantity, rate, line_amount,
+                 qty_received_method, purchase_method)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::qty_received_method,$11::purchase_method)"#,
         )
         .bind(l.id).bind(l.order_id).bind(l.company_id).bind(l.item_id).bind(l.warehouse_id).bind(l.description)
         .bind(l.quantity).bind(l.rate).bind(l.line_amount)
+        .bind(l.qty_received_method).bind(l.purchase_method)
         .execute(conn)
         .await?;
         Ok(())
     }
 
-    /// Read a PO's not-yet-received lines (`quantity - received_qty > 0`) for the receipt seam.
+    /// Read a PO's not-yet-received `stock_moves` lines (`quantity - received_qty > 0`) for the
+    /// receipt seam. `manual` lines are excluded: their received quantity is set by an operator,
+    /// so inventory is never asked to expect their delivery.
     ///
     /// ID-only: no company argument — read-only, rides the request-dedicated connection carrying the
     /// caller's `app.company_id`.
@@ -173,7 +207,8 @@ impl PurchaseOrderItemRepository {
             sqlx::query(
                 r#"SELECT item_id, rate, (quantity - received_qty) AS remaining
                    FROM buying.purchase_order_items
-                   WHERE order_id=$1 AND (metadata->>'deleted_at') IS NULL AND (quantity - received_qty) > 0"#,
+                   WHERE order_id=$1 AND (metadata->>'deleted_at') IS NULL AND (quantity - received_qty) > 0
+                     AND qty_received_method='stock_moves'"#,
             ).bind(order_id),
         )
         .await?;
@@ -186,7 +221,8 @@ impl PurchaseOrderItemRepository {
 
     /// Lock an item's PO lines `FOR UPDATE` and return each one's remaining capacity against
     /// `watermark`, in fill order (`ORDER BY id`). Correct even when a PO has several lines of the
-    /// same item.
+    /// same item. Seam receipts (`Received`) skip `manual` lines; the billed cap is the per-line
+    /// `purchase_method` CASE.
     ///
     /// Takes the CALLER'S connection: the lock must be held, and the capacity read must be consistent
     /// with the [`Self::add_to_watermark`] bumps that follow, for the whole allocation. The caller has
@@ -199,16 +235,54 @@ impl PurchaseOrderItemRepository {
         watermark: MatchWatermark,
     ) -> Result<Vec<AllocatableLineRow>, sqlx::Error> {
         let sql = format!(
-            "SELECT id, ({cap_col} - {col}) AS capacity FROM buying.purchase_order_items \
-             WHERE order_id=$1 AND item_id=$2 AND (metadata->>'deleted_at') IS NULL ORDER BY id FOR UPDATE",
+            "SELECT id, item_id, rate, ({cap_col} - {col}) AS capacity FROM buying.purchase_order_items \
+             WHERE order_id=$1 AND item_id=$2 AND (metadata->>'deleted_at') IS NULL{filter} ORDER BY id FOR UPDATE",
             cap_col = watermark.cap_col(),
             col = watermark.col(),
+            filter = watermark.filter_sql(),
         );
         let rows = sqlx::query(&sql).bind(order_id).bind(item_id).fetch_all(conn).await?;
         Ok(rows.iter().map(|r| AllocatableLineRow {
             id: r.get("id"),
+            item_id: r.get("item_id"),
+            rate: r.get("rate"),
             capacity: r.get("capacity"),
         }).collect())
+    }
+
+    /// Set a `manual`-method line's received quantity directly (the operator tier of the two-tier
+    /// `qty_received_method`): absolute set, not an increment, capped at the ordered `quantity` by
+    /// the `po_items_three_way_match` CHECK. Refused as `Ok(None)` when the line belongs to another
+    /// order, is absent, or is NOT a `manual` line — a seam-allocatable `stock_moves` line must go
+    /// through the receipt seam, not this verb (the service turns that into `InvalidLineMethod`).
+    ///
+    /// Returns the line's `(item_id, rate)` so the caller can emit the per-receipt event with the
+    /// same shape the seam path emits.
+    ///
+    /// Pool-based, ID-only: the caller establishes the company scope (`with_company_scope`) around
+    /// it; under HTTP the request-dedicated connection already carries `app.company_id`.
+    pub async fn set_manual_line_receipt(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+        line_id: Uuid,
+        qty: Decimal,
+    ) -> Result<Option<ManualReceiptRow>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_order_items SET received_qty=$3
+                   WHERE id=$2 AND order_id=$1
+                     AND qty_received_method='manual'
+                     AND (metadata->>'deleted_at') IS NULL
+                   RETURNING item_id, rate"#,
+            ).bind(order_id).bind(line_id).bind(qty),
+        )
+        .await?;
+        Ok(row.map(|r| ManualReceiptRow {
+            item_id: r.get("item_id"),
+            rate: r.get("rate"),
+        }))
     }
 
     /// Add `qty` to one line's `watermark` column. Same caller-owned-tx contract as
@@ -241,15 +315,77 @@ impl PurchaseOrderItemRepository {
         rw: ReverseWatermark,
     ) -> Result<Vec<AllocatableLineRow>, sqlx::Error> {
         let sql = format!(
-            "SELECT id, {cap} AS capacity FROM buying.purchase_order_items \
+            "SELECT id, item_id, rate, {cap} AS capacity FROM buying.purchase_order_items \
              WHERE order_id=$1 AND item_id=$2 AND (metadata->>'deleted_at') IS NULL ORDER BY id FOR UPDATE",
             cap = rw.capacity_sql(),
         );
         let rows = sqlx::query(&sql).bind(order_id).bind(item_id).fetch_all(conn).await?;
         Ok(rows.iter().map(|r| AllocatableLineRow {
             id: r.get("id"),
+            item_id: r.get("item_id"),
+            rate: r.get("rate"),
             capacity: r.get("capacity"),
         }).collect())
+    }
+
+    /// Lock ONE named PO line `FOR UPDATE` and read its remaining billing capacity — the manual
+    /// bill-matching counterpart to [`Self::lock_lines_for_allocation`]: matching names exact
+    /// lines, so no fill-in-order spread is wanted. The capacity is the SAME per-line
+    /// `purchase_method` CASE the CHECK and the maturity recompute use.
+    ///
+    /// `Ok(None)` = the line is absent or belongs to another order. Caller-owned-tx contract: the
+    /// lock must be held for the [`Self::add_to_watermark`] bumps that follow.
+    pub async fn lock_line_for_matching(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        order_id: Uuid,
+        line_id: Uuid,
+    ) -> Result<Option<AllocatableLineRow>, sqlx::Error> {
+        let row = sqlx::query(
+            r#"SELECT id, item_id, rate,
+                      ((CASE WHEN purchase_method='purchase' THEN quantity ELSE received_qty END) - billed_qty) AS capacity
+                   FROM buying.purchase_order_items
+                   WHERE id=$2 AND order_id=$1 AND (metadata->>'deleted_at') IS NULL
+                   FOR UPDATE"#,
+        )
+        .bind(order_id).bind(line_id)
+        .fetch_optional(conn)
+        .await?;
+        Ok(row.map(|r| AllocatableLineRow {
+            id: r.get("id"),
+            item_id: r.get("item_id"),
+            rate: r.get("rate"),
+            capacity: r.get("capacity"),
+        }))
+    }
+
+    /// Soft-delete one PO line, allowed only while the parent order is still editable
+    /// (`draft`/`sent` — G9). The parent-state check is inline so the refusal is `Ok(None)` (the
+    /// service turns that into the typed `NotDeletable`); the `po_item_write_guards` trigger is the
+    /// DB backstop for raw writes.
+    ///
+    /// Pool-based, ID-only: the caller establishes the company scope; under HTTP the
+    /// request-dedicated connection already carries `app.company_id`.
+    pub async fn soft_delete_line(
+        &self,
+        pool: &PgPool,
+        order_id: Uuid,
+        line_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"UPDATE buying.purchase_order_items
+                      SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(NOW()))
+                    WHERE id=$2 AND order_id=$1 AND (metadata->>'deleted_at') IS NULL
+                      AND EXISTS (SELECT 1 FROM buying.purchase_orders po
+                                  WHERE po.id = buying.purchase_order_items.order_id
+                                    AND po.status IN ('draft','sent'))
+                    RETURNING id"#,
+            ).bind(order_id).bind(line_id),
+        )
+        .await?;
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Subtract `qty` from one line's watermark column. Mirror of [`Self::add_to_watermark`] for the

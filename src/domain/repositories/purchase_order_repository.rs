@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use anyhow::Result;
 use uuid::Uuid;
 
-use crate::domain::entity::{PurchaseOrder, OrderKind, PurchaseOrderStatus};
+use crate::domain::entity::{PurchaseOrder, OrderKind, PurchaseInvoiceStatus, PurchaseOrderStatus, PurchaseReceiptStatus};
 
 /// Pagination parameters for list queries
 #[derive(Debug, Clone, Default)]
@@ -51,14 +51,19 @@ pub struct PurchaseOrderFilter {
     pub branch_id: Option<Uuid>,
     pub supplier_id: Option<Uuid>,
     pub status: Option<PurchaseOrderStatus>,
+    pub receipt_status: Option<PurchaseReceiptStatus>,
+    pub invoice_status: Option<PurchaseInvoiceStatus>,
     pub currency: Option<String>,
+    pub acknowledged: Option<bool>,
+    pub locked: Option<bool>,
+    pub agreement_id: Option<Uuid>,
     pub notes: Option<String>,
 }
 
 impl PurchaseOrderFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.currency.is_some() || self.notes.is_some()
+        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.receipt_status.is_some() || self.invoice_status.is_some() || self.currency.is_some() || self.acknowledged.is_some() || self.locked.is_some() || self.agreement_id.is_some() || self.notes.is_some()
     }
 }
 

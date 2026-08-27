@@ -8,7 +8,7 @@
 //! ## Usage from other modules
 //!
 //! ```text
-//! use buying::exports::{MaterialRequestDto, BuyingQueryService};
+//! use buying::exports::{MaterialRequestDto};
 //! ```
 
 mod types;
@@ -33,6 +33,15 @@ pub use events::*;
 /// - `MaterialRequestItemDto` - Data transfer object for MaterialRequestItem
 /// - `MaterialRequestItemSummary` - Summary view of MaterialRequestItem
 /// - `MaterialRequestItemId` - Type-safe ID wrapper
+/// - `PurchaseAgreementDto` - Data transfer object for PurchaseAgreement
+/// - `PurchaseAgreementSummary` - Summary view of PurchaseAgreement
+/// - `PurchaseAgreementId` - Type-safe ID wrapper
+/// - `PurchaseAgreementLineDto` - Data transfer object for PurchaseAgreementLine
+/// - `PurchaseAgreementLineSummary` - Summary view of PurchaseAgreementLine
+/// - `PurchaseAgreementLineId` - Type-safe ID wrapper
+/// - `PurchaseCompanySettingDto` - Data transfer object for PurchaseCompanySetting
+/// - `PurchaseCompanySettingSummary` - Summary view of PurchaseCompanySetting
+/// - `PurchaseCompanySettingId` - Type-safe ID wrapper
 /// - `PurchaseOrderDto` - Data transfer object for PurchaseOrder
 /// - `PurchaseOrderSummary` - Summary view of PurchaseOrder
 /// - `PurchaseOrderId` - Type-safe ID wrapper
@@ -48,15 +57,18 @@ pub use events::*;
 /// - `RfqSupplierDto` - Data transfer object for RfqSupplier
 /// - `RfqSupplierSummary` - Summary view of RfqSupplier
 /// - `RfqSupplierId` - Type-safe ID wrapper
+/// - `SupplierPriceDto` - Data transfer object for SupplierPrice
+/// - `SupplierPriceSummary` - Summary view of SupplierPrice
+/// - `SupplierPriceId` - Type-safe ID wrapper
 /// - `SupplierQuotationDto` - Data transfer object for SupplierQuotation
 /// - `SupplierQuotationSummary` - Summary view of SupplierQuotation
 /// - `SupplierQuotationId` - Type-safe ID wrapper
 /// - `SupplierQuotationItemDto` - Data transfer object for SupplierQuotationItem
 /// - `SupplierQuotationItemSummary` - Summary view of SupplierQuotationItem
 /// - `SupplierQuotationItemId` - Type-safe ID wrapper
-///
-/// ## Public Services
-/// - `BuyingQueryService` - Read-only queries
+/// - `SupplierReminderSettingDto` - Data transfer object for SupplierReminderSetting
+/// - `SupplierReminderSettingSummary` - Summary view of SupplierReminderSetting
+/// - `SupplierReminderSettingId` - Type-safe ID wrapper
 ///
 /// ## Public Events
 /// - `MaterialRequestCreatedEvent` - Published when MaterialRequest is created
@@ -65,6 +77,15 @@ pub use events::*;
 /// - `MaterialRequestItemCreatedEvent` - Published when MaterialRequestItem is created
 /// - `MaterialRequestItemUpdatedEvent` - Published when MaterialRequestItem is updated
 /// - `MaterialRequestItemDeletedEvent` - Published when MaterialRequestItem is deleted
+/// - `PurchaseAgreementCreatedEvent` - Published when PurchaseAgreement is created
+/// - `PurchaseAgreementUpdatedEvent` - Published when PurchaseAgreement is updated
+/// - `PurchaseAgreementDeletedEvent` - Published when PurchaseAgreement is deleted
+/// - `PurchaseAgreementLineCreatedEvent` - Published when PurchaseAgreementLine is created
+/// - `PurchaseAgreementLineUpdatedEvent` - Published when PurchaseAgreementLine is updated
+/// - `PurchaseAgreementLineDeletedEvent` - Published when PurchaseAgreementLine is deleted
+/// - `PurchaseCompanySettingCreatedEvent` - Published when PurchaseCompanySetting is created
+/// - `PurchaseCompanySettingUpdatedEvent` - Published when PurchaseCompanySetting is updated
+/// - `PurchaseCompanySettingDeletedEvent` - Published when PurchaseCompanySetting is deleted
 /// - `PurchaseOrderCreatedEvent` - Published when PurchaseOrder is created
 /// - `PurchaseOrderUpdatedEvent` - Published when PurchaseOrder is updated
 /// - `PurchaseOrderDeletedEvent` - Published when PurchaseOrder is deleted
@@ -80,10 +101,16 @@ pub use events::*;
 /// - `RfqSupplierCreatedEvent` - Published when RfqSupplier is created
 /// - `RfqSupplierUpdatedEvent` - Published when RfqSupplier is updated
 /// - `RfqSupplierDeletedEvent` - Published when RfqSupplier is deleted
+/// - `SupplierPriceCreatedEvent` - Published when SupplierPrice is created
+/// - `SupplierPriceUpdatedEvent` - Published when SupplierPrice is updated
+/// - `SupplierPriceDeletedEvent` - Published when SupplierPrice is deleted
 /// - `SupplierQuotationCreatedEvent` - Published when SupplierQuotation is created
 /// - `SupplierQuotationUpdatedEvent` - Published when SupplierQuotation is updated
 /// - `SupplierQuotationDeletedEvent` - Published when SupplierQuotation is deleted
 /// - `SupplierQuotationItemCreatedEvent` - Published when SupplierQuotationItem is created
 /// - `SupplierQuotationItemUpdatedEvent` - Published when SupplierQuotationItem is updated
 /// - `SupplierQuotationItemDeletedEvent` - Published when SupplierQuotationItem is deleted
+/// - `SupplierReminderSettingCreatedEvent` - Published when SupplierReminderSetting is created
+/// - `SupplierReminderSettingUpdatedEvent` - Published when SupplierReminderSetting is updated
+/// - `SupplierReminderSettingDeletedEvent` - Published when SupplierReminderSetting is deleted
 pub struct ExportSummary;

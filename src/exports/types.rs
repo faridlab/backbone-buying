@@ -130,6 +130,186 @@ pub struct MaterialRequestItemRef {
 }
 
 // ============================================================================
+// PURCHASEAGREEMENT TYPES
+// ============================================================================
+
+/// Type-safe ID for PurchaseAgreement
+///
+/// Use this instead of raw Uuid for type safety across modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PurchaseAgreementId(pub Uuid);
+
+impl PurchaseAgreementId {
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn into_inner(self) -> Uuid {
+        self.0
+    }
+}
+
+impl From<Uuid> for PurchaseAgreementId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<PurchaseAgreementId> for Uuid {
+    fn from(id: PurchaseAgreementId) -> Self {
+        id.0
+    }
+}
+
+/// Data transfer object for PurchaseAgreement
+///
+/// This is the public representation of PurchaseAgreement for other modules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementDto {
+    pub id: PurchaseAgreementId,
+    pub agreement_number: String,
+    pub agreement_kind: AgreementKind,
+    pub status: PurchaseAgreementStatus,
+    pub company_id: Uuid,
+    pub supplier_id: Uuid,
+    pub currency: String,
+    pub date_start: Option<NaiveDate>,
+    pub date_end: Option<NaiveDate>,
+    pub notes: Option<String>,
+    pub metadata: serde_json::Value,
+}
+
+/// Summary view of PurchaseAgreement for list displays
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementSummary {
+    pub id: PurchaseAgreementId,
+    pub status: PurchaseAgreementStatus,
+}
+
+/// Reference to PurchaseAgreement for foreign key relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementRef {
+    pub id: PurchaseAgreementId,
+}
+
+// ============================================================================
+// PURCHASEAGREEMENTLINE TYPES
+// ============================================================================
+
+/// Type-safe ID for PurchaseAgreementLine
+///
+/// Use this instead of raw Uuid for type safety across modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineId(pub Uuid);
+
+impl PurchaseAgreementLineId {
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn into_inner(self) -> Uuid {
+        self.0
+    }
+}
+
+impl From<Uuid> for PurchaseAgreementLineId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<PurchaseAgreementLineId> for Uuid {
+    fn from(id: PurchaseAgreementLineId) -> Self {
+        id.0
+    }
+}
+
+/// Data transfer object for PurchaseAgreementLine
+///
+/// This is the public representation of PurchaseAgreementLine for other modules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineDto {
+    pub id: PurchaseAgreementLineId,
+    pub agreement_id: Uuid,
+    pub company_id: Uuid,
+    pub item_id: Uuid,
+    pub quantity: Decimal,
+    pub rate: Decimal,
+    pub qty_ordered: Decimal,
+    pub metadata: serde_json::Value,
+}
+
+/// Summary view of PurchaseAgreementLine for list displays
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineSummary {
+    pub id: PurchaseAgreementLineId,
+}
+
+/// Reference to PurchaseAgreementLine for foreign key relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineRef {
+    pub id: PurchaseAgreementLineId,
+}
+
+// ============================================================================
+// PURCHASECOMPANYSETTING TYPES
+// ============================================================================
+
+/// Type-safe ID for PurchaseCompanySetting
+///
+/// Use this instead of raw Uuid for type safety across modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingId(pub Uuid);
+
+impl PurchaseCompanySettingId {
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn into_inner(self) -> Uuid {
+        self.0
+    }
+}
+
+impl From<Uuid> for PurchaseCompanySettingId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<PurchaseCompanySettingId> for Uuid {
+    fn from(id: PurchaseCompanySettingId) -> Self {
+        id.0
+    }
+}
+
+/// Data transfer object for PurchaseCompanySetting
+///
+/// This is the public representation of PurchaseCompanySetting for other modules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingDto {
+    pub id: PurchaseCompanySettingId,
+    pub company_id: Uuid,
+    pub double_validation: DoubleValidation,
+    pub double_validation_amount: Decimal,
+    pub company_currency: String,
+    pub send_reminder: bool,
+    pub metadata: serde_json::Value,
+}
+
+/// Summary view of PurchaseCompanySetting for list displays
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingSummary {
+    pub id: PurchaseCompanySettingId,
+}
+
+/// Reference to PurchaseCompanySetting for foreign key relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingRef {
+    pub id: PurchaseCompanySettingId,
+}
+
+// ============================================================================
 // PURCHASEORDER TYPES
 // ============================================================================
 
@@ -174,9 +354,16 @@ pub struct PurchaseOrderDto {
     pub branch_id: Option<Uuid>,
     pub supplier_id: Uuid,
     pub status: PurchaseOrderStatus,
+    pub receipt_status: PurchaseReceiptStatus,
+    pub invoice_status: PurchaseInvoiceStatus,
     pub order_date: NaiveDate,
     pub schedule_date: Option<NaiveDate>,
     pub currency: String,
+    pub currency_rate: Decimal,
+    pub acknowledged: bool,
+    pub locked: bool,
+    pub date_approve: Option<NaiveDate>,
+    pub agreement_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -246,6 +433,8 @@ pub struct PurchaseOrderItemDto {
     pub line_amount: Decimal,
     pub received_qty: Decimal,
     pub billed_qty: Decimal,
+    pub qty_received_method: QtyReceivedMethod,
+    pub purchase_method: PurchaseMethod,
     pub metadata: serde_json::Value,
 }
 
@@ -435,6 +624,66 @@ pub struct RfqSupplierRef {
 }
 
 // ============================================================================
+// SUPPLIERPRICE TYPES
+// ============================================================================
+
+/// Type-safe ID for SupplierPrice
+///
+/// Use this instead of raw Uuid for type safety across modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SupplierPriceId(pub Uuid);
+
+impl SupplierPriceId {
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn into_inner(self) -> Uuid {
+        self.0
+    }
+}
+
+impl From<Uuid> for SupplierPriceId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<SupplierPriceId> for Uuid {
+    fn from(id: SupplierPriceId) -> Self {
+        id.0
+    }
+}
+
+/// Data transfer object for SupplierPrice
+///
+/// This is the public representation of SupplierPrice for other modules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierPriceDto {
+    pub id: SupplierPriceId,
+    pub company_id: Uuid,
+    pub supplier_id: Uuid,
+    pub item_id: Uuid,
+    pub price: Decimal,
+    pub currency: String,
+    pub agreement_id: Uuid,
+    pub agreement_line_id: Uuid,
+    pub metadata: serde_json::Value,
+}
+
+/// Summary view of SupplierPrice for list displays
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierPriceSummary {
+    pub id: SupplierPriceId,
+}
+
+/// Reference to SupplierPrice for foreign key relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierPriceRef {
+    pub id: SupplierPriceId,
+}
+
+// ============================================================================
 // SUPPLIERQUOTATION TYPES
 // ============================================================================
 
@@ -554,6 +803,63 @@ pub struct SupplierQuotationItemSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SupplierQuotationItemRef {
     pub id: SupplierQuotationItemId,
+}
+
+// ============================================================================
+// SUPPLIERREMINDERSETTING TYPES
+// ============================================================================
+
+/// Type-safe ID for SupplierReminderSetting
+///
+/// Use this instead of raw Uuid for type safety across modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SupplierReminderSettingId(pub Uuid);
+
+impl SupplierReminderSettingId {
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn into_inner(self) -> Uuid {
+        self.0
+    }
+}
+
+impl From<Uuid> for SupplierReminderSettingId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<SupplierReminderSettingId> for Uuid {
+    fn from(id: SupplierReminderSettingId) -> Self {
+        id.0
+    }
+}
+
+/// Data transfer object for SupplierReminderSetting
+///
+/// This is the public representation of SupplierReminderSetting for other modules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierReminderSettingDto {
+    pub id: SupplierReminderSettingId,
+    pub company_id: Uuid,
+    pub supplier_id: Uuid,
+    pub receipt_reminder_email: bool,
+    pub reminder_days_before: i32,
+    pub metadata: serde_json::Value,
+}
+
+/// Summary view of SupplierReminderSetting for list displays
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierReminderSettingSummary {
+    pub id: SupplierReminderSettingId,
+}
+
+/// Reference to SupplierReminderSetting for foreign key relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierReminderSettingRef {
+    pub id: SupplierReminderSettingId,
 }
 
 // ============================================================================

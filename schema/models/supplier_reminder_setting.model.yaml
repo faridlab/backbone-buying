@@ -1,0 +1,51 @@
+# =============================================================================
+# Domain: Buying
+# Entity: SupplierReminderSetting
+# Description: Per-company, per-supplier receipt-reminder posture — the buying-
+# owned side table for the vendor reminder configuration (buying cannot touch
+# party.Party, so it owns per-company rows keyed on the supplier's logical FK).
+# An ABSENT row means the enabled defaults (remind, 1 day before) — the
+# behavior before this table existed.
+# =============================================================================
+
+models:
+  - name: SupplierReminderSetting
+    collection: supplier_reminder_settings
+    description: "Per-company, per-supplier receipt-reminder posture; absent row = enabled defaults (remind, 1 day before)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique settings row identifier"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id — STRICT-fenced"
+
+      supplier_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Supplier the reminder posture applies to # logical FK to party.Party.id"
+
+      receipt_reminder_email:
+        type: bool
+        attributes: ["@default(true)"]
+        description: "Whether receipt-reminder emails are wanted for this supplier; false suppresses the reminder cron's candidate set"
+
+      reminder_days_before:
+        type: int
+        attributes: ["@default(1)"]
+        description: "How many days before schedule_date the reminder fires (the cron claims a PO on schedule_date - reminder_days_before = today)"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
+
+    indexes:
+      - type: unique
+        fields: [company_id, supplier_id]
+        where: "deleted_at IS NULL"
+        description: "One reminder-settings row per company+supplier"

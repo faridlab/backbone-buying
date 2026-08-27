@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "backbone-buying"
-version = "0.3.4"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -351,8 +351,8 @@ dependencies = [
 
 [[package]]
 name = "backbone-inventory"
-version = "0.5.0"
-source = "git+https://github.com/faridlab/backbone-inventory?tag=v0.6.0#4ff928b5329d6784c7451d589532cffb06be9eb2"
+version = "0.7.0"
+source = "git+https://github.com/faridlab/backbone-inventory?tag=v0.7.1#b473bb5a44a7fe48a1cbad7553121c3d9885f697"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -67,7 +67,7 @@ pub struct SupplierQuotation {
 impl SupplierQuotation {
     /// Create a builder for SupplierQuotation
     pub fn builder() -> SupplierQuotationBuilder {
-        SupplierQuotationBuilder::default()
+        <SupplierQuotationBuilder as Default>::default()
     }
 
     /// Create a new SupplierQuotation with required fields
@@ -355,7 +355,7 @@ impl SupplierQuotationBuilder {
             rfq_id: self.rfq_id,
             company_id,
             supplier_id,
-            status: self.status.unwrap_or(PurchaseDocStatus::default()),
+            status: self.status.unwrap_or_default(),
             quotation_date,
             valid_till: self.valid_till,
             currency: self.currency.unwrap_or("IDR".to_string()),

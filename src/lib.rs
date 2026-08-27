@@ -23,6 +23,7 @@ pub mod infrastructure;
 pub mod application;
 pub mod presentation;
 pub mod seeders;
+pub mod exports;
 
 // Re-exports for convenience - Domain entities
 pub use domain::entity::*;
@@ -33,13 +34,18 @@ pub use infrastructure::persistence::*;
 // Re-exports - Application services
 pub use application::service::MaterialRequestService;
 pub use application::service::MaterialRequestItemService;
+pub use application::service::PurchaseAgreementService;
+pub use application::service::PurchaseAgreementLineService;
+pub use application::service::PurchaseCompanySettingService;
 pub use application::service::PurchaseOrderService;
 pub use application::service::PurchaseOrderItemService;
 pub use application::service::RequestForQuotationService;
 pub use application::service::RfqItemService;
 pub use application::service::RfqSupplierService;
+pub use application::service::SupplierPriceService;
 pub use application::service::SupplierQuotationService;
 pub use application::service::SupplierQuotationItemService;
+pub use application::service::SupplierReminderSettingService;
 
 // Re-exports - Workflows
 pub use application::workflows::*;
@@ -63,13 +69,20 @@ use sqlx::PgPool;
 pub struct BuyingModule {
     pub(crate) material_request_service: Arc<MaterialRequestService>,
     pub(crate) material_request_item_service: Arc<MaterialRequestItemService>,
+    pub(crate) purchase_agreement_service: Arc<PurchaseAgreementService>,
+    pub(crate) purchase_agreement_line_service: Arc<PurchaseAgreementLineService>,
+    pub(crate) purchase_company_setting_service: Arc<PurchaseCompanySettingService>,
     pub(crate) purchase_order_service: Arc<PurchaseOrderService>,
     pub(crate) purchase_order_item_service: Arc<PurchaseOrderItemService>,
     pub(crate) request_for_quotation_service: Arc<RequestForQuotationService>,
     pub(crate) rfq_item_service: Arc<RfqItemService>,
     pub(crate) rfq_supplier_service: Arc<RfqSupplierService>,
+    pub(crate) supplier_price_service: Arc<SupplierPriceService>,
     pub(crate) supplier_quotation_service: Arc<SupplierQuotationService>,
     pub(crate) supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
+    pub(crate) supplier_reminder_setting_service: Arc<SupplierReminderSettingService>,
+    // <<< CUSTOM FIELDS
+    // END CUSTOM
 }
 
 impl BuyingModule {
@@ -87,6 +100,9 @@ impl BuyingModule {
         use presentation::http::{
             create_material_request_routes,
             create_material_request_item_routes,
+            create_purchase_agreement_routes,
+            create_purchase_agreement_line_routes,
+            create_purchase_company_setting_routes,
             create_purchase_order_routes,
             create_purchase_order_item_routes,
             create_request_for_quotation_routes,
@@ -94,11 +110,15 @@ impl BuyingModule {
             create_rfq_supplier_routes,
             create_supplier_quotation_routes,
             create_supplier_quotation_item_routes,
+            create_supplier_reminder_setting_routes,
         };
 
         Router::new()
             .merge(create_material_request_routes(self.material_request_service.clone()))
             .merge(create_material_request_item_routes(self.material_request_item_service.clone()))
+            .merge(create_purchase_agreement_routes(self.purchase_agreement_service.clone()))
+            .merge(create_purchase_agreement_line_routes(self.purchase_agreement_line_service.clone()))
+            .merge(create_purchase_company_setting_routes(self.purchase_company_setting_service.clone()))
             .merge(create_purchase_order_routes(self.purchase_order_service.clone()))
             .merge(create_purchase_order_item_routes(self.purchase_order_item_service.clone()))
             .merge(create_request_for_quotation_routes(self.request_for_quotation_service.clone()))
@@ -106,6 +126,7 @@ impl BuyingModule {
             .merge(create_rfq_supplier_routes(self.rfq_supplier_service.clone()))
             .merge(create_supplier_quotation_routes(self.supplier_quotation_service.clone()))
             .merge(create_supplier_quotation_item_routes(self.supplier_quotation_item_service.clone()))
+            .merge(create_supplier_reminder_setting_routes(self.supplier_reminder_setting_service.clone()))
     }
 
     /// Deprecated alias for [`Self::all_crud_routes`]. `routes()` reads like
@@ -113,10 +134,51 @@ impl BuyingModule {
     /// mount exposes unguarded writes. Compose a guarded router (read + validated
     /// writes) for production, or call `all_crud_routes()` to opt into the full
     /// unguarded surface explicitly.
-    #[deprecated(note = "mounts unvalidated generic CRUD on every entity; compose a guarded router for production, or call all_crud_routes() for the intentional full/unguarded surface")]
+    #[deprecated(note = "mounts unvalidated generic CRUD; prefer readonly_routes() + validated writes, or all_crud_routes() for the full/unguarded surface")]
     pub fn routes(&self) -> Router {
         self.all_crud_routes()
     }
+
+    /// Read-only routes for every entity (GET endpoints only) — the safe base.
+    ///
+    /// Generic mutation can't reach here, so this surface cannot bypass a
+    /// validated write service's invariants. Use this as the production base and
+    /// merge validated write routes (or a write service's HTTP layer) onto it.
+    pub fn readonly_routes(&self) -> Router {
+        use presentation::http::{
+            create_material_request_read_routes,
+            create_material_request_item_read_routes,
+            create_purchase_agreement_read_routes,
+            create_purchase_agreement_line_read_routes,
+            create_purchase_company_setting_read_routes,
+            create_purchase_order_read_routes,
+            create_purchase_order_item_read_routes,
+            create_request_for_quotation_read_routes,
+            create_rfq_item_read_routes,
+            create_rfq_supplier_read_routes,
+            create_supplier_quotation_read_routes,
+            create_supplier_quotation_item_read_routes,
+            create_supplier_reminder_setting_read_routes,
+        };
+
+        Router::new()
+            .merge(create_material_request_read_routes(self.material_request_service.clone()))
+            .merge(create_material_request_item_read_routes(self.material_request_item_service.clone()))
+            .merge(create_purchase_agreement_read_routes(self.purchase_agreement_service.clone()))
+            .merge(create_purchase_agreement_line_read_routes(self.purchase_agreement_line_service.clone()))
+            .merge(create_purchase_company_setting_read_routes(self.purchase_company_setting_service.clone()))
+            .merge(create_purchase_order_read_routes(self.purchase_order_service.clone()))
+            .merge(create_purchase_order_item_read_routes(self.purchase_order_item_service.clone()))
+            .merge(create_request_for_quotation_read_routes(self.request_for_quotation_service.clone()))
+            .merge(create_rfq_item_read_routes(self.rfq_item_service.clone()))
+            .merge(create_rfq_supplier_read_routes(self.rfq_supplier_service.clone()))
+            .merge(create_supplier_quotation_read_routes(self.supplier_quotation_service.clone()))
+            .merge(create_supplier_quotation_item_read_routes(self.supplier_quotation_item_service.clone()))
+            .merge(create_supplier_reminder_setting_read_routes(self.supplier_reminder_setting_service.clone()))
+    }
+
+    // <<< CUSTOM METHODS
+    // END CUSTOM
 }
 
 /// Builder for BuyingModule
@@ -154,6 +216,18 @@ impl BuyingModuleBuilder {
         let material_request_item_repository = Arc::new(MaterialRequestItemRepository::new(db_pool.clone()));
         let material_request_item_service = Arc::new(MaterialRequestItemService::with_repository(material_request_item_repository.clone()));
 
+        // PurchaseAgreement service
+        let purchase_agreement_repository = Arc::new(PurchaseAgreementRepository::new(db_pool.clone()));
+        let purchase_agreement_service = Arc::new(PurchaseAgreementService::with_repository(purchase_agreement_repository.clone()));
+
+        // PurchaseAgreementLine service
+        let purchase_agreement_line_repository = Arc::new(PurchaseAgreementLineRepository::new(db_pool.clone()));
+        let purchase_agreement_line_service = Arc::new(PurchaseAgreementLineService::with_repository(purchase_agreement_line_repository.clone()));
+
+        // PurchaseCompanySetting service
+        let purchase_company_setting_repository = Arc::new(PurchaseCompanySettingRepository::new(db_pool.clone()));
+        let purchase_company_setting_service = Arc::new(PurchaseCompanySettingService::with_repository(purchase_company_setting_repository.clone()));
+
         // PurchaseOrder service
         let purchase_order_repository = Arc::new(PurchaseOrderRepository::new(db_pool.clone()));
         let purchase_order_service = Arc::new(PurchaseOrderService::with_repository(purchase_order_repository.clone()));
@@ -174,6 +248,10 @@ impl BuyingModuleBuilder {
         let rfq_supplier_repository = Arc::new(RfqSupplierRepository::new(db_pool.clone()));
         let rfq_supplier_service = Arc::new(RfqSupplierService::with_repository(rfq_supplier_repository.clone()));
 
+        // SupplierPrice service
+        let supplier_price_repository = Arc::new(SupplierPriceRepository::new(db_pool.clone()));
+        let supplier_price_service = Arc::new(SupplierPriceService::with_repository(supplier_price_repository.clone()));
+
         // SupplierQuotation service
         let supplier_quotation_repository = Arc::new(SupplierQuotationRepository::new(db_pool.clone()));
         let supplier_quotation_service = Arc::new(SupplierQuotationService::with_repository(supplier_quotation_repository.clone()));
@@ -182,19 +260,28 @@ impl BuyingModuleBuilder {
         let supplier_quotation_item_repository = Arc::new(SupplierQuotationItemRepository::new(db_pool.clone()));
         let supplier_quotation_item_service = Arc::new(SupplierQuotationItemService::with_repository(supplier_quotation_item_repository.clone()));
 
+        // SupplierReminderSetting service
+        let supplier_reminder_setting_repository = Arc::new(SupplierReminderSettingRepository::new(db_pool.clone()));
+        let supplier_reminder_setting_service = Arc::new(SupplierReminderSettingService::with_repository(supplier_reminder_setting_repository.clone()));
+
         // <<< CUSTOM
         // END CUSTOM
 
         Ok(BuyingModule {
             material_request_service,
             material_request_item_service,
+            purchase_agreement_service,
+            purchase_agreement_line_service,
+            purchase_company_setting_service,
             purchase_order_service,
             purchase_order_item_service,
             request_for_quotation_service,
             rfq_item_service,
             rfq_supplier_service,
+            supplier_price_service,
             supplier_quotation_service,
             supplier_quotation_item_service,
+            supplier_reminder_setting_service,
             // <<< CUSTOM
             // END CUSTOM
         })

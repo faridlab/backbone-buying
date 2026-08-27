@@ -11,6 +11,9 @@ use sqlx::PgPool;
 
 mod material_request_seeder;
 mod material_request_item_seeder;
+mod purchase_agreement_seeder;
+mod purchase_agreement_line_seeder;
+mod purchase_company_setting_seeder;
 mod purchase_order_seeder;
 mod purchase_order_item_seeder;
 mod request_for_quotation_seeder;
@@ -18,9 +21,13 @@ mod rfq_item_seeder;
 mod rfq_supplier_seeder;
 mod supplier_quotation_seeder;
 mod supplier_quotation_item_seeder;
+mod supplier_reminder_setting_seeder;
 
 pub use material_request_seeder::SeedMaterialRequestSeeder;
 pub use material_request_item_seeder::SeedMaterialRequestItemSeeder;
+pub use purchase_agreement_seeder::SeedPurchaseAgreementSeeder;
+pub use purchase_agreement_line_seeder::SeedPurchaseAgreementLineSeeder;
+pub use purchase_company_setting_seeder::SeedPurchaseCompanySettingSeeder;
 pub use purchase_order_seeder::SeedPurchaseOrderSeeder;
 pub use purchase_order_item_seeder::SeedPurchaseOrderItemSeeder;
 pub use request_for_quotation_seeder::SeedRequestForQuotationSeeder;
@@ -28,6 +35,7 @@ pub use rfq_item_seeder::SeedRfqItemSeeder;
 pub use rfq_supplier_seeder::SeedRfqSupplierSeeder;
 pub use supplier_quotation_seeder::SeedSupplierQuotationSeeder;
 pub use supplier_quotation_item_seeder::SeedSupplierQuotationItemSeeder;
+pub use supplier_reminder_setting_seeder::SeedSupplierReminderSettingSeeder;
 
 // ============================================================================
 // SEEDER TRAIT
@@ -69,8 +77,6 @@ pub enum SeederType {
     Development,
     /// Test data (for automated tests)
     Test,
-// <<< CUSTOM SEEDERS START >>>
-// Add custom seeders here.
 }
 
 // ============================================================================

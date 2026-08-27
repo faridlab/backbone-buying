@@ -6,6 +6,8 @@ use rust_decimal::Decimal;
 
 use super::OrderKind;
 use super::PurchaseOrderStatus;
+use super::PurchaseReceiptStatus;
+use super::PurchaseInvoiceStatus;
 use super::AuditMetadata;
 
 /// Strongly-typed ID for PurchaseOrder
@@ -59,9 +61,16 @@ pub struct PurchaseOrder {
     pub branch_id: Option<Uuid>,
     pub supplier_id: Uuid,
     pub status: PurchaseOrderStatus,
+    pub receipt_status: PurchaseReceiptStatus,
+    pub invoice_status: PurchaseInvoiceStatus,
     pub order_date: NaiveDate,
     pub schedule_date: Option<NaiveDate>,
     pub currency: String,
+    pub currency_rate: Decimal,
+    pub acknowledged: bool,
+    pub locked: bool,
+    pub date_approve: Option<NaiveDate>,
+    pub agreement_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -75,11 +84,11 @@ pub struct PurchaseOrder {
 impl PurchaseOrder {
     /// Create a builder for PurchaseOrder
     pub fn builder() -> PurchaseOrderBuilder {
-        PurchaseOrderBuilder::default()
+        <PurchaseOrderBuilder as Default>::default()
     }
 
     /// Create a new PurchaseOrder with required fields
-    pub fn new(po_number: String, order_kind: OrderKind, company_id: Uuid, supplier_id: Uuid, status: PurchaseOrderStatus, order_date: NaiveDate, currency: String, subtotal: Decimal, tax_rate: Decimal, tax_amount: Decimal, total: Decimal) -> Self {
+    pub fn new(po_number: String, order_kind: OrderKind, company_id: Uuid, supplier_id: Uuid, status: PurchaseOrderStatus, receipt_status: PurchaseReceiptStatus, invoice_status: PurchaseInvoiceStatus, order_date: NaiveDate, currency: String, currency_rate: Decimal, acknowledged: bool, locked: bool, subtotal: Decimal, tax_rate: Decimal, tax_amount: Decimal, total: Decimal) -> Self {
         Self {
             id: Uuid::new_v4(),
             po_number,
@@ -89,9 +98,16 @@ impl PurchaseOrder {
             branch_id: None,
             supplier_id,
             status,
+            receipt_status,
+            invoice_status,
             order_date,
             schedule_date: None,
             currency,
+            currency_rate,
+            acknowledged,
+            locked,
+            date_approve: None,
+            agreement_id: None,
             subtotal,
             tax_rate,
             tax_amount,
@@ -179,6 +195,18 @@ impl PurchaseOrder {
         self
     }
 
+    /// Set the date_approve field (chainable)
+    pub fn with_date_approve(mut self, value: NaiveDate) -> Self {
+        self.date_approve = Some(value);
+        self
+    }
+
+    /// Set the agreement_id field (chainable)
+    pub fn with_agreement_id(mut self, value: Uuid) -> Self {
+        self.agreement_id = Some(value);
+        self
+    }
+
     /// Set the notes field (chainable)
     pub fn with_notes(mut self, value: String) -> Self {
         self.notes = Some(value);
@@ -214,6 +242,12 @@ impl PurchaseOrder {
                 "status" => {
                     if let Ok(v) = serde_json::from_value(value) { self.status = v; }
                 }
+                "receipt_status" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.receipt_status = v; }
+                }
+                "invoice_status" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.invoice_status = v; }
+                }
                 "order_date" => {
                     if let Ok(v) = serde_json::from_value(value) { self.order_date = v; }
                 }
@@ -222,6 +256,21 @@ impl PurchaseOrder {
                 }
                 "currency" => {
                     if let Ok(v) = serde_json::from_value(value) { self.currency = v; }
+                }
+                "currency_rate" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.currency_rate = v; }
+                }
+                "acknowledged" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.acknowledged = v; }
+                }
+                "locked" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.locked = v; }
+                }
+                "date_approve" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.date_approve = v; }
+                }
+                "agreement_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.agreement_id = v; }
                 }
                 "subtotal" => {
                     if let Ok(v) = serde_json::from_value(value) { self.subtotal = v; }
@@ -296,8 +345,11 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrder {
         m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("branch_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
+        m.insert("agreement_id".to_string(), "uuid".to_string());
         m.insert("order_kind".to_string(), "order_kind".to_string());
         m.insert("status".to_string(), "purchase_order_status".to_string());
+        m.insert("receipt_status".to_string(), "purchase_receipt_status".to_string());
+        m.insert("invoice_status".to_string(), "purchase_invoice_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
@@ -321,9 +373,16 @@ pub struct PurchaseOrderBuilder {
     branch_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
     status: Option<PurchaseOrderStatus>,
+    receipt_status: Option<PurchaseReceiptStatus>,
+    invoice_status: Option<PurchaseInvoiceStatus>,
     order_date: Option<NaiveDate>,
     schedule_date: Option<NaiveDate>,
     currency: Option<String>,
+    currency_rate: Option<Decimal>,
+    acknowledged: Option<bool>,
+    locked: Option<bool>,
+    date_approve: Option<NaiveDate>,
+    agreement_id: Option<Uuid>,
     subtotal: Option<Decimal>,
     tax_rate: Option<Decimal>,
     tax_amount: Option<Decimal>,
@@ -374,6 +433,18 @@ impl PurchaseOrderBuilder {
         self
     }
 
+    /// Set the receipt_status field (default: `PurchaseReceiptStatus::default()`)
+    pub fn receipt_status(mut self, value: PurchaseReceiptStatus) -> Self {
+        self.receipt_status = Some(value);
+        self
+    }
+
+    /// Set the invoice_status field (default: `PurchaseInvoiceStatus::default()`)
+    pub fn invoice_status(mut self, value: PurchaseInvoiceStatus) -> Self {
+        self.invoice_status = Some(value);
+        self
+    }
+
     /// Set the order_date field (required)
     pub fn order_date(mut self, value: NaiveDate) -> Self {
         self.order_date = Some(value);
@@ -389,6 +460,36 @@ impl PurchaseOrderBuilder {
     /// Set the currency field (default: `"IDR".to_string()`)
     pub fn currency(mut self, value: String) -> Self {
         self.currency = Some(value);
+        self
+    }
+
+    /// Set the currency_rate field (default: `Decimal::from(1)`)
+    pub fn currency_rate(mut self, value: Decimal) -> Self {
+        self.currency_rate = Some(value);
+        self
+    }
+
+    /// Set the acknowledged field (default: `false`)
+    pub fn acknowledged(mut self, value: bool) -> Self {
+        self.acknowledged = Some(value);
+        self
+    }
+
+    /// Set the locked field (default: `false`)
+    pub fn locked(mut self, value: bool) -> Self {
+        self.locked = Some(value);
+        self
+    }
+
+    /// Set the date_approve field (optional)
+    pub fn date_approve(mut self, value: NaiveDate) -> Self {
+        self.date_approve = Some(value);
+        self
+    }
+
+    /// Set the agreement_id field (optional)
+    pub fn agreement_id(mut self, value: Uuid) -> Self {
+        self.agreement_id = Some(value);
         self
     }
 
@@ -435,14 +536,21 @@ impl PurchaseOrderBuilder {
             id: Uuid::new_v4(),
             po_number,
             supplier_quotation_id: self.supplier_quotation_id,
-            order_kind: self.order_kind.unwrap_or(OrderKind::default()),
+            order_kind: self.order_kind.unwrap_or_default(),
             company_id,
             branch_id: self.branch_id,
             supplier_id,
-            status: self.status.unwrap_or(PurchaseOrderStatus::default()),
+            status: self.status.unwrap_or_default(),
+            receipt_status: self.receipt_status.unwrap_or_default(),
+            invoice_status: self.invoice_status.unwrap_or_default(),
             order_date,
             schedule_date: self.schedule_date,
             currency: self.currency.unwrap_or("IDR".to_string()),
+            currency_rate: self.currency_rate.unwrap_or(Decimal::from(1)),
+            acknowledged: self.acknowledged.unwrap_or(false),
+            locked: self.locked.unwrap_or(false),
+            date_approve: self.date_approve,
+            agreement_id: self.agreement_id,
             subtotal: self.subtotal.unwrap_or(Decimal::from(0)),
             tax_rate: self.tax_rate.unwrap_or(Decimal::from(0)),
             tax_amount: self.tax_amount.unwrap_or(Decimal::from(0)),

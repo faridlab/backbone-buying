@@ -16,3 +16,9 @@
 - rfq_supplier_seed
 - supplier_quotation_seed
 - supplier_quotation_item_seed
+
+# Newly added seeds (preserve manual order above):
+- purchase_agreement_line_seed
+- purchase_company_setting_seed
+- supplier_reminder_setting_seed
+- purchase_agreement_seed

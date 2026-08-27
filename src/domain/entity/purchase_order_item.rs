@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 use rust_decimal::Decimal;
+
+use super::QtyReceivedMethod;
+use super::PurchaseMethod;
 use super::AuditMetadata;
 
 /// Strongly-typed ID for PurchaseOrderItem
@@ -59,6 +62,8 @@ pub struct PurchaseOrderItem {
     pub line_amount: Decimal,
     pub received_qty: Decimal,
     pub billed_qty: Decimal,
+    pub qty_received_method: QtyReceivedMethod,
+    pub purchase_method: PurchaseMethod,
     #[serde(default)]
     #[sqlx(json)]
     pub metadata: AuditMetadata,
@@ -67,11 +72,11 @@ pub struct PurchaseOrderItem {
 impl PurchaseOrderItem {
     /// Create a builder for PurchaseOrderItem
     pub fn builder() -> PurchaseOrderItemBuilder {
-        PurchaseOrderItemBuilder::default()
+        <PurchaseOrderItemBuilder as Default>::default()
     }
 
     /// Create a new PurchaseOrderItem with required fields
-    pub fn new(order_id: Uuid, company_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal, line_amount: Decimal, received_qty: Decimal, billed_qty: Decimal) -> Self {
+    pub fn new(order_id: Uuid, company_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal, line_amount: Decimal, received_qty: Decimal, billed_qty: Decimal, qty_received_method: QtyReceivedMethod, purchase_method: PurchaseMethod) -> Self {
         Self {
             id: Uuid::new_v4(),
             order_id,
@@ -84,6 +89,8 @@ impl PurchaseOrderItem {
             line_amount,
             received_qty,
             billed_qty,
+            qty_received_method,
+            purchase_method,
             metadata: AuditMetadata::default(),
         }
     }
@@ -193,6 +200,12 @@ impl PurchaseOrderItem {
                 "billed_qty" => {
                     if let Ok(v) = serde_json::from_value(value) { self.billed_qty = v; }
                 }
+                "qty_received_method" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.qty_received_method = v; }
+                }
+                "purchase_method" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.purchase_method = v; }
+                }
                 _ => {} // ignore unknown fields
             }
         }
@@ -251,6 +264,8 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrderItem {
         m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("item_id".to_string(), "uuid".to_string());
         m.insert("warehouse_id".to_string(), "uuid".to_string());
+        m.insert("qty_received_method".to_string(), "qty_received_method".to_string());
+        m.insert("purchase_method".to_string(), "purchase_method".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
@@ -280,6 +295,8 @@ pub struct PurchaseOrderItemBuilder {
     line_amount: Option<Decimal>,
     received_qty: Option<Decimal>,
     billed_qty: Option<Decimal>,
+    qty_received_method: Option<QtyReceivedMethod>,
+    purchase_method: Option<PurchaseMethod>,
 }
 
 impl PurchaseOrderItemBuilder {
@@ -343,6 +360,18 @@ impl PurchaseOrderItemBuilder {
         self
     }
 
+    /// Set the qty_received_method field (default: `QtyReceivedMethod::default()`)
+    pub fn qty_received_method(mut self, value: QtyReceivedMethod) -> Self {
+        self.qty_received_method = Some(value);
+        self
+    }
+
+    /// Set the purchase_method field (default: `PurchaseMethod::default()`)
+    pub fn purchase_method(mut self, value: PurchaseMethod) -> Self {
+        self.purchase_method = Some(value);
+        self
+    }
+
     /// Build the PurchaseOrderItem entity
     ///
     /// Returns Err if any required field without a default is missing.
@@ -365,6 +394,8 @@ impl PurchaseOrderItemBuilder {
             line_amount: self.line_amount.unwrap_or(Decimal::from(0)),
             received_qty: self.received_qty.unwrap_or(Decimal::from(0)),
             billed_qty: self.billed_qty.unwrap_or(Decimal::from(0)),
+            qty_received_method: self.qty_received_method.unwrap_or_default(),
+            purchase_method: self.purchase_method.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

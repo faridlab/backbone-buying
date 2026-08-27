@@ -33,9 +33,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::infrastructure::persistence::{
-    MaterialRequestItemRepository, MaterialRequestRepository, PurchaseOrderItemRepository,
+    MaterialRequestItemRepository, MaterialRequestRepository, PurchaseAgreementLineRepository,
+    PurchaseAgreementRepository, PurchaseCompanySettingRepository, PurchaseOrderItemRepository,
     PurchaseOrderRepository, RequestForQuotationRepository, RfqItemRepository, RfqSupplierRepository,
-    SupplierQuotationItemRepository, SupplierQuotationRepository,
+    SupplierPriceRepository, SupplierQuotationItemRepository, SupplierQuotationRepository,
+    SupplierReminderSettingRepository,
 };
 
 use super::buying_events::{BuyingEventSink, LoggingSink};
@@ -53,6 +55,12 @@ pub struct NewLine {
     pub description: Option<String>,
     pub quantity: Decimal,
     pub rate: Decimal,
+    /// How `received_qty` advances on this line: `stock_moves` (the receipt seam allocates it —
+    /// default) or `manual` (an operator sets it; the seam allocation skips the line).
+    pub qty_received_method: Option<String>,
+    /// Billing capacity formula: `on_received` (billed caps at received — default) or `purchase`
+    /// (billed caps at quantity; order-driven service lines may bill ahead of receipt).
+    pub purchase_method: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +103,12 @@ pub struct NewPurchaseOrder {
     pub order_date: chrono::NaiveDate,
     pub schedule_date: Option<chrono::NaiveDate>,
     pub currency: Option<String>,
+    /// Order-time exchange-rate snapshot, COMPANY currency per 1 PO-currency unit. REQUIRED
+    /// (loudly) whenever the PO currency differs from the company currency; same-currency POs
+    /// fix 1 regardless of what was supplied.
+    pub currency_rate: Option<Decimal>,
+    /// Blanket call-off source (set by `create_call_off_po`; direct POs leave it None).
+    pub agreement_id: Option<Uuid>,
     pub tax_rate: Decimal,
     pub notes: Option<String>,
     pub lines: Vec<NewLine>,
@@ -109,13 +123,43 @@ pub enum BuyingError {
     DuplicateNumber(String),
     OrderNotFound(Uuid),
     NotConfirmable(String),
+    /// The double-validation gate refused: an over-threshold PO may only be approved by a manager.
+    NotApprovable(String),
+    /// Cancel refused: the order is locked (G4).
+    OrderLocked(Uuid),
+    /// Cancel refused: the order has billed lines (G5).
+    OrderBilled(Uuid),
+    /// Cancel/reset refused from the order's current state.
+    NotCancelable(String),
+    /// A foreign-currency PO arrived without an order-time exchange-rate snapshot. Refused loudly:
+    /// a silent rate-1 default would mis-classify every foreign-currency PO at the gate.
+    CurrencyRateRequired,
+    /// Acknowledge refused: the order is not in the operational (purchase) state.
+    NotAcknowledgable(String),
+    /// Delete refused: the order (or its line) is not in a deletable state (G8/G9).
+    NotDeletable(String),
+    /// A PO line's receipt method cannot take the requested write (e.g. a seam allocation or
+    /// manual receipt aimed at a line whose method is the other tier).
+    InvalidLineMethod(String),
     /// A source funnel document (MR / RFQ / SQ) was not found.
     SourceNotFound(Uuid),
     /// A source funnel document is not in a convertible state.
     SourceNotConvertible(String),
+    /// An agreement (or its line) was not found.
+    AgreementNotFound(Uuid),
+    /// An agreement verb was refused from the agreement's current state (e.g. confirming a done
+    /// agreement, editing prices on a draft, re-sequencing a non-draft).
+    AgreementNotConvertible(String),
+    /// Close/cancel refused: a call-off PO in a pre-confirmed state still hangs off the agreement.
+    AgreementHasDraftOrders(Uuid),
+    /// A call-off would push an agreement line past its blanket quantity.
+    AgreementExceeded(Uuid),
+    /// A matching/matching-style verb arrived with an empty selection (G6).
+    NoLinesSelected,
     /// 3-way match: cannot receive more than ordered (no over-receipt tolerance configured).
     OverReceipt { item_id: Uuid },
-    /// 3-way match: cannot bill more than received (invoice ≤ receipt).
+    /// 3-way match: cannot bill more than the line's billing capacity (received for
+    /// on_received lines; ordered for order-driven service lines).
     OverBilling { item_id: Uuid },
     /// 3-way match: cannot return more than the un-billed received portion (credit the billed goods first).
     OverReturn { item_id: Uuid },
@@ -132,8 +176,21 @@ impl BuyingError {
             BuyingError::DuplicateNumber(_) => "duplicate_number".into(),
             BuyingError::OrderNotFound(_) => "order_not_found".into(),
             BuyingError::NotConfirmable(_) => "not_confirmable".into(),
+            BuyingError::NotApprovable(_) => "not_approvable".into(),
+            BuyingError::OrderLocked(_) => "order_locked".into(),
+            BuyingError::OrderBilled(_) => "order_billed".into(),
+            BuyingError::NotCancelable(_) => "not_cancelable".into(),
+            BuyingError::CurrencyRateRequired => "currency_rate_required".into(),
+            BuyingError::NotAcknowledgable(_) => "not_acknowledgable".into(),
+            BuyingError::NotDeletable(_) => "not_deletable".into(),
+            BuyingError::InvalidLineMethod(_) => "invalid_line_method".into(),
             BuyingError::SourceNotFound(_) => "source_not_found".into(),
             BuyingError::SourceNotConvertible(_) => "source_not_convertible".into(),
+            BuyingError::AgreementNotFound(_) => "agreement_not_found".into(),
+            BuyingError::AgreementNotConvertible(_) => "agreement_not_convertible".into(),
+            BuyingError::AgreementHasDraftOrders(_) => "agreement_has_draft_orders".into(),
+            BuyingError::AgreementExceeded(_) => "agreement_exceeded".into(),
+            BuyingError::NoLinesSelected => "no_lines_selected".into(),
             BuyingError::OverReceipt { .. } => "over_receipt".into(),
             BuyingError::OverBilling { .. } => "over_billing".into(),
             BuyingError::OverReturn { .. } => "over_return".into(),
@@ -143,7 +200,9 @@ impl BuyingError {
     }
     pub fn http_status(&self) -> u16 {
         match self {
-            BuyingError::OrderNotFound(_) | BuyingError::SourceNotFound(_) => 404,
+            BuyingError::OrderNotFound(_)
+            | BuyingError::SourceNotFound(_)
+            | BuyingError::AgreementNotFound(_) => 404,
             BuyingError::Db(_) => 500,
             _ => 422,
         }
@@ -207,6 +266,11 @@ pub(super) struct Repos {
     pub(super) supplier_quotation_items: SupplierQuotationItemRepository,
     pub(super) purchase_orders: PurchaseOrderRepository,
     pub(super) purchase_order_items: PurchaseOrderItemRepository,
+    pub(super) purchase_agreements: PurchaseAgreementRepository,
+    pub(super) purchase_agreement_lines: PurchaseAgreementLineRepository,
+    pub(super) supplier_prices: SupplierPriceRepository,
+    pub(super) purchase_company_settings: PurchaseCompanySettingRepository,
+    pub(super) supplier_reminder_settings: SupplierReminderSettingRepository,
 }
 
 impl Repos {
@@ -221,6 +285,11 @@ impl Repos {
             supplier_quotation_items: SupplierQuotationItemRepository::new(db_pool.clone()),
             purchase_orders: PurchaseOrderRepository::new(db_pool.clone()),
             purchase_order_items: PurchaseOrderItemRepository::new(db_pool.clone()),
+            purchase_agreements: PurchaseAgreementRepository::new(db_pool.clone()),
+            purchase_agreement_lines: PurchaseAgreementLineRepository::new(db_pool.clone()),
+            supplier_prices: SupplierPriceRepository::new(db_pool.clone()),
+            purchase_company_settings: PurchaseCompanySettingRepository::new(db_pool.clone()),
+            supplier_reminder_settings: SupplierReminderSettingRepository::new(db_pool.clone()),
         }
     }
 }
@@ -239,5 +308,10 @@ impl BuyingWriteService {
     pub fn with_sink(db_pool: PgPool, sink: Arc<dyn BuyingEventSink>) -> Self {
         let repos = Arc::new(Repos::new(&db_pool));
         Self { db_pool, repos, sink }
+    }
+    /// The event sink this service publishes through — jobs and hosts reuse it so one composition
+    /// emits through one sink.
+    pub fn event_sink(&self) -> &Arc<dyn BuyingEventSink> {
+        &self.sink
     }
 }

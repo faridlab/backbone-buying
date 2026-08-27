@@ -11,13 +11,18 @@ use std::sync::Arc;
 // Import all services
 use crate::application::service::MaterialRequestService;
 use crate::application::service::MaterialRequestItemService;
+use crate::application::service::PurchaseAgreementService;
+use crate::application::service::PurchaseAgreementLineService;
+use crate::application::service::PurchaseCompanySettingService;
 use crate::application::service::PurchaseOrderService;
 use crate::application::service::PurchaseOrderItemService;
 use crate::application::service::RequestForQuotationService;
 use crate::application::service::RfqItemService;
 use crate::application::service::RfqSupplierService;
+use crate::application::service::SupplierPriceService;
 use crate::application::service::SupplierQuotationService;
 use crate::application::service::SupplierQuotationItemService;
+use crate::application::service::SupplierReminderSettingService;
 
 /// Application state for dependency injection.
 ///
@@ -41,6 +46,12 @@ pub struct AppState {
     pub material_request_service: Arc<MaterialRequestService>,
     /// MaterialRequestItem service
     pub material_request_item_service: Arc<MaterialRequestItemService>,
+    /// PurchaseAgreement service
+    pub purchase_agreement_service: Arc<PurchaseAgreementService>,
+    /// PurchaseAgreementLine service
+    pub purchase_agreement_line_service: Arc<PurchaseAgreementLineService>,
+    /// PurchaseCompanySetting service
+    pub purchase_company_setting_service: Arc<PurchaseCompanySettingService>,
     /// PurchaseOrder service
     pub purchase_order_service: Arc<PurchaseOrderService>,
     /// PurchaseOrderItem service
@@ -51,10 +62,14 @@ pub struct AppState {
     pub rfq_item_service: Arc<RfqItemService>,
     /// RfqSupplier service
     pub rfq_supplier_service: Arc<RfqSupplierService>,
+    /// SupplierPrice service
+    pub supplier_price_service: Arc<SupplierPriceService>,
     /// SupplierQuotation service
     pub supplier_quotation_service: Arc<SupplierQuotationService>,
     /// SupplierQuotationItem service
     pub supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
+    /// SupplierReminderSetting service
+    pub supplier_reminder_setting_service: Arc<SupplierReminderSettingService>,
 }
 
 impl AppState {
@@ -62,24 +77,34 @@ impl AppState {
     pub fn new(
         material_request_service: Arc<MaterialRequestService>,
         material_request_item_service: Arc<MaterialRequestItemService>,
+        purchase_agreement_service: Arc<PurchaseAgreementService>,
+        purchase_agreement_line_service: Arc<PurchaseAgreementLineService>,
+        purchase_company_setting_service: Arc<PurchaseCompanySettingService>,
         purchase_order_service: Arc<PurchaseOrderService>,
         purchase_order_item_service: Arc<PurchaseOrderItemService>,
         request_for_quotation_service: Arc<RequestForQuotationService>,
         rfq_item_service: Arc<RfqItemService>,
         rfq_supplier_service: Arc<RfqSupplierService>,
+        supplier_price_service: Arc<SupplierPriceService>,
         supplier_quotation_service: Arc<SupplierQuotationService>,
-        supplier_quotation_item_service: Arc<SupplierQuotationItemService>
+        supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
+        supplier_reminder_setting_service: Arc<SupplierReminderSettingService>
     ) -> Self {
         Self {
             material_request_service,
             material_request_item_service,
+            purchase_agreement_service,
+            purchase_agreement_line_service,
+            purchase_company_setting_service,
             purchase_order_service,
             purchase_order_item_service,
             request_for_quotation_service,
             rfq_item_service,
             rfq_supplier_service,
+            supplier_price_service,
             supplier_quotation_service,
             supplier_quotation_item_service,
+            supplier_reminder_setting_service,
         }
     }
 
@@ -88,13 +113,18 @@ impl AppState {
         Self {
             material_request_service: module.material_request_service.clone(),
             material_request_item_service: module.material_request_item_service.clone(),
+            purchase_agreement_service: module.purchase_agreement_service.clone(),
+            purchase_agreement_line_service: module.purchase_agreement_line_service.clone(),
+            purchase_company_setting_service: module.purchase_company_setting_service.clone(),
             purchase_order_service: module.purchase_order_service.clone(),
             purchase_order_item_service: module.purchase_order_item_service.clone(),
             request_for_quotation_service: module.request_for_quotation_service.clone(),
             rfq_item_service: module.rfq_item_service.clone(),
             rfq_supplier_service: module.rfq_supplier_service.clone(),
+            supplier_price_service: module.supplier_price_service.clone(),
             supplier_quotation_service: module.supplier_quotation_service.clone(),
             supplier_quotation_item_service: module.supplier_quotation_item_service.clone(),
+            supplier_reminder_setting_service: module.supplier_reminder_setting_service.clone(),
         }
     }
 }
@@ -106,13 +136,18 @@ impl AppState {
 pub struct AppStateBuilder {
     material_request_service: Option<Arc<MaterialRequestService>>,
     material_request_item_service: Option<Arc<MaterialRequestItemService>>,
+    purchase_agreement_service: Option<Arc<PurchaseAgreementService>>,
+    purchase_agreement_line_service: Option<Arc<PurchaseAgreementLineService>>,
+    purchase_company_setting_service: Option<Arc<PurchaseCompanySettingService>>,
     purchase_order_service: Option<Arc<PurchaseOrderService>>,
     purchase_order_item_service: Option<Arc<PurchaseOrderItemService>>,
     request_for_quotation_service: Option<Arc<RequestForQuotationService>>,
     rfq_item_service: Option<Arc<RfqItemService>>,
     rfq_supplier_service: Option<Arc<RfqSupplierService>>,
+    supplier_price_service: Option<Arc<SupplierPriceService>>,
     supplier_quotation_service: Option<Arc<SupplierQuotationService>>,
     supplier_quotation_item_service: Option<Arc<SupplierQuotationItemService>>,
+    supplier_reminder_setting_service: Option<Arc<SupplierReminderSettingService>>,
 }
 
 impl AppStateBuilder {
@@ -130,6 +165,24 @@ impl AppStateBuilder {
     /// Set the MaterialRequestItem service.
     pub fn with_material_request_item_service(mut self, service: Arc<MaterialRequestItemService>) -> Self {
         self.material_request_item_service = Some(service);
+        self
+    }
+
+    /// Set the PurchaseAgreement service.
+    pub fn with_purchase_agreement_service(mut self, service: Arc<PurchaseAgreementService>) -> Self {
+        self.purchase_agreement_service = Some(service);
+        self
+    }
+
+    /// Set the PurchaseAgreementLine service.
+    pub fn with_purchase_agreement_line_service(mut self, service: Arc<PurchaseAgreementLineService>) -> Self {
+        self.purchase_agreement_line_service = Some(service);
+        self
+    }
+
+    /// Set the PurchaseCompanySetting service.
+    pub fn with_purchase_company_setting_service(mut self, service: Arc<PurchaseCompanySettingService>) -> Self {
+        self.purchase_company_setting_service = Some(service);
         self
     }
 
@@ -163,6 +216,12 @@ impl AppStateBuilder {
         self
     }
 
+    /// Set the SupplierPrice service.
+    pub fn with_supplier_price_service(mut self, service: Arc<SupplierPriceService>) -> Self {
+        self.supplier_price_service = Some(service);
+        self
+    }
+
     /// Set the SupplierQuotation service.
     pub fn with_supplier_quotation_service(mut self, service: Arc<SupplierQuotationService>) -> Self {
         self.supplier_quotation_service = Some(service);
@@ -175,6 +234,12 @@ impl AppStateBuilder {
         self
     }
 
+    /// Set the SupplierReminderSetting service.
+    pub fn with_supplier_reminder_setting_service(mut self, service: Arc<SupplierReminderSettingService>) -> Self {
+        self.supplier_reminder_setting_service = Some(service);
+        self
+    }
+
     /// Build the AppState.
     ///
     /// # Panics
@@ -184,13 +249,18 @@ impl AppStateBuilder {
         AppState {
             material_request_service: self.material_request_service.expect("material_request_service is required"),
             material_request_item_service: self.material_request_item_service.expect("material_request_item_service is required"),
+            purchase_agreement_service: self.purchase_agreement_service.expect("purchase_agreement_service is required"),
+            purchase_agreement_line_service: self.purchase_agreement_line_service.expect("purchase_agreement_line_service is required"),
+            purchase_company_setting_service: self.purchase_company_setting_service.expect("purchase_company_setting_service is required"),
             purchase_order_service: self.purchase_order_service.expect("purchase_order_service is required"),
             purchase_order_item_service: self.purchase_order_item_service.expect("purchase_order_item_service is required"),
             request_for_quotation_service: self.request_for_quotation_service.expect("request_for_quotation_service is required"),
             rfq_item_service: self.rfq_item_service.expect("rfq_item_service is required"),
             rfq_supplier_service: self.rfq_supplier_service.expect("rfq_supplier_service is required"),
+            supplier_price_service: self.supplier_price_service.expect("supplier_price_service is required"),
             supplier_quotation_service: self.supplier_quotation_service.expect("supplier_quotation_service is required"),
             supplier_quotation_item_service: self.supplier_quotation_item_service.expect("supplier_quotation_item_service is required"),
+            supplier_reminder_setting_service: self.supplier_reminder_setting_service.expect("supplier_reminder_setting_service is required"),
         }
     }
 }

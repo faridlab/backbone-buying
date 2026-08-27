@@ -1,0 +1,165 @@
+# =============================================================================
+# Domain: Buying
+# Entity: PurchaseAgreement (+ PurchaseAgreementLine)
+# Description: The blanket purchase agreement — a pre-negotiated price/quantity
+# frame purchase orders are called off against. Confirming an agreement mints
+# one supplier_prices row per line (the validated equivalent of a supplier
+# price overlay); every call-off PO links back via purchase_orders.agreement_id
+# and advances the lines' qty_ordered accumulator. Tender groups are deferred
+# (the agreement_kind enum carries `blanket` only for now).
+# =============================================================================
+
+models:
+  - name: PurchaseAgreement
+    collection: purchase_agreements
+    description: "Blanket purchase agreement (pre-negotiated frame POs call off against)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique agreement identifier"
+
+      agreement_number:
+        type: string
+        attributes: ["@required", "@max(40)"]
+        description: "Human reference (e.g. BLKT-2026-00007)"
+
+      agreement_kind:
+        type: AgreementKind
+        attributes: ["@default(blanket)"]
+        description: "Agreement kind — blanket only for now (tender groups are a deferred increment)"
+
+      status:
+        type: PurchaseAgreementStatus
+        attributes: ["@default(draft)"]
+        description: "Lifecycle: draft → open (confirmed; call-offs allowed) → done/cancelled"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id — STRICT-fenced"
+
+      supplier_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Supplier bound by the agreement # logical FK to party.Party.id"
+
+      currency:
+        type: string
+        attributes: ["@default(\"IDR\")", "@max(3)"]
+        description: "ISO currency code the line rates are denominated in"
+
+      date_start:
+        type: date?
+        description: "Frame validity start"
+
+      date_end:
+        type: date?
+        description: "Frame validity end"
+
+      notes:
+        type: string?
+        attributes: ["@max(1000)"]
+        description: "Free-text terms/notes"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      lines:
+        type: PurchaseAgreementLine[]
+        attributes: ["@one_to_many"]
+        description: "Agreement lines"
+        inverse: agreement
+
+    indexes:
+      - type: unique
+        fields: [agreement_number]
+        where: "deleted_at IS NULL"
+        description: "Agreement numbers are unique among live rows"
+      - type: index
+        fields: [company_id, supplier_id, status]
+
+  - name: PurchaseAgreementLine
+    collection: purchase_agreement_lines
+    description: "One negotiated line of a blanket agreement (item, frame quantity, rate)"
+
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique line identifier"
+
+      agreement_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(PurchaseAgreement.id)"]
+        description: "Owning agreement"
+
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company (denormalized from PurchaseAgreement for ADR-0010 direct RLS) # logical FK to organization.Company.id"
+
+      item_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Catalog item # logical FK to catalog.Item.id"
+
+      quantity:
+        type: decimal
+        attributes: ["@required", "@precision(18,4)", "@positive"]
+        description: "Frame quantity agreed (every line needs qty > 0 at confirm — a zero-qty line is a data error)"
+
+      rate:
+        type: decimal
+        attributes: ["@required", "@precision(18,2)", "@positive"]
+        description: "Negotiated unit price (every line needs rate > 0 at confirm — the minted supplier price carries it)"
+
+      qty_ordered:
+        type: decimal
+        attributes: ["@default(0)", "@precision(18,4)", "@non_negative"]
+        description: "Call-off accumulator — quantity already committed through call-off POs (advanced by create_call_off_po)"
+
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+
+    relations:
+      agreement:
+        type: PurchaseAgreement
+        attributes: ["@one", "@foreign_key(agreement_id)"]
+        description: "Owning agreement"
+        inverse: lines
+
+    indexes:
+      - type: index
+        fields: [agreement_id]
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enums:
+  - name: PurchaseAgreementStatus
+    description: "Agreement lifecycle: draft → open (call-offs allowed) → done/cancelled"
+    variants:
+      - name: draft
+        description: "Being prepared; lines re-sequencable"
+        default: true
+      - name: open
+        description: "Confirmed; supplier prices minted; call-off POs allowed; line price edits propagate"
+      - name: done
+        description: "Closed; supplier prices unlinked"
+      - name: cancelled
+        description: "Voided; supplier prices unlinked"
+
+  - name: AgreementKind
+    description: "Agreement kind — blanket only for now (tender groups are deferred)"
+    variants:
+      - name: blanket
+        description: "Blanket agreement: pre-negotiated prices, call-off POs consume frame quantity"
+        default: true

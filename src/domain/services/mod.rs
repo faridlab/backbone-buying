@@ -4,23 +4,33 @@
 
 pub mod material_request_domain_policy;
 pub mod material_request_item_domain_policy;
+pub mod purchase_agreement_domain_policy;
+pub mod purchase_agreement_line_domain_policy;
+pub mod purchase_company_setting_domain_policy;
 pub mod purchase_order_domain_policy;
 pub mod purchase_order_item_domain_policy;
 pub mod request_for_quotation_domain_policy;
 pub mod rfq_item_domain_policy;
 pub mod rfq_supplier_domain_policy;
+pub mod supplier_price_domain_policy;
 pub mod supplier_quotation_domain_policy;
 pub mod supplier_quotation_item_domain_policy;
+pub mod supplier_reminder_setting_domain_policy;
 
 pub use material_request_domain_policy::MaterialRequestDomainPolicy;
 pub use material_request_item_domain_policy::MaterialRequestItemDomainPolicy;
+pub use purchase_agreement_domain_policy::PurchaseAgreementDomainPolicy;
+pub use purchase_agreement_line_domain_policy::PurchaseAgreementLineDomainPolicy;
+pub use purchase_company_setting_domain_policy::PurchaseCompanySettingDomainPolicy;
 pub use purchase_order_domain_policy::PurchaseOrderDomainPolicy;
 pub use purchase_order_item_domain_policy::PurchaseOrderItemDomainPolicy;
 pub use request_for_quotation_domain_policy::RequestForQuotationDomainPolicy;
 pub use rfq_item_domain_policy::RfqItemDomainPolicy;
 pub use rfq_supplier_domain_policy::RfqSupplierDomainPolicy;
+pub use supplier_price_domain_policy::SupplierPriceDomainPolicy;
 pub use supplier_quotation_domain_policy::SupplierQuotationDomainPolicy;
 pub use supplier_quotation_item_domain_policy::SupplierQuotationItemDomainPolicy;
+pub use supplier_reminder_setting_domain_policy::SupplierReminderSettingDomainPolicy;
 
 // <<< CUSTOM
 // END CUSTOM

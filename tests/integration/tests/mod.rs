@@ -8,6 +8,9 @@ pub mod crud_test_base;
 
 pub mod material_request_api_test;
 pub mod material_request_item_api_test;
+pub mod purchase_agreement_api_test;
+pub mod purchase_agreement_line_api_test;
+pub mod purchase_company_setting_api_test;
 pub mod purchase_order_api_test;
 pub mod purchase_order_item_api_test;
 pub mod request_for_quotation_api_test;
@@ -15,11 +18,15 @@ pub mod rfq_item_api_test;
 pub mod rfq_supplier_api_test;
 pub mod supplier_quotation_api_test;
 pub mod supplier_quotation_item_api_test;
+pub mod supplier_reminder_setting_api_test;
 
 // Re-exports for convenience
 pub use crud_test_base::*;
 pub use material_request_api_test::*;
 pub use material_request_item_api_test::*;
+pub use purchase_agreement_api_test::*;
+pub use purchase_agreement_line_api_test::*;
+pub use purchase_company_setting_api_test::*;
 pub use purchase_order_api_test::*;
 pub use purchase_order_item_api_test::*;
 pub use request_for_quotation_api_test::*;
@@ -27,3 +34,4 @@ pub use rfq_item_api_test::*;
 pub use rfq_supplier_api_test::*;
 pub use supplier_quotation_api_test::*;
 pub use supplier_quotation_item_api_test::*;
+pub use supplier_reminder_setting_api_test::*;

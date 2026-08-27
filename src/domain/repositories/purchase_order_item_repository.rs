@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use anyhow::Result;
 use uuid::Uuid;
 
-use crate::domain::entity::PurchaseOrderItem;
+use crate::domain::entity::{PurchaseOrderItem, PurchaseMethod, QtyReceivedMethod};
 
 /// Pagination parameters for list queries
 #[derive(Debug, Clone, Default)]
@@ -49,12 +49,14 @@ pub struct PurchaseOrderItemFilter {
     pub item_id: Option<Uuid>,
     pub warehouse_id: Option<Uuid>,
     pub description: Option<String>,
+    pub qty_received_method: Option<QtyReceivedMethod>,
+    pub purchase_method: Option<PurchaseMethod>,
 }
 
 impl PurchaseOrderItemFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.order_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.warehouse_id.is_some() || self.description.is_some()
+        self.order_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.warehouse_id.is_some() || self.description.is_some() || self.qty_received_method.is_some() || self.purchase_method.is_some()
     }
 }
 

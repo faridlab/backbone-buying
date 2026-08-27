@@ -63,7 +63,7 @@ pub struct SupplierQuotationItem {
 impl SupplierQuotationItem {
     /// Create a builder for SupplierQuotationItem
     pub fn builder() -> SupplierQuotationItemBuilder {
-        SupplierQuotationItemBuilder::default()
+        <SupplierQuotationItemBuilder as Default>::default()
     }
 
     /// Create a new SupplierQuotationItem with required fields

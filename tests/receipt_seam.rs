@@ -5,8 +5,10 @@
 //! Flow: buying confirms a PO → emits `ReceiptRequestEnvelope`; an ACL maps it into inventory's
 //! `ReceiptExpected` (adding warehouse + GL accounts) → a draft Purchase Receipt; inventory submits
 //! it → **asset post** (Dr Inventory · Cr GR/IR) into the REAL ledger + a `StockReceived` event; an
-//! ACL routes `StockReceived` → buying `mark_received` → `received_qty` advances → PO `to_bill`;
-//! simulated billing → `completed`. All three schemas co-locate in one DB.
+//! ACL routes `StockReceived` → buying `mark_received` → `received_qty` advances → the PO's
+//! delivery/billing maturity computes advance (`receipt_status` full, `invoice_status` to_invoice);
+//! simulated billing → `invoiced` (the lifecycle band stays `purchase` throughout). All three
+//! schemas co-locate in one DB.
 //! Requires DATABASE_URL (:5433/backbone_buying with all three schemas migrated).
 
 use std::collections::HashMap;
@@ -95,15 +97,17 @@ async fn procure_to_pay_receipt_across_three_modules() {
 
     let wh = inventory.create_warehouse(NewWarehouse { company_id: company, code: uq("WH"), name: "Main".into(), warehouse_type: None, parent_warehouse_id: None, is_group: false }).await.unwrap();
 
-    // 1) buying: PO for 10 @ 100,000, confirm.
+    // 1) buying: PO for 10 @ 100,000, confirm — the band enters `purchase`, both maturity computes
+    // at their floors (nothing received, nothing billed).
     let po = buying.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: supplier, order_date: day(), schedule_date: None, currency: None,
-        tax_rate: Decimal::ZERO, notes: None,
-        lines: vec![NewLine { item_id: item, warehouse_id: Some(wh), description: None, quantity: d("10"), rate: d("100000") }],
+        currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: Some(wh), description: None, quantity: d("10"), rate: d("100000"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
-    buying.confirm_purchase_order(po).await.unwrap();
-    assert_eq!(po_status(&pool, po).await, "to_receive_and_bill");
+    buying.confirm_purchase_order(po, false).await.unwrap();
+    assert_eq!(po_status(&pool, po).await, "purchase");
+    assert_eq!(po_maturity(&pool, po).await, ("pending".into(), "no".into()));
 
     // 2) buying emits a receipt request; ACL maps it into inventory's ReceiptExpected.
     let req = buying.build_receipt_request(po).await.unwrap();
@@ -128,11 +132,13 @@ async fn procure_to_pay_receipt_across_three_modules() {
     }).expect("StockReceived for our PO");
     assert_eq!(received.total_value, d("1000000.00"));
     buying.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
-    assert_eq!(po_status(&pool, po).await, "to_bill", "received, awaiting billing");
+    assert_eq!(po_status(&pool, po).await, "purchase");
+    assert_eq!(po_maturity(&pool, po).await, ("full".into(), "to_invoice".into()), "received, awaiting billing");
 
-    // 5) simulated billing completes the 3-way match.
+    // 5) simulated billing completes the 3-way match: nothing left to invoice.
     buying.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
-    assert_eq!(po_status(&pool, po).await, "completed");
+    assert_eq!(po_status(&pool, po).await, "purchase");
+    assert_eq!(po_maturity(&pool, po).await, ("full".into(), "invoiced".into()));
 
     // inventory Bin holds the received stock at the PO rate.
     let (bin_qty, bin_val): (Decimal, Decimal) = sqlx::query_as("SELECT actual_qty, stock_value FROM inventory.bins WHERE company_id=$1 AND item_id=$2 AND warehouse_id=$3").bind(company).bind(item).bind(wh).fetch_one(&pool).await.unwrap();
@@ -145,6 +151,12 @@ async fn procure_to_pay_receipt_across_three_modules() {
 
 async fn po_status(pool: &PgPool, id: Uuid) -> String {
     sqlx::query_scalar("SELECT status::text FROM buying.purchase_orders WHERE id=$1").bind(id).fetch_one(pool).await.unwrap()
+}
+/// The PO's delivery/billing maturity computes: `(receipt_status, invoice_status)`. The lifecycle
+/// band has no watermark states — maturity is read ONLY here.
+async fn po_maturity(pool: &PgPool, id: Uuid) -> (String, String) {
+    sqlx::query_as("SELECT receipt_status::text, invoice_status::text FROM buying.purchase_orders WHERE id=$1")
+        .bind(id).fetch_one(pool).await.unwrap()
 }
 async fn journal_totals(pool: &PgPool, jid: Uuid) -> (Decimal, Decimal) {
     let r = sqlx::query("SELECT total_debit, total_credit FROM accounting.journals WHERE id=$1").bind(jid).fetch_one(pool).await.unwrap();

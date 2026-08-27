@@ -11,6 +11,9 @@ use std::sync::Arc;
 use super::{
     material_request_handler::create_material_request_routes,
     material_request_item_handler::create_material_request_item_routes,
+    purchase_agreement_handler::create_purchase_agreement_routes,
+    purchase_agreement_line_handler::create_purchase_agreement_line_routes,
+    purchase_company_setting_handler::create_purchase_company_setting_routes,
     purchase_order_handler::create_purchase_order_routes,
     purchase_order_item_handler::create_purchase_order_item_routes,
     request_for_quotation_handler::create_request_for_quotation_routes,
@@ -18,31 +21,42 @@ use super::{
     rfq_supplier_handler::create_rfq_supplier_routes,
     supplier_quotation_handler::create_supplier_quotation_routes,
     supplier_quotation_item_handler::create_supplier_quotation_item_routes,
+    supplier_reminder_setting_handler::create_supplier_reminder_setting_routes,
 };
 
 use crate::application::service::{
     MaterialRequestService,
     MaterialRequestItemService,
+    PurchaseAgreementService,
+    PurchaseAgreementLineService,
+    PurchaseCompanySettingService,
     PurchaseOrderService,
     PurchaseOrderItemService,
     RequestForQuotationService,
     RfqItemService,
     RfqSupplierService,
+    SupplierPriceService,
     SupplierQuotationService,
     SupplierQuotationItemService,
+    SupplierReminderSettingService,
 };
 
 /// Services collection for all CRUD endpoints
 pub struct HttpServices {
     pub material_request: Arc<MaterialRequestService>,
     pub material_request_item: Arc<MaterialRequestItemService>,
+    pub purchase_agreement: Arc<PurchaseAgreementService>,
+    pub purchase_agreement_line: Arc<PurchaseAgreementLineService>,
+    pub purchase_company_setting: Arc<PurchaseCompanySettingService>,
     pub purchase_order: Arc<PurchaseOrderService>,
     pub purchase_order_item: Arc<PurchaseOrderItemService>,
     pub request_for_quotation: Arc<RequestForQuotationService>,
     pub rfq_item: Arc<RfqItemService>,
     pub rfq_supplier: Arc<RfqSupplierService>,
+    pub supplier_price: Arc<SupplierPriceService>,
     pub supplier_quotation: Arc<SupplierQuotationService>,
     pub supplier_quotation_item: Arc<SupplierQuotationItemService>,
+    pub supplier_reminder_setting: Arc<SupplierReminderSettingService>,
 }
 
 /// Configure all HTTP routes for this module using Axum and BackboneCrudHandler.
@@ -66,6 +80,12 @@ pub fn configure_routes(services: HttpServices) -> Router {
         .merge(create_material_request_routes(services.material_request))
         // MaterialRequestItem routes (12 Backbone endpoints)
         .merge(create_material_request_item_routes(services.material_request_item))
+        // PurchaseAgreement routes (12 Backbone endpoints)
+        .merge(create_purchase_agreement_routes(services.purchase_agreement))
+        // PurchaseAgreementLine routes (12 Backbone endpoints)
+        .merge(create_purchase_agreement_line_routes(services.purchase_agreement_line))
+        // PurchaseCompanySetting routes (12 Backbone endpoints)
+        .merge(create_purchase_company_setting_routes(services.purchase_company_setting))
         // PurchaseOrder routes (12 Backbone endpoints)
         .merge(create_purchase_order_routes(services.purchase_order))
         // PurchaseOrderItem routes (12 Backbone endpoints)
@@ -80,6 +100,8 @@ pub fn configure_routes(services: HttpServices) -> Router {
         .merge(create_supplier_quotation_routes(services.supplier_quotation))
         // SupplierQuotationItem routes (12 Backbone endpoints)
         .merge(create_supplier_quotation_item_routes(services.supplier_quotation_item))
+        // SupplierReminderSetting routes (12 Backbone endpoints)
+        .merge(create_supplier_reminder_setting_routes(services.supplier_reminder_setting))
 }
 
 /// Create an individual entity's routes (for modular configuration)
@@ -92,6 +114,18 @@ pub mod individual {
 
     pub fn material_request_item_routes(service: Arc<MaterialRequestItemService>) -> Router {
         create_material_request_item_routes(service)
+    }
+
+    pub fn purchase_agreement_routes(service: Arc<PurchaseAgreementService>) -> Router {
+        create_purchase_agreement_routes(service)
+    }
+
+    pub fn purchase_agreement_line_routes(service: Arc<PurchaseAgreementLineService>) -> Router {
+        create_purchase_agreement_line_routes(service)
+    }
+
+    pub fn purchase_company_setting_routes(service: Arc<PurchaseCompanySettingService>) -> Router {
+        create_purchase_company_setting_routes(service)
     }
 
     pub fn purchase_order_routes(service: Arc<PurchaseOrderService>) -> Router {
@@ -120,6 +154,10 @@ pub mod individual {
 
     pub fn supplier_quotation_item_routes(service: Arc<SupplierQuotationItemService>) -> Router {
         create_supplier_quotation_item_routes(service)
+    }
+
+    pub fn supplier_reminder_setting_routes(service: Arc<SupplierReminderSettingService>) -> Router {
+        create_supplier_reminder_setting_routes(service)
     }
 
 }

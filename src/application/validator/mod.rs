@@ -7,23 +7,33 @@ pub use shared_types::{ValidationError, ValidationErrors, ValidationResult, Enti
 
 pub mod material_request_validator;
 pub mod material_request_item_validator;
+pub mod purchase_agreement_validator;
+pub mod purchase_agreement_line_validator;
+pub mod purchase_company_setting_validator;
 pub mod purchase_order_validator;
 pub mod purchase_order_item_validator;
 pub mod request_for_quotation_validator;
 pub mod rfq_item_validator;
 pub mod rfq_supplier_validator;
+pub mod supplier_price_validator;
 pub mod supplier_quotation_validator;
 pub mod supplier_quotation_item_validator;
+pub mod supplier_reminder_setting_validator;
 
 pub use material_request_validator::{MaterialRequestValidator, material_request_validator};
 pub use material_request_item_validator::{MaterialRequestItemValidator, material_request_item_validator};
+pub use purchase_agreement_validator::{PurchaseAgreementValidator, purchase_agreement_validator};
+pub use purchase_agreement_line_validator::{PurchaseAgreementLineValidator, purchase_agreement_line_validator};
+pub use purchase_company_setting_validator::{PurchaseCompanySettingValidator, purchase_company_setting_validator};
 pub use purchase_order_validator::{PurchaseOrderValidator, purchase_order_validator};
 pub use purchase_order_item_validator::{PurchaseOrderItemValidator, purchase_order_item_validator};
 pub use request_for_quotation_validator::{RequestForQuotationValidator, request_for_quotation_validator};
 pub use rfq_item_validator::{RfqItemValidator, rfq_item_validator};
 pub use rfq_supplier_validator::{RfqSupplierValidator, rfq_supplier_validator};
+pub use supplier_price_validator::{SupplierPriceValidator, supplier_price_validator};
 pub use supplier_quotation_validator::{SupplierQuotationValidator, supplier_quotation_validator};
 pub use supplier_quotation_item_validator::{SupplierQuotationItemValidator, supplier_quotation_item_validator};
+pub use supplier_reminder_setting_validator::{SupplierReminderSettingValidator, supplier_reminder_setting_validator};
 
 // <<< CUSTOM
 // END CUSTOM

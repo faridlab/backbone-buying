@@ -10,11 +10,9 @@ use utoipa::ToSchema;
 #[sqlx(type_name = "purchase_order_status", rename_all = "snake_case")]
 pub enum PurchaseOrderStatus {
     Draft,
-    ToReceive,
-    ToBill,
-    ToReceiveAndBill,
-    Completed,
-    Closed,
+    Sent,
+    ToApprove,
+    Purchase,
     Cancelled,
 }
 
@@ -22,11 +20,9 @@ impl std::fmt::Display for PurchaseOrderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Draft => write!(f, "draft"),
-            Self::ToReceive => write!(f, "to_receive"),
-            Self::ToBill => write!(f, "to_bill"),
-            Self::ToReceiveAndBill => write!(f, "to_receive_and_bill"),
-            Self::Completed => write!(f, "completed"),
-            Self::Closed => write!(f, "closed"),
+            Self::Sent => write!(f, "sent"),
+            Self::ToApprove => write!(f, "to_approve"),
+            Self::Purchase => write!(f, "purchase"),
             Self::Cancelled => write!(f, "cancelled"),
         }
     }
@@ -38,11 +34,9 @@ impl FromStr for PurchaseOrderStatus {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "draft" => Ok(Self::Draft),
-            "to_receive" => Ok(Self::ToReceive),
-            "to_bill" => Ok(Self::ToBill),
-            "to_receive_and_bill" => Ok(Self::ToReceiveAndBill),
-            "completed" => Ok(Self::Completed),
-            "closed" => Ok(Self::Closed),
+            "sent" => Ok(Self::Sent),
+            "to_approve" => Ok(Self::ToApprove),
+            "purchase" => Ok(Self::Purchase),
             "cancelled" => Ok(Self::Cancelled),
             _ => Err(format!("Unknown PurchaseOrderStatus variant: {}", s)),
         }

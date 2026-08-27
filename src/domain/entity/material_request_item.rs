@@ -61,7 +61,7 @@ pub struct MaterialRequestItem {
 impl MaterialRequestItem {
     /// Create a builder for MaterialRequestItem
     pub fn builder() -> MaterialRequestItemBuilder {
-        MaterialRequestItemBuilder::default()
+        <MaterialRequestItemBuilder as Default>::default()
     }
 
     /// Create a new MaterialRequestItem with required fields

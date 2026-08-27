@@ -52,7 +52,17 @@ models:
       status:
         type: PurchaseOrderStatus
         attributes: ["@default(draft)"]
-        description: "Lifecycle status (receipt + billing watermarks encoded as states)"
+        description: "Lifecycle status — a 5-state band (draft/sent/to_approve/purchase/cancelled); delivery/billing maturity is NOT encoded here (see receipt_status / invoice_status)"
+
+      receipt_status:
+        type: PurchaseReceiptStatus
+        attributes: ["@default(pending)", "@exclude_from_dto"]
+        description: "Delivery maturity — STORED COMPUTE owned by the stock bridge (recomputed from the line watermarks after every receipt/return); never hand-set (excluded from all write DTOs; Response-only)"
+
+      invoice_status:
+        type: PurchaseInvoiceStatus
+        attributes: ["@default(no)", "@exclude_from_dto"]
+        description: "Billing maturity — PURE STORED COMPUTE from the billed watermarks (recomputed after every bill/credit); never hand-set (excluded from all write DTOs; Response-only)"
 
       order_date:
         type: date
@@ -67,6 +77,30 @@ models:
         type: string
         attributes: ["@default(\"IDR\")", "@max(3)"]
         description: "ISO currency code"
+
+      currency_rate:
+        type: decimal
+        attributes: ["@default(1)", "@precision(18,6)", "@positive"]
+        description: "Order-time exchange-rate snapshot. CONVENTION (pinned): units of COMPANY currency per 1 unit of PO currency at order_date. Same-currency POs fix 1; a foreign-currency PO without a rate is refused loudly (currency_rate_required) — a silent rate-1 default would mis-classify every foreign-currency PO at the double-validation threshold"
+
+      acknowledged:
+        type: bool
+        attributes: ["@default(false)"]
+        description: "Receipt acknowledgement flag — true once the PO has been acknowledged (manually via the acknowledge verb, or automatically by a recorded receipt); suppresses the receipt-reminder cron"
+
+      locked:
+        type: bool
+        attributes: ["@default(false)"]
+        description: "Order lock — when true, cancel is refused (po_cancel_locked). Orthogonal to the lifecycle band; flips only via the lock/unlock verbs"
+
+      date_approve:
+        type: date?
+        description: "Date the order entered `purchase` (stamped on confirm-with-gate-pass or approve); NOT cleared by a reset back to draft — it records that the approval happened"
+
+      agreement_id:
+        type: uuid?
+        attributes: ["@exclude_from_foreign_key_check"]
+        description: "Blanket call-off source # logical FK to buying.PurchaseAgreement.id"
 
       subtotal:
         type: decimal
@@ -174,6 +208,16 @@ models:
         attributes: ["@default(0)", "@precision(18,4)", "@non_negative"]
         description: "Cumulative quantity invoiced (advanced on billing's PurchaseInvoicePosted)"
 
+      qty_received_method:
+        type: QtyReceivedMethod
+        attributes: ["@default(stock_moves)"]
+        description: "How received_qty advances on this line: `stock_moves` (the receipt seam allocates it — the default) or `manual` (an operator sets it via set_manual_line_receipt; the seam allocation SKIPS these lines). No method-switch verb: switching after receipts exist would corrupt the watermarks"
+
+      purchase_method:
+        type: PurchaseMethod
+        attributes: ["@default(on_received)"]
+        description: "Billing capacity formula: `on_received` (billed_qty caps at received_qty — invoice ≤ receipt, the goods default) or `purchase` (billed_qty caps at quantity — order-driven service lines may bill ahead of receipt)"
+
       metadata:
         type: Metadata
         attributes: ["@audit_metadata"]
@@ -195,26 +239,64 @@ models:
 # =============================================================================
 
 enums:
-  # Both bands live once inventory (receipt) + billing exist. Receipt band is proven via the
-  # buying<->inventory seam; billing band advances on PurchaseInvoicePosted (billing, later).
+  # The 5-state lifecycle band. Delivery/billing maturity is NOT encoded in status — it lives on the
+  # stored computes receipt_status / invoice_status (recomputed from the line watermarks). Legacy
+  # mapping at the band migration: watermark states collapse into `purchase`; legacy `closed` maps
+  # to `cancelled` as the least-wrong legacy remap.
   - name: PurchaseOrderStatus
-    description: "Purchase-order lifecycle (receipt + billing watermarks as states)"
+    description: "Purchase-order lifecycle band: draft → sent → (gate) purchase | to_approve → purchase; cancelled from any live state; reset returns to draft"
     variants:
       - name: draft
         description: "Being prepared"
         default: true
-      - name: to_receive
-        description: "Confirmed; awaiting receipt only (fully billed)"
-      - name: to_bill
-        description: "Confirmed; awaiting billing only (fully received)"
-      - name: to_receive_and_bill
-        description: "Confirmed; awaiting both receipt and billing"
-      - name: completed
-        description: "Fully received and fully billed"
-      - name: closed
-        description: "Manually closed"
+      - name: sent
+        description: "Issued to the supplier (print/send); still editable in the draft sense"
+      - name: to_approve
+        description: "Confirm parked by the double-validation gate (over-threshold PO without a manager claim)"
+      - name: purchase
+        description: "Confirmed supply commitment (the operational state — receipt + billing proceed)"
       - name: cancelled
         description: "Voided"
+
+  - name: PurchaseReceiptStatus
+    description: "Delivery maturity (stored compute from the line received watermarks — describes delivery, not lifecycle)"
+    variants:
+      - name: pending
+        description: "Nothing received yet"
+        default: true
+      - name: partial
+        description: "Some but not all lines fully received"
+      - name: full
+        description: "Every live line fully received"
+
+  - name: PurchaseInvoiceStatus
+    description: "Billing maturity (pure stored compute from the billed watermarks — never hand-set)"
+    variants:
+      - name: no
+        description: "Nothing to invoice / not in the operational state"
+        default: true
+      - name: to_invoice
+        description: "Invoiceable quantity remains on at least one live line"
+      - name: invoiced
+        description: "Every live line fully billed"
+
+  - name: QtyReceivedMethod
+    description: "How a PO line's received_qty advances: seam allocation (stock_moves) or operator entry (manual)"
+    variants:
+      - name: stock_moves
+        description: "The receipt seam allocates received_qty (default)"
+        default: true
+      - name: manual
+        description: "An operator sets received_qty via set_manual_line_receipt; seam allocation skips the line"
+
+  - name: PurchaseMethod
+    description: "Billing capacity formula for a PO line (invoice ≤ receipt vs invoice ≤ ordered)"
+    variants:
+      - name: on_received
+        description: "billed_qty caps at received_qty — the goods default (3-way match)"
+        default: true
+      - name: purchase
+        description: "billed_qty caps at quantity — order-driven service lines may bill ahead of receipt"
 
   - name: OrderKind
     description: "Standard purchase or subcontract subtype"

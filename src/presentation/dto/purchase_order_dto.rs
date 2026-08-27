@@ -20,7 +20,9 @@ use validator::Validate;
 use crate::domain::entity::PurchaseOrder;
 use crate::domain::entity::AuditMetadata;
 use crate::domain::entity::OrderKind;
+use crate::domain::entity::PurchaseInvoiceStatus;
 use crate::domain::entity::PurchaseOrderStatus;
+use crate::domain::entity::PurchaseReceiptStatus;
 
 // =============================================================================
 // Create DTO
@@ -60,6 +62,16 @@ pub struct CreatePurchaseOrderDto {
     #[cfg_attr(feature = "validation", validate(length(max = 3)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub currency: String,
+    #[serde(alias = "currency_rate")]
+    pub currency_rate: Decimal,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub acknowledged: bool,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub locked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "date_approve")]
+    pub date_approve: Option<NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "agreement_id")]
+    pub agreement_id: Option<Uuid>,
     pub subtotal: Decimal,
     #[serde(alias = "tax_rate")]
     pub tax_rate: Decimal,
@@ -109,6 +121,16 @@ pub struct UpdatePurchaseOrderDto {
     #[cfg_attr(feature = "validation", validate(length(max = 3)))]
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub currency: String,
+    #[serde(alias = "currency_rate")]
+    pub currency_rate: Decimal,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub acknowledged: bool,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub locked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "date_approve")]
+    pub date_approve: Option<NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "agreement_id")]
+    pub agreement_id: Option<Uuid>,
     pub subtotal: Decimal,
     #[serde(alias = "tax_rate")]
     pub tax_rate: Decimal,
@@ -160,6 +182,18 @@ pub struct PatchPurchaseOrderDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "currency_rate")]
+    pub currency_rate: Option<Decimal>,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acknowledged: Option<bool>,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "date_approve")]
+    pub date_approve: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "agreement_id")]
+    pub agreement_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subtotal: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "tax_rate")]
@@ -176,7 +210,7 @@ pub struct PatchPurchaseOrderDto {
 impl PatchPurchaseOrderDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.order_date.is_some() || self.schedule_date.is_some() || self.currency.is_some() || self.subtotal.is_some() || self.tax_rate.is_some() || self.tax_amount.is_some() || self.total.is_some() || self.notes.is_some()
+        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.order_date.is_some() || self.schedule_date.is_some() || self.currency.is_some() || self.currency_rate.is_some() || self.acknowledged.is_some() || self.locked.is_some() || self.date_approve.is_some() || self.agreement_id.is_some() || self.subtotal.is_some() || self.tax_rate.is_some() || self.tax_amount.is_some() || self.total.is_some() || self.notes.is_some()
     }
 }
 
@@ -204,11 +238,20 @@ pub struct PurchaseOrderResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub supplier_id: Uuid,
     pub status: PurchaseOrderStatus,
+    pub receipt_status: PurchaseReceiptStatus,
+    pub invoice_status: PurchaseInvoiceStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     pub order_date: NaiveDate,
     pub schedule_date: Option<NaiveDate>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub currency: String,
+    pub currency_rate: Decimal,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub acknowledged: bool,
+    #[cfg_attr(feature = "openapi", schema(example = true))]
+    pub locked: bool,
+    pub date_approve: Option<NaiveDate>,
+    pub agreement_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -292,9 +335,16 @@ impl From<PurchaseOrder> for PurchaseOrderResponseDto {
             branch_id: entity.branch_id,
             supplier_id: entity.supplier_id,
             status: entity.status,
+            receipt_status: entity.receipt_status,
+            invoice_status: entity.invoice_status,
             order_date: entity.order_date,
             schedule_date: entity.schedule_date,
             currency: entity.currency,
+            currency_rate: entity.currency_rate,
+            acknowledged: entity.acknowledged,
+            locked: entity.locked,
+            date_approve: entity.date_approve,
+            agreement_id: entity.agreement_id,
             subtotal: entity.subtotal,
             tax_rate: entity.tax_rate,
             tax_amount: entity.tax_amount,
@@ -329,9 +379,16 @@ impl From<CreatePurchaseOrderDto> for PurchaseOrder {
             branch_id: dto.branch_id,
             supplier_id: dto.supplier_id,
             status: dto.status,
+            receipt_status: Default::default(),
+            invoice_status: Default::default(),
             order_date: dto.order_date,
             schedule_date: dto.schedule_date,
             currency: dto.currency,
+            currency_rate: dto.currency_rate,
+            acknowledged: dto.acknowledged,
+            locked: dto.locked,
+            date_approve: dto.date_approve,
+            agreement_id: dto.agreement_id,
             subtotal: dto.subtotal,
             tax_rate: dto.tax_rate,
             tax_amount: dto.tax_amount,
@@ -353,9 +410,16 @@ impl From<&PurchaseOrder> for PurchaseOrderResponseDto {
             branch_id: entity.branch_id.clone(),
             supplier_id: entity.supplier_id.clone(),
             status: entity.status.clone(),
+            receipt_status: entity.receipt_status.clone(),
+            invoice_status: entity.invoice_status.clone(),
             order_date: entity.order_date.clone(),
             schedule_date: entity.schedule_date.clone(),
             currency: entity.currency.clone(),
+            currency_rate: entity.currency_rate.clone(),
+            acknowledged: entity.acknowledged.clone(),
+            locked: entity.locked.clone(),
+            date_approve: entity.date_approve.clone(),
+            agreement_id: entity.agreement_id.clone(),
             subtotal: entity.subtotal.clone(),
             tax_rate: entity.tax_rate.clone(),
             tax_amount: entity.tax_amount.clone(),
@@ -384,6 +448,11 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseOrderDto> for PurchaseOrder {
         self.order_date = dto.order_date;
         self.schedule_date = dto.schedule_date;
         self.currency = dto.currency;
+        self.currency_rate = dto.currency_rate;
+        self.acknowledged = dto.acknowledged;
+        self.locked = dto.locked;
+        self.date_approve = dto.date_approve;
+        self.agreement_id = dto.agreement_id;
         self.subtotal = dto.subtotal;
         self.tax_rate = dto.tax_rate;
         self.tax_amount = dto.tax_amount;

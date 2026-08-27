@@ -64,7 +64,7 @@ pub struct RequestForQuotation {
 impl RequestForQuotation {
     /// Create a builder for RequestForQuotation
     pub fn builder() -> RequestForQuotationBuilder {
-        RequestForQuotationBuilder::default()
+        <RequestForQuotationBuilder as Default>::default()
     }
 
     /// Create a new RequestForQuotation with required fields
@@ -310,7 +310,7 @@ impl RequestForQuotationBuilder {
             rfq_number,
             material_request_id: self.material_request_id,
             company_id,
-            status: self.status.unwrap_or(PurchaseDocStatus::default()),
+            status: self.status.unwrap_or_default(),
             rfq_date,
             response_due: self.response_due,
             metadata: AuditMetadata::default(),

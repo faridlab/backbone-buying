@@ -109,10 +109,10 @@ async fn variance_broadcasts_three_way_match_failed() {
     let po = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, tax_rate: Decimal::ZERO, notes: None,
-        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
+        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
-    w.confirm_purchase_order(po).await.unwrap();
+    w.confirm_purchase_order(po, false).await.unwrap();
     // over-receipt → rejected AND broadcast.
     assert!(w.mark_received(po, company, &[(item, d("12"))]).await.is_err());
     assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_receipt")));
@@ -128,10 +128,10 @@ async fn completion_milestones_emitted() {
     let po = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, tax_rate: Decimal::ZERO, notes: None,
-        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
+        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
-    w.confirm_purchase_order(po).await.unwrap();
+    w.confirm_purchase_order(po, false).await.unwrap();
     w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyReceived(_))), "fully received milestone");
     w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
@@ -156,10 +156,10 @@ async fn duplicate_mark_billed_is_contained_not_doubled() {
     let po = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, tax_rate: Decimal::ZERO, notes: None,
-        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
+        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
-    w.confirm_purchase_order(po).await.unwrap();
+    w.confirm_purchase_order(po, false).await.unwrap();
     w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
 
     // First bill applies fully + emits the FullyBilled milestone.
@@ -190,10 +190,10 @@ async fn reverse_events_emitted() {
     let po = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, tax_rate: Decimal::ZERO, notes: None,
-        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100") }],
+        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
-    w.confirm_purchase_order(po).await.unwrap();
+    w.confirm_purchase_order(po, false).await.unwrap();
     w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
     w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
 

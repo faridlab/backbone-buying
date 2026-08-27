@@ -14,6 +14,9 @@ use std::env;
 // Import seeders
 use backbone_buying::seeders::SeedMaterialRequestSeeder;
 use backbone_buying::seeders::SeedMaterialRequestItemSeeder;
+use backbone_buying::seeders::SeedPurchaseAgreementSeeder;
+use backbone_buying::seeders::SeedPurchaseAgreementLineSeeder;
+use backbone_buying::seeders::SeedPurchaseCompanySettingSeeder;
 use backbone_buying::seeders::SeedPurchaseOrderSeeder;
 use backbone_buying::seeders::SeedPurchaseOrderItemSeeder;
 use backbone_buying::seeders::SeedRequestForQuotationSeeder;
@@ -21,6 +24,7 @@ use backbone_buying::seeders::SeedRfqItemSeeder;
 use backbone_buying::seeders::SeedRfqSupplierSeeder;
 use backbone_buying::seeders::SeedSupplierQuotationSeeder;
 use backbone_buying::seeders::SeedSupplierQuotationItemSeeder;
+use backbone_buying::seeders::SeedSupplierReminderSettingSeeder;
 use backbone_buying::seeders::Seeder;
 
 #[tokio::main]
@@ -33,7 +37,7 @@ async fn main() -> Result<()> {
         .map(|s| s.as_str());
 
     let database_url = env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
+        .map_err(|e| anyhow::anyhow!("DATABASE_URL must be set: {e}"))?;
 
     println!("Connecting to database...");
 
@@ -51,6 +55,9 @@ async fn main() -> Result<()> {
     let mut seeders: Vec<Box<dyn Seeder + Send + Sync>> = Vec::new();
     seeders.push(Box::new(SeedMaterialRequestSeeder::new()));
     seeders.push(Box::new(SeedMaterialRequestItemSeeder::new()));
+    seeders.push(Box::new(SeedPurchaseAgreementSeeder::new()));
+    seeders.push(Box::new(SeedPurchaseAgreementLineSeeder::new()));
+    seeders.push(Box::new(SeedPurchaseCompanySettingSeeder::new()));
     seeders.push(Box::new(SeedPurchaseOrderSeeder::new()));
     seeders.push(Box::new(SeedPurchaseOrderItemSeeder::new()));
     seeders.push(Box::new(SeedRequestForQuotationSeeder::new()));
@@ -58,6 +65,7 @@ async fn main() -> Result<()> {
     seeders.push(Box::new(SeedRfqSupplierSeeder::new()));
     seeders.push(Box::new(SeedSupplierQuotationSeeder::new()));
     seeders.push(Box::new(SeedSupplierQuotationItemSeeder::new()));
+    seeders.push(Box::new(SeedSupplierReminderSettingSeeder::new()));
 
     // Sort by order
     seeders.sort_by_key(|s| s.order());

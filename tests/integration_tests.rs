@@ -39,6 +39,48 @@ async fn test_material_request_item_api() {
 }
 
 #[tokio::test]
+async fn test_purchase_agreement_api() {
+    let mut test = PurchaseAgreementApiTest::new();
+    let results = test.run_all().await;
+
+    let failed: Vec<_> = results.iter().filter(|r| !r.success).collect();
+    if !failed.is_empty() {
+        for f in &failed {
+            eprintln!("FAILED: {} - {}", f.test_name, f.details);
+        }
+        panic!("{} tests failed", failed.len());
+    }
+}
+
+#[tokio::test]
+async fn test_purchase_agreement_line_api() {
+    let mut test = PurchaseAgreementLineApiTest::new();
+    let results = test.run_all().await;
+
+    let failed: Vec<_> = results.iter().filter(|r| !r.success).collect();
+    if !failed.is_empty() {
+        for f in &failed {
+            eprintln!("FAILED: {} - {}", f.test_name, f.details);
+        }
+        panic!("{} tests failed", failed.len());
+    }
+}
+
+#[tokio::test]
+async fn test_purchase_company_setting_api() {
+    let mut test = PurchaseCompanySettingApiTest::new();
+    let results = test.run_all().await;
+
+    let failed: Vec<_> = results.iter().filter(|r| !r.success).collect();
+    if !failed.is_empty() {
+        for f in &failed {
+            eprintln!("FAILED: {} - {}", f.test_name, f.details);
+        }
+        panic!("{} tests failed", failed.len());
+    }
+}
+
+#[tokio::test]
 async fn test_purchase_order_api() {
     let mut test = PurchaseOrderApiTest::new();
     let results = test.run_all().await;
@@ -136,3 +178,16 @@ async fn test_supplier_quotation_item_api() {
     }
 }
 
+#[tokio::test]
+async fn test_supplier_reminder_setting_api() {
+    let mut test = SupplierReminderSettingApiTest::new();
+    let results = test.run_all().await;
+
+    let failed: Vec<_> = results.iter().filter(|r| !r.success).collect();
+    if !failed.is_empty() {
+        for f in &failed {
+            eprintln!("FAILED: {} - {}", f.test_name, f.details);
+        }
+        panic!("{} tests failed", failed.len());
+    }
+}

@@ -1,6 +1,11 @@
 # =============================================================================
 # buying Hooks — PO lifecycle + write-path rules (spec of behavior in
-# src/application/service/buying_write_service.rs, proven in tests/).
+# src/application/service/buying_write_service.rs + siblings, proven in tests/).
+#
+# The PurchaseOrder status is HAND-SET (ADR-0016): every transition is a write
+# by a lifecycle verb, never derived. Delivery/billing maturity left the status
+# band — receipt_status / invoice_status are stored-compute PROJECTIONS of the
+# line watermarks (recomputed after every allocation, never hand-written).
 # =============================================================================
 
 module: buying
@@ -9,28 +14,99 @@ version: 2
 state_machines:
   - entity: MaterialRequest
     field: status
+    lifecycle: hand_set
     initial: draft
     states: [draft, submitted, ordered, cancelled]
     transitions:
       - { from: draft, to: submitted, on: submit }
   - entity: SupplierQuotation
     field: status
+    lifecycle: hand_set
     initial: draft
     states: [draft, submitted, ordered, cancelled]
     transitions:
       - { from: submitted, to: ordered, on: convert_to_po }
-  # All bands live once inventory (receipt) + billing exist.
+
+  # The 5-state band: draft / sent / to_approve / purchase / cancelled. No
+  # done/completed/closed states — full receipt and full billing live on the
+  # receipt_status / invoice_status projections below.
   - entity: PurchaseOrder
     field: status
+    lifecycle: hand_set
+    description: >
+      Hand-set per ADR-0016: transitions are writes by the lifecycle verbs,
+      never derived. confirm enters purchase directly when the
+      double-validation gate passes (or the caller claims the manager leg);
+      an over-threshold two-step confirm parks in to_approve instead.
+      PurchaseOrderConfirmed is published from BOTH entry paths exactly once.
+      date_approve is stamped on entering purchase and deliberately survives
+      reset (it records that an approval once happened).
     initial: draft
-    states: [draft, to_receive, to_bill, to_receive_and_bill, completed, closed, cancelled]
+    states: [draft, sent, to_approve, purchase, cancelled]
     transitions:
-      - { from: draft, to: to_receive_and_bill, on: confirm }
-      - { from: to_receive_and_bill, to: to_bill, on: fully_received }
-      - { from: to_receive_and_bill, to: to_receive, on: fully_billed }
-      - { from: to_bill, to: completed, on: fully_billed }
-      - { from: to_receive, to: completed, on: fully_received }
+      - { from: draft,     to: sent,       on: send }         # printed/sent to supplier
+      - { from: draft,     to: to_approve, on: confirm }      # gate refused (two_step, over threshold, no manager)
+      - { from: sent,      to: to_approve, on: confirm }
+      - { from: draft,     to: purchase,   on: confirm }      # gate passed / manager claim
+      - { from: sent,      to: purchase,   on: confirm }
+      - { from: to_approve, to: purchase,  on: approve }      # manager leg — same event as confirm's entry
+      - { from: sent,      to: draft,      on: reset }
+      - { from: to_approve, to: draft,     on: reset }
+      - { from: purchase,  to: draft,      on: reset }
+      - { from: cancelled, to: draft,      on: reset }
+      - { from: draft,     to: cancelled,  on: cancel }       # G4/G5 guarded
+      - { from: sent,      to: cancelled,  on: cancel }
+      - { from: to_approve, to: cancelled, on: cancel }
+      - { from: purchase,  to: cancelled,  on: cancel }
+
+  # Stored-compute projections (ADR-0016 `projection`): recomputed by
+  # recompute_order_maturity after every watermark allocation; write-proof
+  # everywhere else (kept out of Create/Update/Patch DTOs; update_maturity is
+  # guarded to status='purchase').
+  - entity: PurchaseOrder
+    field: receipt_status
+    lifecycle: projection
+    description: >
+      Projection of the line received watermarks: full iff every live line
+      received its ordered quantity; partial iff any live line received
+      anything; else pending. Recomputed after every receipt/return.
+    initial: pending
+    states: [pending, partial, full]
+    transitions: []  # no hand-set transitions — allocation-driven recompute only
+  - entity: PurchaseOrder
+    field: invoice_status
+    lifecycle: projection
+    description: >
+      Projection of the line billing watermarks under the two-formula capacity
+      (received_qty for on_received lines, quantity for purchase-method lines):
+      to_invoice iff any live line still has billable quantity remaining
+      (a received-but-never-billed PO IS to invoice); else invoiced iff
+      anything was billed; else no.
+    initial: "no"
+    states: [no, to_invoice, invoiced]
+    transitions: []  # no hand-set transitions — allocation-driven recompute only
+
+  # Inert flags: no machine, no transition — written once by their verb.
+  # locked: set/cleared by lock/unlock; its only effect is the G4 cancel guard.
+  # acknowledged: stamped by the acknowledge verb (and by a receipt landing);
+  #   its only effect is suppressing the receipt reminder.
+  # qty_received_method / purchase_method (line): tier picks written at create.
+
+  - entity: PurchaseAgreement
+    field: status
+    lifecycle: hand_set
+    description: >
+      Hand-set per ADR-0016. Confirming a draft blanket mints its supplier
+      prices (the ONLY writer of buying.supplier_prices — PXB-1); close/cancel
+      unlink them and refuse while a pre-confirmed call-off PO hangs off the
+      agreement.
+    initial: draft
+    states: [draft, open, done, cancelled]
+    transitions:
+      - { from: draft, to: open,      on: confirm }
+      - { from: open,  to: done,      on: close }
       - { from: draft, to: cancelled, on: cancel }
+      - { from: open,  to: cancelled, on: cancel }
 
 rules:
   - id: R1
@@ -38,31 +114,119 @@ rules:
     when: create
     assert: "count(lines) >= 1"
     error_code: empty_document
+    enforcement: service
+    # service-only justification: the header and its lines commit in ONE transaction; a SQL
+    # expression would need a deferred cross-table constraint to see the lines at insert time.
   - id: R2
     name: non_negative
     when: create
     assert: "line.quantity >= 0 AND line.rate >= 0"
     error_code: negative_quantity
+    enforcement: db
   - id: R3
     name: unique_number
     when: create
-    assert: "document number is unique"
+    assert: "document number is unique (partial unique index where deleted_at is null)"
     error_code: duplicate_number
+    enforcement: db
   - id: R4
     name: confirmable
     when: confirm
-    assert: "purchase order is draft"
+    assert: "purchase order is draft or sent"
     error_code: not_confirmable
+    enforcement: both
   - id: R5
     name: three_way_match
-    when: complete
-    assert: "every line fully received AND fully billed"
+    when: allocate
+    assert: "received_qty <= quantity AND billed_qty <= CASE WHEN purchase_method='purchase' THEN quantity ELSE received_qty END (one formula, three surfaces: DB CHECK, allocation cap, maturity recompute)"
+    error_code: over_receipt / over_billing
+    enforcement: both
+  - id: R5-gate
+    name: double_validation_threshold
+    when: confirm
+    assert: "in two_step, total * currency_rate >= double_validation_amount requires the manager leg; the threshold is COMPANY-currency denominated and the total is converted INTO company currency with the order-time rate snapshot (never reverse-divided, never a silent rate of 1)"
+    error_code: not_approvable
+    enforcement: service
+    # service-only justification: the gate is procedural multi-currency math (a settings read
+    # joined with the PO's order-time rate snapshot) — not expressible as a row-level CHECK.
+    # DECLARED SEAM: this module has no role model (consistent with backbone). The service API
+    # takes an `is_manager` claim; the HTTP handler binds an optional `isManager` body field
+    # defaulting false. This is reference wiring only — a real deployment derives the claim from
+    # verified role claims at the composing service and is expected to call confirm/approve from
+    # server-side wiring that established it, not forward an unverified body flag.
+  # -- cancel/delete guards (service pre-check; trigger is the backstop) -------------
+  - id: G4
+    name: po_cancel_locked
+    when: cancel
+    assert: "a locked purchase order refuses cancel"
+    error_code: order_locked
+    enforcement: both
+  - id: G5
+    name: po_cancel_billed
+    when: cancel
+    assert: "cancel refuses while any live line has billed_qty > 0"
+    error_code: order_billed
+    enforcement: both
+  - id: G6
+    name: match_requires_lines
+    when: match_bill_lines
+    assert: "an empty proposal list refuses instead of no-op matching"
+    error_code: no_lines_selected
+    enforcement: service
+  - id: G8
+    name: po_delete_requires_cancelled
+    when: delete
+    assert: "a live purchase order is never deletable — soft-delete only from cancelled"
+    error_code: not_deletable
+    enforcement: both
+  - id: G9
+    name: po_item_delete_requires_editable_order
+    when: delete line
+    assert: "a line is deletable only while its parent order is draft/sent"
+    error_code: not_deletable
+    enforcement: both
+  # -- agreement guards ---------------------------------------------------------------
+  - id: PXB-1
+    name: supplier_prices_agreement_owned
+    when: write supplier_prices
+    assert: "buying.supplier_prices has NO CRUD route and no standalone writer: only the agreement confirm (mint), open re-price (propagate), and close/cancel (unlink) write it"
     error_code: null
+    enforcement: service
+  - id: G-agreement-close
+    name: agreement_close_no_draft_calloffs
+    when: close, cancel agreement
+    assert: "close/cancel refuses while a call-off PO in draft/sent/to_approve hangs off the agreement"
+    error_code: agreement_has_draft_orders
+    enforcement: service
+  - id: G-call-off-cap
+    name: call_off_within_blanket
+    when: create_call_off_po
+    assert: "line.qty_ordered + call_off.quantity <= line.quantity (the blanket quantity caps the call-offs)"
+    error_code: agreement_exceeded
+    enforcement: service
+  - id: G7
+    name: reminder_company_gate
+    when: send_receipt_reminder
+    assert: "no company settings row, or send_reminder=false, skips the company's whole run silently; a supplier override with receipt_reminder_email=false is excluded from the claim; an absent supplier row is the enabled default (remind, 1 day)"
+    error_code: null
+    enforcement: service
 
 events:
   PurchaseOrderConfirmed:
-    when: "a purchase order is confirmed"
-    payload: [order_id, company_id, supplier_id, grand_total, currency]
+    when: "a purchase order enters purchase (gate-passing confirm OR manager approve — one event, two entry paths)"
+    payload: [order_id, company_id, supplier_id, grand_total, currency, order_kind]
+  PurchaseOrderPendingApproval:
+    when: "the double-validation gate parked a confirm in to_approve"
+    payload: [order_id, company_id]
   ReceiptRequested:
-    when: "a confirmed PO requests goods receipt"
-    payload: [order_id, company_id, supplier_id, currency, lines]
+    when: "a purchase-state PO requests goods receipt"
+    payload: [order_id, company_id, supplier_id, currency, order_kind, lines]
+  PurchaseReceiptRecorded:
+    when: "a receipt (seam allocation or manual line set) applied to a PO — every receipt, not only milestones"
+    payload: [order_id, company_id, order_kind, lines]
+  BillLinesMatched:
+    when: "a manual bill match was accepted"
+    payload: [order_id, company_id, matches]
+  PurchaseReceiptReminderDue:
+    when: "the reminder job claimed a due un-acknowledged PO (the notification port — buying has no mail stack)"
+    payload: [order_id, company_id, supplier_id, schedule_date]

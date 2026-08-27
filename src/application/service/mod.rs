@@ -9,13 +9,18 @@ pub use error::{ServiceError, ServiceResult};
 
 pub mod material_request_service;
 pub mod material_request_item_service;
+pub mod purchase_agreement_service;
+pub mod purchase_agreement_line_service;
+pub mod purchase_company_setting_service;
 pub mod purchase_order_service;
 pub mod purchase_order_item_service;
 pub mod request_for_quotation_service;
 pub mod rfq_item_service;
 pub mod rfq_supplier_service;
+pub mod supplier_price_service;
 pub mod supplier_quotation_service;
 pub mod supplier_quotation_item_service;
+pub mod supplier_reminder_setting_service;
 
 // <<< CUSTOM
 // Hand-authored (user-owned): domain events + the validated write path + receipt seam.
@@ -29,17 +34,25 @@ pub mod buying_quotation;
 pub mod buying_order_create;
 pub mod buying_order_lifecycle;
 pub mod buying_receipt;
+pub mod buying_agreement;
+pub mod buying_bill_matching;
+pub mod buying_settings;
 // END CUSTOM
 
 pub use material_request_service::MaterialRequestService;
 pub use material_request_item_service::MaterialRequestItemService;
+pub use purchase_agreement_service::PurchaseAgreementService;
+pub use purchase_agreement_line_service::PurchaseAgreementLineService;
+pub use purchase_company_setting_service::PurchaseCompanySettingService;
 pub use purchase_order_service::PurchaseOrderService;
 pub use purchase_order_item_service::PurchaseOrderItemService;
 pub use request_for_quotation_service::RequestForQuotationService;
 pub use rfq_item_service::RfqItemService;
 pub use rfq_supplier_service::RfqSupplierService;
+pub use supplier_price_service::SupplierPriceService;
 pub use supplier_quotation_service::SupplierQuotationService;
 pub use supplier_quotation_item_service::SupplierQuotationItemService;
+pub use supplier_reminder_setting_service::SupplierReminderSettingService;
 // <<< CUSTOM
 pub use buying_events::{
     BuyingEvent, BuyingEventSink, DocumentRaised, PurchaseOrderConfirmed, PurchaseOrderMilestone,

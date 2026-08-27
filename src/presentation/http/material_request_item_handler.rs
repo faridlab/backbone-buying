@@ -131,6 +131,13 @@ pub fn create_material_request_item_read_routes(service: Arc<MaterialRequestItem
 ///
 /// These routes must NOT be publicly exposed. Wrap them with an auth
 /// middleware before nesting into the application router.
+///
+/// # This is unguarded generic CRUD, not a validated write path
+///
+/// These are plain create/update/patch/delete mutations over the entity row —
+/// they bypass all business invariants. If the module exposes a validated write
+/// service (e.g. a command router over its domain engine), serve THAT instead
+/// for any mutation that must respect domain rules.
 pub fn create_material_request_item_write_routes(service: Arc<MaterialRequestItemService>) -> Router {
     BackboneCrudHandler::<MaterialRequestItemService, MaterialRequestItem, CreateMaterialRequestItemDto, UpdateMaterialRequestItemDto, MaterialRequestItemResponseDto>::write_routes(
         service,
@@ -179,4 +186,3 @@ pub fn create_protected_material_request_item_routes<A: AuthMiddleware + Send + 
             }
         }))
 }
-

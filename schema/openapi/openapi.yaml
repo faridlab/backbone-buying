@@ -15,6 +15,12 @@ tags:
     description: MaterialRequest management endpoints
   - name: MaterialRequestItems
     description: MaterialRequestItem management endpoints
+  - name: PurchaseAgreements
+    description: PurchaseAgreement management endpoints
+  - name: PurchaseAgreementLines
+    description: PurchaseAgreementLine management endpoints
+  - name: PurchaseCompanySettings
+    description: PurchaseCompanySetting management endpoints
   - name: PurchaseOrders
     description: PurchaseOrder management endpoints
   - name: PurchaseOrderItems
@@ -29,6 +35,8 @@ tags:
     description: SupplierQuotation management endpoints
   - name: SupplierQuotationItems
     description: SupplierQuotationItem management endpoints
+  - name: SupplierReminderSettings
+    description: SupplierReminderSetting management endpoints
 
 paths:
   /api/v1/material_requests:
@@ -749,6 +757,1104 @@ paths:
         - MaterialRequestItems
       summary: Bulk permanently-delete MaterialRequestItems from trash by ids (atomic)
       operationId: bulkPermanentDeleteMaterialRequestItems
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permanently_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreements:
+    get:
+      tags:
+        - PurchaseAgreements
+      summary: List PurchaseAgreements
+      description: Get a paginated list of PurchaseAgreements with optional filtering and sorting
+      operationId: listPurchaseAgreements
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Create PurchaseAgreement
+      description: Create a new PurchaseAgreement
+      operationId: createPurchaseAgreement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePurchaseAgreementRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/purchase_agreements/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+
+    get:
+      tags:
+        - PurchaseAgreements
+      summary: Get PurchaseAgreement by ID
+      operationId: getPurchaseAgreement
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - PurchaseAgreements
+      summary: Update PurchaseAgreement (full)
+      operationId: updatePurchaseAgreement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseAgreementRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - PurchaseAgreements
+      summary: Update PurchaseAgreement (partial)
+      operationId: patchPurchaseAgreement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchPurchaseAgreementRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - PurchaseAgreements
+      summary: Delete PurchaseAgreement (soft)
+      operationId: deletePurchaseAgreement
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/purchase_agreements/bulk:
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Bulk create PurchaseAgreements
+      operationId: bulkCreatePurchaseAgreements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreatePurchaseAgreementRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseAgreement'
+    put:
+      tags:
+        - PurchaseAgreements
+      summary: Bulk update PurchaseAgreements (full, atomic)
+      operationId: bulkUpdatePurchaseAgreements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    required: [id]
+                    properties:
+                      id:
+                        type: string
+                  - $ref: '#/components/schemas/UpdatePurchaseAgreementRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags:
+        - PurchaseAgreements
+      summary: Bulk partial-update PurchaseAgreements (atomic)
+      operationId: bulkPatchPurchaseAgreements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [ids, patch]
+                  properties:
+                    ids:
+                      type: array
+                      items: { type: string }
+                    patch:
+                      type: object
+                      additionalProperties: true
+                - type: object
+                  required: [items]
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [id, patch]
+                        properties:
+                          id: { type: string }
+                          patch: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreements/upsert:
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Upsert PurchaseAgreement
+      operationId: upsertPurchaseAgreement
+      parameters:
+        - name: key_field
+          in: query
+          schema:
+            type: string
+        - name: key_value
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseAgreementRequest'
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreement'
+
+  /api/v1/purchase_agreements/trash:
+    get:
+      tags:
+        - PurchaseAgreements
+      summary: List deleted PurchaseAgreements
+      operationId: listDeletedPurchaseAgreements
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementList'
+
+  /api/v1/purchase_agreements/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Restore deleted PurchaseAgreement
+      operationId: restorePurchaseAgreement
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/purchase_agreements/empty:
+    delete:
+      tags:
+        - PurchaseAgreements
+      summary: Empty trash for PurchaseAgreements
+      operationId: emptyTrashPurchaseAgreements
+      responses:
+        '200':
+          description: Trash emptied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted_count:
+                    type: integer
+
+  /api/v1/purchase_agreements/delete/bulk:
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Bulk soft-delete PurchaseAgreements by ids (atomic)
+      operationId: bulkDeletePurchaseAgreements
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Soft-deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  soft_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreements/restore/bulk:
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Bulk restore PurchaseAgreements by ids (atomic)
+      operationId: bulkRestorePurchaseAgreements
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreements/restore/all:
+    post:
+      tags:
+        - PurchaseAgreements
+      summary: Restore all soft-deleted PurchaseAgreements
+      operationId: restoreAllPurchaseAgreements
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  restored: { type: integer }
+
+  /api/v1/purchase_agreements/trash/bulk:
+    delete:
+      tags:
+        - PurchaseAgreements
+      summary: Bulk permanently-delete PurchaseAgreements from trash by ids (atomic)
+      operationId: bulkPermanentDeletePurchaseAgreements
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permanently_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreement_lines:
+    get:
+      tags:
+        - PurchaseAgreementLines
+      summary: List PurchaseAgreementLines
+      description: Get a paginated list of PurchaseAgreementLines with optional filtering and sorting
+      operationId: listPurchaseAgreementLines
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLineList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Create PurchaseAgreementLine
+      description: Create a new PurchaseAgreementLine
+      operationId: createPurchaseAgreementLine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePurchaseAgreementLineRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/purchase_agreement_lines/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+
+    get:
+      tags:
+        - PurchaseAgreementLines
+      summary: Get PurchaseAgreementLine by ID
+      operationId: getPurchaseAgreementLine
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLine'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - PurchaseAgreementLines
+      summary: Update PurchaseAgreementLine (full)
+      operationId: updatePurchaseAgreementLine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseAgreementLineRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLine'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - PurchaseAgreementLines
+      summary: Update PurchaseAgreementLine (partial)
+      operationId: patchPurchaseAgreementLine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchPurchaseAgreementLineRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLine'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - PurchaseAgreementLines
+      summary: Delete PurchaseAgreementLine (soft)
+      operationId: deletePurchaseAgreementLine
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/purchase_agreement_lines/bulk:
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Bulk create PurchaseAgreementLines
+      operationId: bulkCreatePurchaseAgreementLines
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreatePurchaseAgreementLineRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseAgreementLine'
+    put:
+      tags:
+        - PurchaseAgreementLines
+      summary: Bulk update PurchaseAgreementLines (full, atomic)
+      operationId: bulkUpdatePurchaseAgreementLines
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    required: [id]
+                    properties:
+                      id:
+                        type: string
+                  - $ref: '#/components/schemas/UpdatePurchaseAgreementLineRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLineBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags:
+        - PurchaseAgreementLines
+      summary: Bulk partial-update PurchaseAgreementLines (atomic)
+      operationId: bulkPatchPurchaseAgreementLines
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [ids, patch]
+                  properties:
+                    ids:
+                      type: array
+                      items: { type: string }
+                    patch:
+                      type: object
+                      additionalProperties: true
+                - type: object
+                  required: [items]
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [id, patch]
+                        properties:
+                          id: { type: string }
+                          patch: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLineBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreement_lines/upsert:
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Upsert PurchaseAgreementLine
+      operationId: upsertPurchaseAgreementLine
+      parameters:
+        - name: key_field
+          in: query
+          schema:
+            type: string
+        - name: key_value
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseAgreementLineRequest'
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLine'
+
+  /api/v1/purchase_agreement_lines/trash:
+    get:
+      tags:
+        - PurchaseAgreementLines
+      summary: List deleted PurchaseAgreementLines
+      operationId: listDeletedPurchaseAgreementLines
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLineList'
+
+  /api/v1/purchase_agreement_lines/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Restore deleted PurchaseAgreementLine
+      operationId: restorePurchaseAgreementLine
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLine'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/purchase_agreement_lines/empty:
+    delete:
+      tags:
+        - PurchaseAgreementLines
+      summary: Empty trash for PurchaseAgreementLines
+      operationId: emptyTrashPurchaseAgreementLines
+      responses:
+        '200':
+          description: Trash emptied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted_count:
+                    type: integer
+
+  /api/v1/purchase_agreement_lines/delete/bulk:
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Bulk soft-delete PurchaseAgreementLines by ids (atomic)
+      operationId: bulkDeletePurchaseAgreementLines
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Soft-deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  soft_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreement_lines/restore/bulk:
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Bulk restore PurchaseAgreementLines by ids (atomic)
+      operationId: bulkRestorePurchaseAgreementLines
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseAgreementLineBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_agreement_lines/restore/all:
+    post:
+      tags:
+        - PurchaseAgreementLines
+      summary: Restore all soft-deleted PurchaseAgreementLines
+      operationId: restoreAllPurchaseAgreementLines
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  restored: { type: integer }
+
+  /api/v1/purchase_agreement_lines/trash/bulk:
+    delete:
+      tags:
+        - PurchaseAgreementLines
+      summary: Bulk permanently-delete PurchaseAgreementLines from trash by ids (atomic)
+      operationId: bulkPermanentDeletePurchaseAgreementLines
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permanently_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_company_settings:
+    get:
+      tags:
+        - PurchaseCompanySettings
+      summary: List PurchaseCompanySettings
+      description: Get a paginated list of PurchaseCompanySettings with optional filtering and sorting
+      operationId: listPurchaseCompanySettings
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySettingList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Create PurchaseCompanySetting
+      description: Create a new PurchaseCompanySetting
+      operationId: createPurchaseCompanySetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePurchaseCompanySettingRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySetting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/purchase_company_settings/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+
+    get:
+      tags:
+        - PurchaseCompanySettings
+      summary: Get PurchaseCompanySetting by ID
+      operationId: getPurchaseCompanySetting
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - PurchaseCompanySettings
+      summary: Update PurchaseCompanySetting (full)
+      operationId: updatePurchaseCompanySetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseCompanySettingRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - PurchaseCompanySettings
+      summary: Update PurchaseCompanySetting (partial)
+      operationId: patchPurchaseCompanySetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchPurchaseCompanySettingRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - PurchaseCompanySettings
+      summary: Delete PurchaseCompanySetting (soft)
+      operationId: deletePurchaseCompanySetting
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/purchase_company_settings/bulk:
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Bulk create PurchaseCompanySettings
+      operationId: bulkCreatePurchaseCompanySettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreatePurchaseCompanySettingRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseCompanySetting'
+    put:
+      tags:
+        - PurchaseCompanySettings
+      summary: Bulk update PurchaseCompanySettings (full, atomic)
+      operationId: bulkUpdatePurchaseCompanySettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    required: [id]
+                    properties:
+                      id:
+                        type: string
+                  - $ref: '#/components/schemas/UpdatePurchaseCompanySettingRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySettingBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags:
+        - PurchaseCompanySettings
+      summary: Bulk partial-update PurchaseCompanySettings (atomic)
+      operationId: bulkPatchPurchaseCompanySettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [ids, patch]
+                  properties:
+                    ids:
+                      type: array
+                      items: { type: string }
+                    patch:
+                      type: object
+                      additionalProperties: true
+                - type: object
+                  required: [items]
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [id, patch]
+                        properties:
+                          id: { type: string }
+                          patch: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySettingBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_company_settings/upsert:
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Upsert PurchaseCompanySetting
+      operationId: upsertPurchaseCompanySetting
+      parameters:
+        - name: key_field
+          in: query
+          schema:
+            type: string
+        - name: key_value
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePurchaseCompanySettingRequest'
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySetting'
+
+  /api/v1/purchase_company_settings/trash:
+    get:
+      tags:
+        - PurchaseCompanySettings
+      summary: List deleted PurchaseCompanySettings
+      operationId: listDeletedPurchaseCompanySettings
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySettingList'
+
+  /api/v1/purchase_company_settings/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Restore deleted PurchaseCompanySetting
+      operationId: restorePurchaseCompanySetting
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/purchase_company_settings/empty:
+    delete:
+      tags:
+        - PurchaseCompanySettings
+      summary: Empty trash for PurchaseCompanySettings
+      operationId: emptyTrashPurchaseCompanySettings
+      responses:
+        '200':
+          description: Trash emptied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted_count:
+                    type: integer
+
+  /api/v1/purchase_company_settings/delete/bulk:
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Bulk soft-delete PurchaseCompanySettings by ids (atomic)
+      operationId: bulkDeletePurchaseCompanySettings
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Soft-deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  soft_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_company_settings/restore/bulk:
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Bulk restore PurchaseCompanySettings by ids (atomic)
+      operationId: bulkRestorePurchaseCompanySettings
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseCompanySettingBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/purchase_company_settings/restore/all:
+    post:
+      tags:
+        - PurchaseCompanySettings
+      summary: Restore all soft-deleted PurchaseCompanySettings
+      operationId: restoreAllPurchaseCompanySettings
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  restored: { type: integer }
+
+  /api/v1/purchase_company_settings/trash/bulk:
+    delete:
+      tags:
+        - PurchaseCompanySettings
+      summary: Bulk permanently-delete PurchaseCompanySettings from trash by ids (atomic)
+      operationId: bulkPermanentDeletePurchaseCompanySettings
       requestBody:
         $ref: '#/components/requestBodies/BatchIds'
       responses:
@@ -3325,6 +4431,372 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/v1/supplier_reminder_settings:
+    get:
+      tags:
+        - SupplierReminderSettings
+      summary: List SupplierReminderSettings
+      description: Get a paginated list of SupplierReminderSettings with optional filtering and sorting
+      operationId: listSupplierReminderSettings
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSettingList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Create SupplierReminderSetting
+      description: Create a new SupplierReminderSetting
+      operationId: createSupplierReminderSetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupplierReminderSettingRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSetting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/supplier_reminder_settings/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+
+    get:
+      tags:
+        - SupplierReminderSettings
+      summary: Get SupplierReminderSetting by ID
+      operationId: getSupplierReminderSetting
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - SupplierReminderSettings
+      summary: Update SupplierReminderSetting (full)
+      operationId: updateSupplierReminderSetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSupplierReminderSettingRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - SupplierReminderSettings
+      summary: Update SupplierReminderSetting (partial)
+      operationId: patchSupplierReminderSetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchSupplierReminderSettingRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - SupplierReminderSettings
+      summary: Delete SupplierReminderSetting (soft)
+      operationId: deleteSupplierReminderSetting
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/supplier_reminder_settings/bulk:
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Bulk create SupplierReminderSettings
+      operationId: bulkCreateSupplierReminderSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreateSupplierReminderSettingRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierReminderSetting'
+    put:
+      tags:
+        - SupplierReminderSettings
+      summary: Bulk update SupplierReminderSettings (full, atomic)
+      operationId: bulkUpdateSupplierReminderSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    required: [id]
+                    properties:
+                      id:
+                        type: string
+                  - $ref: '#/components/schemas/UpdateSupplierReminderSettingRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSettingBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags:
+        - SupplierReminderSettings
+      summary: Bulk partial-update SupplierReminderSettings (atomic)
+      operationId: bulkPatchSupplierReminderSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [ids, patch]
+                  properties:
+                    ids:
+                      type: array
+                      items: { type: string }
+                    patch:
+                      type: object
+                      additionalProperties: true
+                - type: object
+                  required: [items]
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [id, patch]
+                        properties:
+                          id: { type: string }
+                          patch: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSettingBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/supplier_reminder_settings/upsert:
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Upsert SupplierReminderSetting
+      operationId: upsertSupplierReminderSetting
+      parameters:
+        - name: key_field
+          in: query
+          schema:
+            type: string
+        - name: key_value
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSupplierReminderSettingRequest'
+      responses:
+        '200':
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSetting'
+
+  /api/v1/supplier_reminder_settings/trash:
+    get:
+      tags:
+        - SupplierReminderSettings
+      summary: List deleted SupplierReminderSettings
+      operationId: listDeletedSupplierReminderSettings
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSettingList'
+
+  /api/v1/supplier_reminder_settings/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Restore deleted SupplierReminderSetting
+      operationId: restoreSupplierReminderSetting
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSetting'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/supplier_reminder_settings/empty:
+    delete:
+      tags:
+        - SupplierReminderSettings
+      summary: Empty trash for SupplierReminderSettings
+      operationId: emptyTrashSupplierReminderSettings
+      responses:
+        '200':
+          description: Trash emptied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted_count:
+                    type: integer
+
+  /api/v1/supplier_reminder_settings/delete/bulk:
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Bulk soft-delete SupplierReminderSettings by ids (atomic)
+      operationId: bulkDeleteSupplierReminderSettings
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Soft-deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  soft_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/supplier_reminder_settings/restore/bulk:
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Bulk restore SupplierReminderSettings by ids (atomic)
+      operationId: bulkRestoreSupplierReminderSettings
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierReminderSettingBulkResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/supplier_reminder_settings/restore/all:
+    post:
+      tags:
+        - SupplierReminderSettings
+      summary: Restore all soft-deleted SupplierReminderSettings
+      operationId: restoreAllSupplierReminderSettings
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  restored: { type: integer }
+
+  /api/v1/supplier_reminder_settings/trash/bulk:
+    delete:
+      tags:
+        - SupplierReminderSettings
+      summary: Bulk permanently-delete SupplierReminderSettings from trash by ids (atomic)
+      operationId: bulkPermanentDeleteSupplierReminderSettings
+      requestBody:
+        $ref: '#/components/requestBodies/BatchIds'
+      responses:
+        '200':
+          description: Permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permanently_deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
 components:
   schemas:
     MaterialRequest:
@@ -3596,6 +5068,448 @@ components:
         meta:
           $ref: '#/components/schemas/PaginationMeta'
 
+    PurchaseAgreement:
+      type: object
+      required:
+        - id
+        - agreement_number
+        - agreement_kind
+        - status
+        - company_id
+        - supplier_id
+        - currency
+        - metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        agreement_number:
+          type: string
+          maxLength: 40
+        agreement_kind:
+          type: string
+        status:
+          type: string
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          maxLength: 3
+        date_start:
+          nullable: true
+          type: string
+          format: date
+        date_end:
+          nullable: true
+          type: string
+          format: date
+        notes:
+          nullable: true
+          type: string
+          maxLength: 1000
+        metadata:
+          type: object
+
+    PurchaseAgreementBulkResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseAgreement'
+        total: { type: integer }
+        failed: { type: integer }
+        errors:
+          type: array
+          items: { type: string }
+
+    CreatePurchaseAgreementRequest:
+      type: object
+      required:
+        - agreement_number
+        - agreement_kind
+        - status
+        - company_id
+        - supplier_id
+        - currency
+        - metadata
+      properties:
+        agreement_number:
+          type: string
+          maxLength: 40
+        agreement_kind:
+          type: string
+        status:
+          type: string
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          maxLength: 3
+        date_start:
+          nullable: true
+          type: string
+          format: date
+        date_end:
+          nullable: true
+          type: string
+          format: date
+        notes:
+          nullable: true
+          type: string
+          maxLength: 1000
+        metadata:
+          type: object
+
+    UpdatePurchaseAgreementRequest:
+      type: object
+      required:
+        - agreement_number
+        - agreement_kind
+        - status
+        - company_id
+        - supplier_id
+        - currency
+        - metadata
+      properties:
+        agreement_number:
+          type: string
+          maxLength: 40
+        agreement_kind:
+          type: string
+        status:
+          type: string
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          maxLength: 3
+        date_start:
+          nullable: true
+          type: string
+          format: date
+        date_end:
+          nullable: true
+          type: string
+          format: date
+        notes:
+          nullable: true
+          type: string
+          maxLength: 1000
+        metadata:
+          type: object
+
+    PatchPurchaseAgreementRequest:
+      type: object
+      properties:
+        agreement_number:
+          type: string
+          maxLength: 40
+        agreement_kind:
+          type: string
+        status:
+          type: string
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          maxLength: 3
+        date_start:
+          nullable: true
+          type: string
+          format: date
+        date_end:
+          nullable: true
+          type: string
+          format: date
+        notes:
+          nullable: true
+          type: string
+          maxLength: 1000
+        metadata:
+          type: object
+
+    PurchaseAgreementList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseAgreement'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PurchaseAgreementLine:
+      type: object
+      required:
+        - id
+        - agreement_id
+        - company_id
+        - item_id
+        - quantity
+        - rate
+        - qty_ordered
+        - metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        agreement_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+        rate:
+          type: string
+        qty_ordered:
+          type: string
+        metadata:
+          type: object
+
+    PurchaseAgreementLineBulkResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseAgreementLine'
+        total: { type: integer }
+        failed: { type: integer }
+        errors:
+          type: array
+          items: { type: string }
+
+    CreatePurchaseAgreementLineRequest:
+      type: object
+      required:
+        - agreement_id
+        - company_id
+        - item_id
+        - quantity
+        - rate
+        - qty_ordered
+        - metadata
+      properties:
+        agreement_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+        rate:
+          type: string
+        qty_ordered:
+          type: string
+        metadata:
+          type: object
+
+    UpdatePurchaseAgreementLineRequest:
+      type: object
+      required:
+        - agreement_id
+        - company_id
+        - item_id
+        - quantity
+        - rate
+        - qty_ordered
+        - metadata
+      properties:
+        agreement_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+        rate:
+          type: string
+        qty_ordered:
+          type: string
+        metadata:
+          type: object
+
+    PatchPurchaseAgreementLineRequest:
+      type: object
+      properties:
+        agreement_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: string
+        rate:
+          type: string
+        qty_ordered:
+          type: string
+        metadata:
+          type: object
+
+    PurchaseAgreementLineList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseAgreementLine'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PurchaseCompanySetting:
+      type: object
+      required:
+        - id
+        - company_id
+        - double_validation
+        - double_validation_amount
+        - company_currency
+        - send_reminder
+        - metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        double_validation:
+          type: string
+        double_validation_amount:
+          type: string
+        company_currency:
+          type: string
+          maxLength: 3
+        send_reminder:
+          type: boolean
+        metadata:
+          type: object
+
+    PurchaseCompanySettingBulkResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseCompanySetting'
+        total: { type: integer }
+        failed: { type: integer }
+        errors:
+          type: array
+          items: { type: string }
+
+    CreatePurchaseCompanySettingRequest:
+      type: object
+      required:
+        - company_id
+        - double_validation
+        - double_validation_amount
+        - company_currency
+        - send_reminder
+        - metadata
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        double_validation:
+          type: string
+        double_validation_amount:
+          type: string
+        company_currency:
+          type: string
+          maxLength: 3
+        send_reminder:
+          type: boolean
+        metadata:
+          type: object
+
+    UpdatePurchaseCompanySettingRequest:
+      type: object
+      required:
+        - company_id
+        - double_validation
+        - double_validation_amount
+        - company_currency
+        - send_reminder
+        - metadata
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        double_validation:
+          type: string
+        double_validation_amount:
+          type: string
+        company_currency:
+          type: string
+          maxLength: 3
+        send_reminder:
+          type: boolean
+        metadata:
+          type: object
+
+    PatchPurchaseCompanySettingRequest:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        double_validation:
+          type: string
+        double_validation_amount:
+          type: string
+        company_currency:
+          type: string
+          maxLength: 3
+        send_reminder:
+          type: boolean
+        metadata:
+          type: object
+
+    PurchaseCompanySettingList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseCompanySetting'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
     PurchaseOrder:
       type: object
       required:
@@ -3605,8 +5519,13 @@ components:
         - company_id
         - supplier_id
         - status
+        - receipt_status
+        - invoice_status
         - order_date
         - currency
+        - currency_rate
+        - acknowledged
+        - locked
         - subtotal
         - tax_rate
         - tax_amount
@@ -3637,6 +5556,10 @@ components:
           format: uuid
         status:
           type: string
+        receipt_status:
+          type: string
+        invoice_status:
+          type: string
         order_date:
           type: string
           format: date
@@ -3647,6 +5570,20 @@ components:
         currency:
           type: string
           maxLength: 3
+        currency_rate:
+          type: string
+        acknowledged:
+          type: boolean
+        locked:
+          type: boolean
+        date_approve:
+          nullable: true
+          type: string
+          format: date
+        agreement_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -3683,8 +5620,13 @@ components:
         - company_id
         - supplier_id
         - status
+        - receipt_status
+        - invoice_status
         - order_date
         - currency
+        - currency_rate
+        - acknowledged
+        - locked
         - subtotal
         - tax_rate
         - tax_amount
@@ -3712,6 +5654,10 @@ components:
           format: uuid
         status:
           type: string
+        receipt_status:
+          type: string
+        invoice_status:
+          type: string
         order_date:
           type: string
           format: date
@@ -3722,6 +5668,20 @@ components:
         currency:
           type: string
           maxLength: 3
+        currency_rate:
+          type: string
+        acknowledged:
+          type: boolean
+        locked:
+          type: boolean
+        date_approve:
+          nullable: true
+          type: string
+          format: date
+        agreement_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -3745,8 +5705,13 @@ components:
         - company_id
         - supplier_id
         - status
+        - receipt_status
+        - invoice_status
         - order_date
         - currency
+        - currency_rate
+        - acknowledged
+        - locked
         - subtotal
         - tax_rate
         - tax_amount
@@ -3774,6 +5739,10 @@ components:
           format: uuid
         status:
           type: string
+        receipt_status:
+          type: string
+        invoice_status:
+          type: string
         order_date:
           type: string
           format: date
@@ -3784,6 +5753,20 @@ components:
         currency:
           type: string
           maxLength: 3
+        currency_rate:
+          type: string
+        acknowledged:
+          type: boolean
+        locked:
+          type: boolean
+        date_approve:
+          nullable: true
+          type: string
+          format: date
+        agreement_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -3823,6 +5806,10 @@ components:
           format: uuid
         status:
           type: string
+        receipt_status:
+          type: string
+        invoice_status:
+          type: string
         order_date:
           type: string
           format: date
@@ -3833,6 +5820,20 @@ components:
         currency:
           type: string
           maxLength: 3
+        currency_rate:
+          type: string
+        acknowledged:
+          type: boolean
+        locked:
+          type: boolean
+        date_approve:
+          nullable: true
+          type: string
+          format: date
+        agreement_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -3870,6 +5871,8 @@ components:
         - line_amount
         - received_qty
         - billed_qty
+        - qty_received_method
+        - purchase_method
         - metadata
       properties:
         id:
@@ -3902,6 +5905,10 @@ components:
           type: string
         billed_qty:
           type: string
+        qty_received_method:
+          type: string
+        purchase_method:
+          type: string
         metadata:
           type: object
 
@@ -3929,6 +5936,8 @@ components:
         - line_amount
         - received_qty
         - billed_qty
+        - qty_received_method
+        - purchase_method
         - metadata
       properties:
         order_id:
@@ -3957,6 +5966,10 @@ components:
         received_qty:
           type: string
         billed_qty:
+          type: string
+        qty_received_method:
+          type: string
+        purchase_method:
           type: string
         metadata:
           type: object
@@ -3972,6 +5985,8 @@ components:
         - line_amount
         - received_qty
         - billed_qty
+        - qty_received_method
+        - purchase_method
         - metadata
       properties:
         order_id:
@@ -4000,6 +6015,10 @@ components:
         received_qty:
           type: string
         billed_qty:
+          type: string
+        qty_received_method:
+          type: string
+        purchase_method:
           type: string
         metadata:
           type: object
@@ -4033,6 +6052,10 @@ components:
         received_qty:
           type: string
         billed_qty:
+          type: string
+        qty_received_method:
+          type: string
+        purchase_method:
           type: string
         metadata:
           type: object
@@ -4735,6 +6758,119 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SupplierQuotationItem'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    SupplierReminderSetting:
+      type: object
+      required:
+        - id
+        - company_id
+        - supplier_id
+        - receipt_reminder_email
+        - reminder_days_before
+        - metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        receipt_reminder_email:
+          type: boolean
+        reminder_days_before:
+          type: integer
+          format: int32
+        metadata:
+          type: object
+
+    SupplierReminderSettingBulkResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupplierReminderSetting'
+        total: { type: integer }
+        failed: { type: integer }
+        errors:
+          type: array
+          items: { type: string }
+
+    CreateSupplierReminderSettingRequest:
+      type: object
+      required:
+        - company_id
+        - supplier_id
+        - receipt_reminder_email
+        - reminder_days_before
+        - metadata
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        receipt_reminder_email:
+          type: boolean
+        reminder_days_before:
+          type: integer
+          format: int32
+        metadata:
+          type: object
+
+    UpdateSupplierReminderSettingRequest:
+      type: object
+      required:
+        - company_id
+        - supplier_id
+        - receipt_reminder_email
+        - reminder_days_before
+        - metadata
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        receipt_reminder_email:
+          type: boolean
+        reminder_days_before:
+          type: integer
+          format: int32
+        metadata:
+          type: object
+
+    PatchSupplierReminderSettingRequest:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        receipt_reminder_email:
+          type: boolean
+        reminder_days_before:
+          type: integer
+          format: int32
+        metadata:
+          type: object
+
+    SupplierReminderSettingList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupplierReminderSetting'
         meta:
           $ref: '#/components/schemas/PaginationMeta'
 

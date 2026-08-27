@@ -8,13 +8,18 @@ pub use backbone_core::{Specification, AndSpecification, OrSpecification, NotSpe
 
 pub mod material_request_specification;
 pub mod material_request_item_specification;
+pub mod purchase_agreement_specification;
+pub mod purchase_agreement_line_specification;
+pub mod purchase_company_setting_specification;
 pub mod purchase_order_specification;
 pub mod purchase_order_item_specification;
 pub mod request_for_quotation_specification;
 pub mod rfq_item_specification;
 pub mod rfq_supplier_specification;
+pub mod supplier_price_specification;
 pub mod supplier_quotation_specification;
 pub mod supplier_quotation_item_specification;
+pub mod supplier_reminder_setting_specification;
 
 // <<< CUSTOM
 // END CUSTOM

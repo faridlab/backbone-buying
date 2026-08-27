@@ -7,6 +7,9 @@
 
 pub mod material_request_handler;
 pub mod material_request_item_handler;
+pub mod purchase_agreement_handler;
+pub mod purchase_agreement_line_handler;
+pub mod purchase_company_setting_handler;
 pub mod purchase_order_handler;
 pub mod purchase_order_item_handler;
 pub mod request_for_quotation_handler;
@@ -14,6 +17,7 @@ pub mod rfq_item_handler;
 pub mod rfq_supplier_handler;
 pub mod supplier_quotation_handler;
 pub mod supplier_quotation_item_handler;
+pub mod supplier_reminder_setting_handler;
 
 // <<< CUSTOM
 pub mod guarded_routes;
@@ -22,6 +26,9 @@ pub mod guarded_routes;
 // Re-exports
 pub use material_request_handler::{create_material_request_routes, create_material_request_read_routes, create_material_request_write_routes};
 pub use material_request_item_handler::{create_material_request_item_routes, create_material_request_item_read_routes, create_material_request_item_write_routes};
+pub use purchase_agreement_handler::{create_purchase_agreement_routes, create_purchase_agreement_read_routes, create_purchase_agreement_write_routes};
+pub use purchase_agreement_line_handler::{create_purchase_agreement_line_routes, create_purchase_agreement_line_read_routes, create_purchase_agreement_line_write_routes};
+pub use purchase_company_setting_handler::{create_purchase_company_setting_routes, create_purchase_company_setting_read_routes, create_purchase_company_setting_write_routes};
 pub use purchase_order_handler::{create_purchase_order_routes, create_purchase_order_read_routes, create_purchase_order_write_routes};
 pub use purchase_order_item_handler::{create_purchase_order_item_routes, create_purchase_order_item_read_routes, create_purchase_order_item_write_routes};
 pub use request_for_quotation_handler::{create_request_for_quotation_routes, create_request_for_quotation_read_routes, create_request_for_quotation_write_routes};
@@ -29,6 +36,7 @@ pub use rfq_item_handler::{create_rfq_item_routes, create_rfq_item_read_routes, 
 pub use rfq_supplier_handler::{create_rfq_supplier_routes, create_rfq_supplier_read_routes, create_rfq_supplier_write_routes};
 pub use supplier_quotation_handler::{create_supplier_quotation_routes, create_supplier_quotation_read_routes, create_supplier_quotation_write_routes};
 pub use supplier_quotation_item_handler::{create_supplier_quotation_item_routes, create_supplier_quotation_item_read_routes, create_supplier_quotation_item_write_routes};
+pub use supplier_reminder_setting_handler::{create_supplier_reminder_setting_routes, create_supplier_reminder_setting_read_routes, create_supplier_reminder_setting_write_routes};
 // <<< CUSTOM
 pub use guarded_routes::create_guarded_buying_routes;
 // END CUSTOM

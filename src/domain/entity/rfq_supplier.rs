@@ -59,7 +59,7 @@ pub struct RfqSupplier {
 impl RfqSupplier {
     /// Create a builder for RfqSupplier
     pub fn builder() -> RfqSupplierBuilder {
-        RfqSupplierBuilder::default()
+        <RfqSupplierBuilder as Default>::default()
     }
 
     /// Create a new RfqSupplier with required fields

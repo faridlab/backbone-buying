@@ -61,7 +61,7 @@ pub struct RfqItem {
 impl RfqItem {
     /// Create a builder for RfqItem
     pub fn builder() -> RfqItemBuilder {
-        RfqItemBuilder::default()
+        <RfqItemBuilder as Default>::default()
     }
 
     /// Create a new RfqItem with required fields

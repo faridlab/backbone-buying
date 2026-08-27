@@ -34,6 +34,8 @@ impl TestDataGenerator for PurchaseOrderItemTestData {
             "line_amount": 0,
             "received_qty": 0,
             "billed_qty": 0,
+            "qty_received_method": "stock_moves",
+            "purchase_method": "on_received",
             "metadata": json!({}),
         })
     }
@@ -52,6 +54,8 @@ impl TestDataGenerator for PurchaseOrderItemTestData {
             "line_amount": 0,
             "received_qty": 0,
             "billed_qty": 0,
+            "qty_received_method": "stock_moves",
+            "purchase_method": "on_received",
             "metadata": json!({}),
         })
     }

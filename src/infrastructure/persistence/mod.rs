@@ -6,28 +6,61 @@
 
 mod material_request_repository;
 mod material_request_item_repository;
+mod purchase_agreement_repository;
+mod purchase_agreement_line_repository;
+mod purchase_company_setting_repository;
 mod purchase_order_repository;
 mod purchase_order_item_repository;
 mod request_for_quotation_repository;
 mod rfq_item_repository;
 mod rfq_supplier_repository;
+mod supplier_price_repository;
 mod supplier_quotation_repository;
 mod supplier_quotation_item_repository;
+mod supplier_reminder_setting_repository;
 
 // Custom persistence modules
 // <<< CUSTOM
+// The hand-written buying SQL's parameter/projection types. Every repository listed here is declared
+// `user_owned` in metaphor.codegen.yaml — see the write service, which orchestrates them.
+pub use material_request_repository::{MaterialRequestSourceRow, NewMaterialRequestRow};
+pub use material_request_item_repository::{NewMaterialRequestItemRow, RequestedLineRow};
+pub use purchase_order_repository::{
+    ConfirmedOrderRow, MaturityRow, NewPurchaseOrderRow, OrderGateRow, PurchaseOrderHeaderRow,
+    PurchaseOrderRefRow,
+};
+pub use purchase_order_item_repository::{
+    AllocatableLineRow, ManualReceiptRow, MatchWatermark, NewPurchaseOrderItemRow, RemainingLineRow,
+    ReverseWatermark,
+};
+pub use purchase_company_setting_repository::{CompanyPurchaseSettingsRow, SettingsUpsert};
+pub use purchase_agreement_repository::{AgreementStateRow, NewAgreementRow};
+pub use purchase_agreement_line_repository::{AgreementLineRow, NewAgreementLineRow};
+pub use supplier_reminder_setting_repository::{SupplierReminderRow, SupplierReminderUpsert};
+pub use request_for_quotation_repository::{NewRfqRow, RfqSourceRow};
+pub use rfq_item_repository::{NewRfqItemRow, RfqLineRow};
+pub use rfq_supplier_repository::NewRfqSupplierRow;
+pub use supplier_quotation_repository::{
+    NewQuotationFromRfqRow, NewSupplierQuotationRow, SupplierQuotationSourceRow,
+};
+pub use supplier_quotation_item_repository::{NewSupplierQuotationItemRow, QuotedLineRow};
 // END CUSTOM
 
 // Re-exports
 pub use material_request_repository::MaterialRequestRepository;
 pub use material_request_item_repository::MaterialRequestItemRepository;
+pub use purchase_agreement_repository::PurchaseAgreementRepository;
+pub use purchase_agreement_line_repository::PurchaseAgreementLineRepository;
+pub use purchase_company_setting_repository::PurchaseCompanySettingRepository;
 pub use purchase_order_repository::PurchaseOrderRepository;
 pub use purchase_order_item_repository::PurchaseOrderItemRepository;
 pub use request_for_quotation_repository::RequestForQuotationRepository;
 pub use rfq_item_repository::RfqItemRepository;
 pub use rfq_supplier_repository::RfqSupplierRepository;
+pub use supplier_price_repository::SupplierPriceRepository;
 pub use supplier_quotation_repository::SupplierQuotationRepository;
 pub use supplier_quotation_item_repository::SupplierQuotationItemRepository;
+pub use supplier_reminder_setting_repository::SupplierReminderSettingRepository;
 
 // Re-export backbone-orm types
 pub use backbone_orm::repository::{
@@ -38,22 +71,4 @@ pub use backbone_orm::repository::{
 
 // Re-export custom persistence types
 // <<< CUSTOM
-// The hand-written buying SQL's parameter/projection types. Every repository listed here is declared
-// `user_owned` in metaphor.codegen.yaml — see the write service, which orchestrates them.
-pub use material_request_repository::{MaterialRequestSourceRow, NewMaterialRequestRow};
-pub use material_request_item_repository::{NewMaterialRequestItemRow, RequestedLineRow};
-pub use purchase_order_repository::{
-    ConfirmedOrderRow, MatchWatermarkRow, NewPurchaseOrderRow, PurchaseOrderHeaderRow,
-    PurchaseOrderRefRow,
-};
-pub use purchase_order_item_repository::{
-    AllocatableLineRow, MatchWatermark, NewPurchaseOrderItemRow, RemainingLineRow, ReverseWatermark,
-};
-pub use request_for_quotation_repository::{NewRfqRow, RfqSourceRow};
-pub use rfq_item_repository::{NewRfqItemRow, RfqLineRow};
-pub use rfq_supplier_repository::NewRfqSupplierRow;
-pub use supplier_quotation_repository::{
-    NewQuotationFromRfqRow, NewSupplierQuotationRow, SupplierQuotationSourceRow,
-};
-pub use supplier_quotation_item_repository::{NewSupplierQuotationItemRow, QuotedLineRow};
 // END CUSTOM

@@ -121,6 +121,8 @@ impl BuyingWriteService {
             description: None,
             quantity: it.quantity,
             rate: it.rate,
+            qty_received_method: None,
+            purchase_method: None,
         }).collect();
 
         let sq_company = sq.company_id;
@@ -134,6 +136,8 @@ impl BuyingWriteService {
             order_date: chrono::Utc::now().date_naive(),
             schedule_date: None,
             currency: Some(sq.currency),
+            currency_rate: None,
+            agreement_id: None,
             tax_rate,
             notes: None,
             lines,

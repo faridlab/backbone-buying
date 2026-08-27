@@ -65,6 +65,87 @@ pub struct MaterialRequestItemDeletedEvent {
 }
 
 // ============================================================================
+// PURCHASEAGREEMENT EVENTS
+// ============================================================================
+
+/// Event published when a PurchaseAgreement is created
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementCreatedEvent {
+    pub id: PurchaseAgreementId,
+    pub data: PurchaseAgreementDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a PurchaseAgreement is updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementUpdatedEvent {
+    pub id: PurchaseAgreementId,
+    pub data: PurchaseAgreementDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a PurchaseAgreement is deleted
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementDeletedEvent {
+    pub id: PurchaseAgreementId,
+    pub occurred_at: DateTime<Utc>,
+}
+
+// ============================================================================
+// PURCHASEAGREEMENTLINE EVENTS
+// ============================================================================
+
+/// Event published when a PurchaseAgreementLine is created
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineCreatedEvent {
+    pub id: PurchaseAgreementLineId,
+    pub data: PurchaseAgreementLineDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a PurchaseAgreementLine is updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineUpdatedEvent {
+    pub id: PurchaseAgreementLineId,
+    pub data: PurchaseAgreementLineDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a PurchaseAgreementLine is deleted
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseAgreementLineDeletedEvent {
+    pub id: PurchaseAgreementLineId,
+    pub occurred_at: DateTime<Utc>,
+}
+
+// ============================================================================
+// PURCHASECOMPANYSETTING EVENTS
+// ============================================================================
+
+/// Event published when a PurchaseCompanySetting is created
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingCreatedEvent {
+    pub id: PurchaseCompanySettingId,
+    pub data: PurchaseCompanySettingDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a PurchaseCompanySetting is updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingUpdatedEvent {
+    pub id: PurchaseCompanySettingId,
+    pub data: PurchaseCompanySettingDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a PurchaseCompanySetting is deleted
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PurchaseCompanySettingDeletedEvent {
+    pub id: PurchaseCompanySettingId,
+    pub occurred_at: DateTime<Utc>,
+}
+
+// ============================================================================
 // PURCHASEORDER EVENTS
 // ============================================================================
 
@@ -200,6 +281,33 @@ pub struct RfqSupplierDeletedEvent {
 }
 
 // ============================================================================
+// SUPPLIERPRICE EVENTS
+// ============================================================================
+
+/// Event published when a SupplierPrice is created
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierPriceCreatedEvent {
+    pub id: SupplierPriceId,
+    pub data: SupplierPriceDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a SupplierPrice is updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierPriceUpdatedEvent {
+    pub id: SupplierPriceId,
+    pub data: SupplierPriceDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a SupplierPrice is deleted
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierPriceDeletedEvent {
+    pub id: SupplierPriceId,
+    pub occurred_at: DateTime<Utc>,
+}
+
+// ============================================================================
 // SUPPLIERQUOTATION EVENTS
 // ============================================================================
 
@@ -254,6 +362,33 @@ pub struct SupplierQuotationItemDeletedEvent {
 }
 
 // ============================================================================
+// SUPPLIERREMINDERSETTING EVENTS
+// ============================================================================
+
+/// Event published when a SupplierReminderSetting is created
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierReminderSettingCreatedEvent {
+    pub id: SupplierReminderSettingId,
+    pub data: SupplierReminderSettingDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a SupplierReminderSetting is updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierReminderSettingUpdatedEvent {
+    pub id: SupplierReminderSettingId,
+    pub data: SupplierReminderSettingDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a SupplierReminderSetting is deleted
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupplierReminderSettingDeletedEvent {
+    pub id: SupplierReminderSettingId,
+    pub occurred_at: DateTime<Utc>,
+}
+
+// ============================================================================
 // MODULE EVENT ENUM
 // ============================================================================
 
@@ -267,6 +402,15 @@ pub enum BuyingEvent {
     MaterialRequestItemCreated(MaterialRequestItemCreatedEvent),
     MaterialRequestItemUpdated(MaterialRequestItemUpdatedEvent),
     MaterialRequestItemDeleted(MaterialRequestItemDeletedEvent),
+    PurchaseAgreementCreated(PurchaseAgreementCreatedEvent),
+    PurchaseAgreementUpdated(PurchaseAgreementUpdatedEvent),
+    PurchaseAgreementDeleted(PurchaseAgreementDeletedEvent),
+    PurchaseAgreementLineCreated(PurchaseAgreementLineCreatedEvent),
+    PurchaseAgreementLineUpdated(PurchaseAgreementLineUpdatedEvent),
+    PurchaseAgreementLineDeleted(PurchaseAgreementLineDeletedEvent),
+    PurchaseCompanySettingCreated(PurchaseCompanySettingCreatedEvent),
+    PurchaseCompanySettingUpdated(PurchaseCompanySettingUpdatedEvent),
+    PurchaseCompanySettingDeleted(PurchaseCompanySettingDeletedEvent),
     PurchaseOrderCreated(PurchaseOrderCreatedEvent),
     PurchaseOrderUpdated(PurchaseOrderUpdatedEvent),
     PurchaseOrderDeleted(PurchaseOrderDeletedEvent),
@@ -282,12 +426,18 @@ pub enum BuyingEvent {
     RfqSupplierCreated(RfqSupplierCreatedEvent),
     RfqSupplierUpdated(RfqSupplierUpdatedEvent),
     RfqSupplierDeleted(RfqSupplierDeletedEvent),
+    SupplierPriceCreated(SupplierPriceCreatedEvent),
+    SupplierPriceUpdated(SupplierPriceUpdatedEvent),
+    SupplierPriceDeleted(SupplierPriceDeletedEvent),
     SupplierQuotationCreated(SupplierQuotationCreatedEvent),
     SupplierQuotationUpdated(SupplierQuotationUpdatedEvent),
     SupplierQuotationDeleted(SupplierQuotationDeletedEvent),
     SupplierQuotationItemCreated(SupplierQuotationItemCreatedEvent),
     SupplierQuotationItemUpdated(SupplierQuotationItemUpdatedEvent),
     SupplierQuotationItemDeleted(SupplierQuotationItemDeletedEvent),
+    SupplierReminderSettingCreated(SupplierReminderSettingCreatedEvent),
+    SupplierReminderSettingUpdated(SupplierReminderSettingUpdatedEvent),
+    SupplierReminderSettingDeleted(SupplierReminderSettingDeletedEvent),
 }
 
 /// Metadata for module events

@@ -66,7 +66,7 @@ pub struct MaterialRequest {
 impl MaterialRequest {
     /// Create a builder for MaterialRequest
     pub fn builder() -> MaterialRequestBuilder {
-        MaterialRequestBuilder::default()
+        <MaterialRequestBuilder as Default>::default()
     }
 
     /// Create a new MaterialRequest with required fields
@@ -322,8 +322,8 @@ impl MaterialRequestBuilder {
             id: Uuid::new_v4(),
             request_number,
             company_id,
-            request_type: self.request_type.unwrap_or(MaterialRequestType::default()),
-            status: self.status.unwrap_or(PurchaseDocStatus::default()),
+            request_type: self.request_type.unwrap_or_default(),
+            status: self.status.unwrap_or_default(),
             request_date,
             schedule_date: self.schedule_date,
             notes: self.notes,
