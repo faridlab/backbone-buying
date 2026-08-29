@@ -85,6 +85,9 @@ struct CreatePoBody {
     /// Order-time rate snapshot (company currency per 1 PO-currency unit). Required whenever the
     /// PO currency differs from the company currency; same-currency POs fix 1.
     #[serde(default)] currency_rate: Option<Decimal>,
+    /// Project this order buys for (logical FK project.Project.id). Part of the PO grouping key:
+    /// demands/orders of different projects never coalesce into one PO.
+    #[serde(default)] project_id: Option<Uuid>,
     #[serde(default)] tax_rate: Decimal,
     #[serde(default)] notes: Option<String>,
     lines: Vec<LineBody>,
@@ -98,7 +101,7 @@ async fn create_po(
         po_number: b.po_number, supplier_quotation_id: b.supplier_quotation_id, order_kind: b.order_kind,
         company_id: tenant.company_id, branch_id: tenant.branch_id, supplier_id: b.supplier_id, order_date: b.order_date,
         schedule_date: b.schedule_date, currency: b.currency, currency_rate: b.currency_rate,
-        agreement_id: None, tax_rate: b.tax_rate, notes: b.notes,
+        agreement_id: None, project_id: b.project_id, tax_rate: b.tax_rate, notes: b.notes,
         lines: b.lines.into_iter().map(Into::into).collect(),
     };
     match svc.create_purchase_order(o).await {

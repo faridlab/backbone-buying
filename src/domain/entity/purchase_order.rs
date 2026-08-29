@@ -71,6 +71,7 @@ pub struct PurchaseOrder {
     pub locked: bool,
     pub date_approve: Option<NaiveDate>,
     pub agreement_id: Option<Uuid>,
+    pub project_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -108,6 +109,7 @@ impl PurchaseOrder {
             locked,
             date_approve: None,
             agreement_id: None,
+            project_id: None,
             subtotal,
             tax_rate,
             tax_amount,
@@ -207,6 +209,12 @@ impl PurchaseOrder {
         self
     }
 
+    /// Set the project_id field (chainable)
+    pub fn with_project_id(mut self, value: Uuid) -> Self {
+        self.project_id = Some(value);
+        self
+    }
+
     /// Set the notes field (chainable)
     pub fn with_notes(mut self, value: String) -> Self {
         self.notes = Some(value);
@@ -271,6 +279,9 @@ impl PurchaseOrder {
                 }
                 "agreement_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.agreement_id = v; }
+                }
+                "project_id" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.project_id = v; }
                 }
                 "subtotal" => {
                     if let Ok(v) = serde_json::from_value(value) { self.subtotal = v; }
@@ -346,6 +357,7 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrder {
         m.insert("branch_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("agreement_id".to_string(), "uuid".to_string());
+        m.insert("project_id".to_string(), "uuid".to_string());
         m.insert("order_kind".to_string(), "order_kind".to_string());
         m.insert("status".to_string(), "purchase_order_status".to_string());
         m.insert("receipt_status".to_string(), "purchase_receipt_status".to_string());
@@ -383,6 +395,7 @@ pub struct PurchaseOrderBuilder {
     locked: Option<bool>,
     date_approve: Option<NaiveDate>,
     agreement_id: Option<Uuid>,
+    project_id: Option<Uuid>,
     subtotal: Option<Decimal>,
     tax_rate: Option<Decimal>,
     tax_amount: Option<Decimal>,
@@ -493,6 +506,12 @@ impl PurchaseOrderBuilder {
         self
     }
 
+    /// Set the project_id field (optional)
+    pub fn project_id(mut self, value: Uuid) -> Self {
+        self.project_id = Some(value);
+        self
+    }
+
     /// Set the subtotal field (default: `Decimal::from(0)`)
     pub fn subtotal(mut self, value: Decimal) -> Self {
         self.subtotal = Some(value);
@@ -551,6 +570,7 @@ impl PurchaseOrderBuilder {
             locked: self.locked.unwrap_or(false),
             date_approve: self.date_approve,
             agreement_id: self.agreement_id,
+            project_id: self.project_id,
             subtotal: self.subtotal.unwrap_or(Decimal::from(0)),
             tax_rate: self.tax_rate.unwrap_or(Decimal::from(0)),
             tax_amount: self.tax_amount.unwrap_or(Decimal::from(0)),

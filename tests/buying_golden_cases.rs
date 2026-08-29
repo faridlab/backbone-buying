@@ -27,7 +27,7 @@ async fn po(w: &BuyingWriteService, company: Uuid, item: Uuid, qty: &str, rate: 
     w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, currency_rate: None, agreement_id: None, tax_rate: d(tax), notes: None,
+        currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: d(tax), notes: None,
         lines: vec![line(item, qty, rate)],
     }).await.unwrap()
 }
@@ -167,14 +167,14 @@ async fn intent_creates_and_validation() {
     let e = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![],
+        currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![],
     }).await.unwrap_err();
     assert!(matches!(e, BuyingError::EmptyDocument));
     // duplicate PO number
     let num = uq("DUP");
     let mut a = NewPurchaseOrder { po_number: num.clone(), supplier_quotation_id: None, order_kind: None,
         company_id: company, branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "1", "10")] };
+        currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "1", "10")] };
     w.create_purchase_order(a.clone()).await.unwrap();
     a.po_number = num;
     assert!(matches!(w.create_purchase_order(a).await.unwrap_err(), BuyingError::DuplicateNumber(_)));
@@ -189,7 +189,7 @@ async fn subcontract_order_kind() {
     let id = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("SCO"), supplier_quotation_id: None, order_kind: Some("subcontract".into()),
         company_id: company, branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(),
-        schedule_date: None, currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        schedule_date: None, currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item, "1", "50000")],
     }).await.unwrap();
     let kind: String = sqlx::query_scalar("SELECT order_kind::text FROM buying.purchase_orders WHERE id=$1").bind(id).fetch_one(&pool).await.unwrap();
@@ -352,7 +352,7 @@ async fn double_validation_gate_converts_currency() {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: Some("USD".into()), currency_rate: Some(d("1000")), agreement_id: None,
-        tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "10", "100000")],
+        project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "10", "100000")],
     }).await.unwrap();
     let snap: Decimal = sqlx::query_scalar("SELECT currency_rate FROM buying.purchase_orders WHERE id=$1")
         .bind(at).fetch_one(&pool).await.unwrap();
@@ -370,7 +370,7 @@ async fn double_validation_gate_converts_currency() {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: Some("USD".into()), currency_rate: Some(d("1000")), agreement_id: None,
-        tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "10", "99999")],
+        project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "10", "99999")],
     }).await.unwrap();
     w.confirm_purchase_order(under, false).await.unwrap();
     assert_eq!(po_status(&pool, under).await, "purchase", "one step under the converted threshold passes the gate");

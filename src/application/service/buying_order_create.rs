@@ -96,6 +96,7 @@ impl BuyingWriteService {
                 currency: &currency,
                 currency_rate: rate,
                 agreement_id: o.agreement_id,
+                project_id: o.project_id,
                 subtotal,
                 tax_rate: o.tax_rate,
                 tax_amount,

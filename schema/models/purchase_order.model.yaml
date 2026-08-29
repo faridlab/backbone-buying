@@ -102,6 +102,11 @@ models:
         attributes: ["@exclude_from_foreign_key_check"]
         description: "Blanket call-off source # logical FK to buying.PurchaseAgreement.id"
 
+      project_id:
+        type: uuid?
+        attributes: ["@exclude_from_foreign_key_check"]
+        description: "Project this order buys for # logical FK to project.Project.id. Part of the PO grouping key: two demands with different project_ids NEVER coalesce into one purchase order (the grouping domain resolves candidates through find_open_po_for_demand, whose lookup key matches project_id exactly — NULL matches NULL only)"
+
       subtotal:
         type: decimal
         attributes: ["@default(0)", "@precision(18,2)", "@non_negative"]
@@ -145,6 +150,8 @@ models:
         where: "deleted_at IS NULL"
       - type: index
         fields: [company_id, supplier_id, status]
+      - type: index
+        fields: [company_id, supplier_id, project_id]
       - type: index
         fields: [order_date]
 

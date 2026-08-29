@@ -5584,6 +5584,10 @@ components:
           nullable: true
           type: string
           format: uuid
+        project_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -5682,6 +5686,10 @@ components:
           nullable: true
           type: string
           format: uuid
+        project_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -5767,6 +5775,10 @@ components:
           nullable: true
           type: string
           format: uuid
+        project_id:
+          nullable: true
+          type: string
+          format: uuid
         subtotal:
           type: string
         tax_rate:
@@ -5831,6 +5843,10 @@ components:
           type: string
           format: date
         agreement_id:
+          nullable: true
+          type: string
+          format: uuid
+        project_id:
           nullable: true
           type: string
           format: uuid

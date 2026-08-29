@@ -26,8 +26,8 @@ mod supplier_reminder_setting_repository;
 pub use material_request_repository::{MaterialRequestSourceRow, NewMaterialRequestRow};
 pub use material_request_item_repository::{NewMaterialRequestItemRow, RequestedLineRow};
 pub use purchase_order_repository::{
-    ConfirmedOrderRow, MaturityRow, NewPurchaseOrderRow, OrderGateRow, PurchaseOrderHeaderRow,
-    PurchaseOrderRefRow,
+    ConfirmedOrderRow, MaturityRow, NewPurchaseOrderRow, OrderGateRow, PoDemandCandidateRow,
+    PurchaseOrderHeaderRow, PurchaseOrderRefRow,
 };
 pub use purchase_order_item_repository::{
     AllocatableLineRow, ManualReceiptRow, MatchWatermark, NewPurchaseOrderItemRow, RemainingLineRow,

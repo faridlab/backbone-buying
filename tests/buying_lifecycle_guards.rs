@@ -35,7 +35,7 @@ async fn po(w: &BuyingWriteService, company: Uuid, item: Uuid) -> Uuid {
     w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item, "10", "100000")],
     }).await.unwrap()
 }
@@ -47,7 +47,7 @@ async fn fx_po(w: &BuyingWriteService, company: Uuid, item: Uuid) -> Uuid {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: Some("USD".into()), currency_rate: Some(d("1000")), agreement_id: None,
-        tax_rate: Decimal::ZERO, notes: None,
+        project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item, "10", "100000")],
     }).await.unwrap()
 }
@@ -244,7 +244,7 @@ async fn line_delete_requires_editable_order() {
     let id = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
-        currency: None, currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item_a, "10", "100000"), line(item_b, "5", "50000")],
     }).await.unwrap();
 

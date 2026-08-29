@@ -24,6 +24,10 @@ user_owned:
   - "src/application/service/buying_agreement.rs"
   - "src/application/service/buying_bill_matching.rs"
   - "src/application/service/buying_settings.rs"
+  # The PO grouping domain: the one named candidate lookup (find_open_po_for_demand) any
+  # merge/group/find-or-create resolves through; its key matches project_id exactly, so two
+  # demands with different projects never coalesce into one PO.
+  - "src/application/service/buying_po_grouping.rs"
   # Own the hand-written buying SQL (the procure-to-pay funnel's header+line inserts and state flips,
   # the receipt seam's remaining-quantity read, the 3-way-match allocation's locking read + watermark
   # bumps) that the write service orchestrates. Declared here — not renamed with a `_custom` suffix —
@@ -52,6 +56,9 @@ user_owned:
   # Guard matrix for the 5-state lifecycle band: every verb's happy path + refusal, plus the DB
   # trigger backstops against raw writes.
   - "tests/buying_lifecycle_guards.rs"
+  # Probes for the PO grouping domain's project partition (the never-merge-across-projects rule)
+  # and the project anchor's round-trip through the validated create path and guarded HTTP.
+  - "tests/prj4_merge_domain.rs"
   - "migrations/20260426220020_po_three_way_match_check.*"
   - "migrations/20260722000000_child_tables_company_rls.*"
   # Hand-written migrations for the 5-state band, the settings/reminder fence, the agreements
@@ -59,6 +66,8 @@ user_owned:
   - "migrations/20260827100000_po_five_state_band.*"
   - "migrations/20260827100100_buying_settings_and_reminder.*"
   - "migrations/20260827100200_purchase_agreements.*"
+  # Project anchoring on purchase orders: nullable logical FK + the grouping-domain index.
+  - "migrations/20260829120000_po_project_id.*"
   # Hand-authored behavior (services + their HTTP surface). Examples:
   # - "src/application/service/onboarding_service.rs"
   # - "src/presentation/http/guarded_routes.rs"

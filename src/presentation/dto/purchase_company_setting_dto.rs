@@ -284,4 +284,3 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseCompanySettingDto> for Purchase
 // Add custom DTOs specific to PurchaseCompanySetting here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
-

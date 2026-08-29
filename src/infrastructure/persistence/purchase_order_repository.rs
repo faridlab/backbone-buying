@@ -60,6 +60,9 @@ pub struct NewPurchaseOrderRow<'a> {
     pub currency: &'a str,
     pub currency_rate: Decimal,
     pub agreement_id: Option<Uuid>,
+    /// Project this order buys for (logical FK project.Project.id). Part of the PO grouping key —
+    /// see [`PurchaseOrderRepository::find_open_po_for_demand`].
+    pub project_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -74,6 +77,16 @@ pub struct PurchaseOrderRefRow {
     pub order_kind: String,
     pub total: Decimal,
     pub currency: String,
+}
+
+/// The open purchase order a demand resolved to, as the grouping domain sees it: identity, the
+/// band state it was found in, and the project partition key it matched on. Returned by
+/// [`PurchaseOrderRepository::find_open_po_for_demand`].
+pub struct PoDemandCandidateRow {
+    pub id: Uuid,
+    pub po_number: String,
+    pub status: String,
+    pub project_id: Option<Uuid>,
 }
 
 /// A PO's header, as read by the receipt seam.
@@ -142,17 +155,67 @@ impl PurchaseOrderRepository {
         sqlx::query(
             r#"INSERT INTO buying.purchase_orders
                 (id, po_number, supplier_quotation_id, order_kind, company_id, branch_id, supplier_id,
-                 status, order_date, schedule_date, currency, currency_rate, agreement_id,
+                 status, order_date, schedule_date, currency, currency_rate, agreement_id, project_id,
                  subtotal, tax_rate, tax_amount, total, notes)
-               VALUES ($1,$2,$3,$4::order_kind,$5,$6,$7,'draft'::purchase_order_status,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)"#,
+               VALUES ($1,$2,$3,$4::order_kind,$5,$6,$7,'draft'::purchase_order_status,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)"#,
         )
         .bind(o.id).bind(o.po_number).bind(o.supplier_quotation_id).bind(o.order_kind).bind(o.company_id)
         .bind(o.branch_id).bind(o.supplier_id).bind(o.order_date).bind(o.schedule_date).bind(o.currency)
-        .bind(o.currency_rate).bind(o.agreement_id)
+        .bind(o.currency_rate).bind(o.agreement_id).bind(o.project_id)
         .bind(o.subtotal).bind(o.tax_rate).bind(o.tax_amount).bind(o.total).bind(o.notes)
         .execute(conn)
         .await?;
         Ok(())
+    }
+
+    /// Resolve the OPEN purchase order a same-supplier demand for one project may group into —
+    /// the ONE lookup any PO merge/group/find-or-create resolves through (the grouping-domain
+    /// rule: two demands with different `project_id`s can NEVER coalesce into one PO).
+    ///
+    /// The lookup key is `(company_id, supplier_id, project_id)` with `project_id` matched by
+    /// `IS NOT DISTINCT FROM` — exact-match semantics, NULL matches NULL only. A PO bought for
+    /// project A is simply not in the candidate set of a demand for project B (or of a
+    /// project-less demand, and vice versa), so no grouping engine built on this finder can
+    /// merge across projects.
+    ///
+    /// "Open" = the still-editable band of the lifecycle (`draft` / `sent`): the same band the
+    /// module's own line-edit guards treat as editable-in-the-draft-sense. A parked
+    /// (`to_approve`) or confirmed (`purchase`) commitment never silently absorbs new lines.
+    /// Oldest first (`created_at`, then id) so grouping is deterministic.
+    ///
+    /// `fetch_optional_row_scoped`: rides the request-dedicated connection under the caller's
+    /// `app.company_id`, so another company's PO can never surface as a candidate.
+    pub async fn find_open_po_for_demand(
+        &self,
+        pool: &PgPool,
+        company_id: Uuid,
+        supplier_id: Uuid,
+        project_id: Option<Uuid>,
+    ) -> Result<Option<PoDemandCandidateRow>, sqlx::Error> {
+        let row = company_scope::fetch_optional_row_scoped(
+            pool,
+            sqlx::query(
+                r#"SELECT id, po_number, status::text AS st, project_id
+                     FROM buying.purchase_orders
+                    WHERE company_id = $1
+                      AND supplier_id = $2
+                      AND project_id IS NOT DISTINCT FROM $3
+                      AND status = ANY(ARRAY['draft','sent']::purchase_order_status[])
+                      AND (metadata->>'deleted_at') IS NULL
+                    ORDER BY (metadata->>'created_at') ASC, id
+                    LIMIT 1"#,
+            )
+            .bind(company_id)
+            .bind(supplier_id)
+            .bind(project_id),
+        )
+        .await?;
+        Ok(row.map(|r| PoDemandCandidateRow {
+            id: r.get("id"),
+            po_number: r.get("po_number"),
+            status: r.get("st"),
+            project_id: r.get("project_id"),
+        }))
     }
 
     /// Load a PO's cross-module reference projection. `Ok(None)` = not found.

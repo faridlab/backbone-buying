@@ -72,6 +72,8 @@ pub struct CreatePurchaseOrderDto {
     pub date_approve: Option<NaiveDate>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "agreement_id")]
     pub agreement_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "project_id")]
+    pub project_id: Option<Uuid>,
     pub subtotal: Decimal,
     #[serde(alias = "tax_rate")]
     pub tax_rate: Decimal,
@@ -131,6 +133,8 @@ pub struct UpdatePurchaseOrderDto {
     pub date_approve: Option<NaiveDate>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "agreement_id")]
     pub agreement_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "project_id")]
+    pub project_id: Option<Uuid>,
     pub subtotal: Decimal,
     #[serde(alias = "tax_rate")]
     pub tax_rate: Decimal,
@@ -194,6 +198,8 @@ pub struct PatchPurchaseOrderDto {
     pub date_approve: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "agreement_id")]
     pub agreement_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "project_id")]
+    pub project_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subtotal: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "tax_rate")]
@@ -210,7 +216,7 @@ pub struct PatchPurchaseOrderDto {
 impl PatchPurchaseOrderDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.order_date.is_some() || self.schedule_date.is_some() || self.currency.is_some() || self.currency_rate.is_some() || self.acknowledged.is_some() || self.locked.is_some() || self.date_approve.is_some() || self.agreement_id.is_some() || self.subtotal.is_some() || self.tax_rate.is_some() || self.tax_amount.is_some() || self.total.is_some() || self.notes.is_some()
+        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.order_date.is_some() || self.schedule_date.is_some() || self.currency.is_some() || self.currency_rate.is_some() || self.acknowledged.is_some() || self.locked.is_some() || self.date_approve.is_some() || self.agreement_id.is_some() || self.project_id.is_some() || self.subtotal.is_some() || self.tax_rate.is_some() || self.tax_amount.is_some() || self.total.is_some() || self.notes.is_some()
     }
 }
 
@@ -252,6 +258,7 @@ pub struct PurchaseOrderResponseDto {
     pub locked: bool,
     pub date_approve: Option<NaiveDate>,
     pub agreement_id: Option<Uuid>,
+    pub project_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,
@@ -345,6 +352,7 @@ impl From<PurchaseOrder> for PurchaseOrderResponseDto {
             locked: entity.locked,
             date_approve: entity.date_approve,
             agreement_id: entity.agreement_id,
+            project_id: entity.project_id,
             subtotal: entity.subtotal,
             tax_rate: entity.tax_rate,
             tax_amount: entity.tax_amount,
@@ -389,6 +397,7 @@ impl From<CreatePurchaseOrderDto> for PurchaseOrder {
             locked: dto.locked,
             date_approve: dto.date_approve,
             agreement_id: dto.agreement_id,
+            project_id: dto.project_id,
             subtotal: dto.subtotal,
             tax_rate: dto.tax_rate,
             tax_amount: dto.tax_amount,
@@ -420,6 +429,7 @@ impl From<&PurchaseOrder> for PurchaseOrderResponseDto {
             locked: entity.locked.clone(),
             date_approve: entity.date_approve.clone(),
             agreement_id: entity.agreement_id.clone(),
+            project_id: entity.project_id.clone(),
             subtotal: entity.subtotal.clone(),
             tax_rate: entity.tax_rate.clone(),
             tax_amount: entity.tax_amount.clone(),
@@ -453,6 +463,7 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseOrderDto> for PurchaseOrder {
         self.locked = dto.locked;
         self.date_approve = dto.date_approve;
         self.agreement_id = dto.agreement_id;
+        self.project_id = dto.project_id;
         self.subtotal = dto.subtotal;
         self.tax_rate = dto.tax_rate;
         self.tax_amount = dto.tax_amount;

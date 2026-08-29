@@ -37,6 +37,7 @@ pub mod buying_receipt;
 pub mod buying_agreement;
 pub mod buying_bill_matching;
 pub mod buying_settings;
+pub mod buying_po_grouping;
 // END CUSTOM
 
 pub use material_request_service::MaterialRequestService;
@@ -62,4 +63,5 @@ pub use buying_write_service::{
     BuyingError, BuyingWriteService, NewLine, NewMaterialRequest, NewPurchaseOrder,
     NewSupplierQuotation, SimpleLine,
 };
+pub use buying_po_grouping::{PoDemand, PoMergeCandidate};
 // END CUSTOM

@@ -102,7 +102,7 @@ async fn procure_to_pay_receipt_across_three_modules() {
     let po = buying.create_purchase_order(NewPurchaseOrder {
         po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
         branch_id: None, supplier_id: supplier, order_date: day(), schedule_date: None, currency: None,
-        currency_rate: None, agreement_id: None, tax_rate: Decimal::ZERO, notes: None,
+        currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![NewLine { item_id: item, warehouse_id: Some(wh), description: None, quantity: d("10"), rate: d("100000"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
     buying.confirm_purchase_order(po, false).await.unwrap();

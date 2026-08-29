@@ -26,6 +26,9 @@
 //! - [`super::buying_order_lifecycle`] — `confirm_purchase_order`, `purchase_order_ref`.
 //! - [`super::buying_receipt`] — the receipt seam + 3-way match: `build_receipt_request`,
 //!   `mark_received`, `mark_billed`, and the private allocate/recompute helpers they share.
+//! - [`super::buying_po_grouping`] — the PO grouping domain: the one named candidate lookup
+//!   (`find_open_po_for_demand`) any merge/group/find-or-create must resolve through; its key
+//!   matches `project_id` exactly, so two demands with different projects never coalesce.
 
 use rust_decimal::{Decimal, RoundingStrategy};
 use sqlx::PgPool;
@@ -109,6 +112,10 @@ pub struct NewPurchaseOrder {
     pub currency_rate: Option<Decimal>,
     /// Blanket call-off source (set by `create_call_off_po`; direct POs leave it None).
     pub agreement_id: Option<Uuid>,
+    /// Project this order buys for (logical FK project.Project.id). Part of the PO grouping key:
+    /// a demand carrying a project can only ever group with orders of the SAME project (NULL only
+    /// with NULL) — see [`super::buying_po_grouping`].
+    pub project_id: Option<Uuid>,
     pub tax_rate: Decimal,
     pub notes: Option<String>,
     pub lines: Vec<NewLine>,

@@ -364,6 +364,7 @@ pub struct PurchaseOrderDto {
     pub locked: bool,
     pub date_approve: Option<NaiveDate>,
     pub agreement_id: Option<Uuid>,
+    pub project_id: Option<Uuid>,
     pub subtotal: Decimal,
     pub tax_rate: Decimal,
     pub tax_amount: Decimal,

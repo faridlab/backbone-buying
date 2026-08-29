@@ -334,4 +334,3 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseAgreementDto> for PurchaseAgree
 // Add custom DTOs specific to PurchaseAgreement here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
-

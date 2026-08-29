@@ -138,6 +138,7 @@ impl BuyingWriteService {
             currency: Some(sq.currency),
             currency_rate: None,
             agreement_id: None,
+            project_id: None,
             tax_rate,
             notes: None,
             lines,
