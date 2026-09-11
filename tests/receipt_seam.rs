@@ -72,9 +72,12 @@ async fn seed_coa(pool: &PgPool) -> (Uuid, HashMap<&'static str, Uuid>) {
     let mut m = HashMap::new();
     for (code, name, at, st, nb) in coa {
         let id = Uuid::new_v4();
-        sqlx::query(r#"INSERT INTO accounting.accounts (id, company_id, account_number, account_code, name, account_type, account_subtype, normal_balance, is_header, is_detail, status)
-            VALUES ($1,$2,$3,$4,$5,$6::account_type,$7::account_subtype,$8::normal_balance,false,true,'active'::account_status)"#)
-            .bind(id).bind(company).bind(code).bind(code).bind(name).bind(at).bind(st).bind(nb)
+        // Accounting is tenant-agnostic in this tree (ADR-0029): its accounts carry no
+        // tenant column module-side, so the seed row is just a row. The `company` value
+        // this helper returns still scopes the unstripped inventory leg below.
+        sqlx::query(r#"INSERT INTO accounting.accounts (id, account_number, account_code, name, account_type, account_subtype, normal_balance, is_header, is_detail, status)
+            VALUES ($1,$2,$3,$4,$5::account_type,$6::account_subtype,$7::normal_balance,false,true,'active'::account_status)"#)
+            .bind(id).bind(code).bind(code).bind(name).bind(at).bind(st).bind(nb)
             .execute(pool).await.expect("seed acct");
         m.insert(*code, id);
     }
@@ -100,7 +103,7 @@ async fn procure_to_pay_receipt_across_three_modules() {
     // 1) buying: PO for 10 @ 100,000, confirm — the band enters `purchase`, both maturity computes
     // at their floors (nothing received, nothing billed).
     let po = buying.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: supplier, order_date: day(), schedule_date: None, currency: None,
         currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![NewLine { item_id: item, warehouse_id: Some(wh), description: None, quantity: d("10"), rate: d("100000"), qty_received_method: None, purchase_method: None }],
@@ -109,11 +112,13 @@ async fn procure_to_pay_receipt_across_three_modules() {
     assert_eq!(po_status(&pool, po).await, "purchase");
     assert_eq!(po_maturity(&pool, po).await, ("pending".into(), "no".into()));
 
-    // 2) buying emits a receipt request; ACL maps it into inventory's ReceiptExpected.
+    // 2) buying emits a receipt request; ACL maps it into inventory's ReceiptExpected. Buying is
+    // tenant-agnostic (ADR-0029): its envelope carries only the legacy company twin (nil
+    // undecorated), so the ACL supplies the company the inventory leg still scopes by.
     let req = buying.build_receipt_request(po).await.unwrap();
     assert_eq!(req.lines.len(), 1);
     let pr = intake.on_receipt_expected(ReceiptExpected {
-        receipt_number: uq("PR"), company_id: req.company_id, branch_id: None, supplier_id: req.supplier_id,
+        receipt_number: uq("PR"), company_id: company, branch_id: None, supplier_id: req.supplier_id,
         source_po_id: Some(req.order_id), warehouse_id: wh, posting_date: day(), currency: "IDR".into(),
         inventory_account_id: coa["1300"], grir_account_id: coa["2150"],
         lines: req.lines.iter().map(|l| InvReceiptLine { item_id: l.item_id, quantity: l.quantity, rate: l.rate }).collect(),
@@ -131,12 +136,12 @@ async fn procure_to_pay_receipt_across_three_modules() {
         InventoryEvent::StockReceived(s) if s.source_po_id == Some(po) => Some(s.clone()), _ => None,
     }).expect("StockReceived for our PO");
     assert_eq!(received.total_value, d("1000000.00"));
-    buying.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
+    buying.mark_received(po, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, po).await, "purchase");
     assert_eq!(po_maturity(&pool, po).await, ("full".into(), "to_invoice".into()), "received, awaiting billing");
 
     // 5) simulated billing completes the 3-way match: nothing left to invoice.
-    buying.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
+    buying.mark_billed(po, &[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, po).await, "purchase");
     assert_eq!(po_maturity(&pool, po).await, ("full".into(), "invoiced".into()));
 

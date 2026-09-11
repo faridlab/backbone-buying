@@ -1,10 +1,10 @@
 //! Route-level probes: the guarded surface validates creates and does NOT expose generic mutation
-//! (create/update/delete/bulk) on buying documents — closing the CRUD-bypass — and every validated
-//! write derives its tenant from a signed token rather than the request body. Requires
-//! DATABASE_URL (:5433/backbone_buying).
+//! (create/update/delete/bulk) on buying documents — closing the CRUD-bypass — and every write
+//! demands a signed token while the request body never names a tenant (the module is
+//! tenant-agnostic, ADR-0029). Requires DATABASE_URL (:5433/backbone_buying).
 //!
 //! BIP-1..BIP-4  the CRUD-bypass and validated-write invariants.
-//! BIT-1..BIT-3  the tenancy invariants (mirrors the TG-* cases backbone-pos proved).
+//! BIT-1..BIT-3  the auth-gate invariants (mirrors the TG-* cases backbone-pos proved).
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
@@ -29,7 +29,7 @@ struct TestClaims {
 }
 
 /// Mint an HS256 access token. `company_id = None` models a token that authenticates a user but
-/// carries no tenant — it must not be allowed to write.
+/// carries no tenant claim — the auth gate must not let it write.
 fn token(company_id: Option<Uuid>) -> String {
     let claims = TestClaims { sub: "probe-user".into(), exp: 9_999_999_999, company_id };
     encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(SECRET)).unwrap()
@@ -106,7 +106,8 @@ async fn guarded_locks_generic_po_delete() {
     assert!(s == StatusCode::METHOD_NOT_ALLOWED || s == StatusCode::NOT_FOUND, "got {s}");
 }
 
-// BIP-3: validated PO create works (201). No `companyId` in the body — the tenant rides on the token.
+// BIP-3: validated PO create works (201). No tenant anywhere in the body — the module is
+// tenant-agnostic (ADR-0029).
 #[tokio::test]
 async fn guarded_create_po_ok() {
     let pool = pool().await;
@@ -134,8 +135,7 @@ async fn guarded_create_po_rejects_empty() {
     assert!(b.contains("empty_document"), "got: {b}");
 }
 
-// BIT-1: an unauthenticated write is rejected. Before the tenant guard this create succeeded and
-// stamped whatever `companyId` the caller put in the body.
+// BIT-1: an unauthenticated write is rejected — the auth gate refuses before any handler runs.
 #[tokio::test]
 async fn guarded_write_rejects_unauthenticated() {
     let pool = pool().await;
@@ -147,8 +147,8 @@ async fn guarded_write_rejects_unauthenticated() {
     assert_eq!(s, StatusCode::UNAUTHORIZED, "an unauthenticated write must not reach the service");
 }
 
-// BIT-2: a token that authenticates a user but carries no `company_id` claim is rejected — a writer
-// that cannot name its tenant must never run.
+// BIT-2: a token that authenticates a user but carries no `company_id` claim is rejected — the
+// auth gate's claim shape is the composing deployment's contract, and a claim-less token fails it.
 #[tokio::test]
 async fn guarded_write_rejects_token_without_company_id() {
     let pool = pool().await;
@@ -162,28 +162,33 @@ async fn guarded_write_rejects_token_without_company_id() {
     assert_eq!(s, StatusCode::UNAUTHORIZED, "a token with no tenant must not write");
 }
 
-// BIT-3: a `companyId` smuggled in the body is ignored — the persisted tenant is the token's. This is
-// the regression that motivated the change: the body must not be able to name the tenant.
+// BIT-3: a `companyId` smuggled in the body is ignored — the body must never be able to name a
+// tenant. The module is tenant-agnostic (ADR-0029): the create succeeds and the smuggled id lands
+// nowhere, because the legacy tenant column is gone from the module's schema entirely.
 #[tokio::test]
-async fn body_company_id_cannot_override_the_token_tenant() {
+async fn body_company_id_is_ignored() {
     let pool = pool().await;
     let m = module(&pool).await;
-    let token_company = uuid::Uuid::new_v4();
     let attacker_company = uuid::Uuid::new_v4();
     let number = uq("PO");
     let body = format!(
         r#"{{"poNumber":"{}","companyId":"{}","supplierId":"{}","orderDate":"2026-07-05","taxRate":"11",
              "lines":[{{"itemId":"{}","quantity":"10","rate":"100000"}}]}}"#,
         number, attacker_company, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
-    let (s, _) = req_as(app(&pool, &m), token_company, "POST", "/purchase-orders", Some(body)).await;
-    assert_eq!(s, StatusCode::CREATED);
+    let (s, _) = req_as(app(&pool, &m), uuid::Uuid::new_v4(), "POST", "/purchase-orders", Some(body)).await;
+    assert_eq!(s, StatusCode::CREATED, "the create itself succeeds — the unknown field is ignored");
 
-    let persisted: Uuid =
-        sqlx::query_scalar("SELECT company_id FROM buying.purchase_orders WHERE po_number = $1")
+    // The row was persisted, and no tenant column is left to stamp on it.
+    let row: Option<Uuid> =
+        sqlx::query_scalar("SELECT id FROM buying.purchase_orders WHERE po_number = $1")
             .bind(&number)
-            .fetch_one(&pool)
+            .fetch_optional(&pool)
             .await
-            .expect("purchase order row");
-    assert_eq!(persisted, token_company, "tenant must come from the token, not the body");
-    assert_ne!(persisted, attacker_company, "the body's companyId must be ignored");
+            .expect("purchase order row query");
+    assert!(row.is_some(), "the validated create persisted the order");
+    let tenant_columns: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.columns \
+         WHERE table_schema = 'buying' AND table_name = 'purchase_orders' AND column_name = 'company_id'",
+    ).fetch_one(&pool).await.unwrap();
+    assert_eq!(tenant_columns, 0, "the module's schema carries no tenant column the body could reach");
 }

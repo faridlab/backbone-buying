@@ -52,7 +52,6 @@ pub struct SupplierQuotation {
     pub id: Uuid,
     pub quotation_number: String,
     pub rfq_id: Option<Uuid>,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub status: PurchaseDocStatus,
     pub quotation_date: NaiveDate,
@@ -71,12 +70,11 @@ impl SupplierQuotation {
     }
 
     /// Create a new SupplierQuotation with required fields
-    pub fn new(quotation_number: String, company_id: Uuid, supplier_id: Uuid, status: PurchaseDocStatus, quotation_date: NaiveDate, currency: String) -> Self {
+    pub fn new(quotation_number: String, supplier_id: Uuid, status: PurchaseDocStatus, quotation_date: NaiveDate, currency: String) -> Self {
         Self {
             id: Uuid::new_v4(),
             quotation_number,
             rfq_id: None,
-            company_id,
             supplier_id,
             status,
             quotation_date,
@@ -179,9 +177,6 @@ impl SupplierQuotation {
                 "rfq_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.rfq_id = v; }
                 }
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "supplier_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.supplier_id = v; }
                 }
@@ -255,16 +250,12 @@ impl backbone_orm::EntityRepoMeta for SupplierQuotation {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("rfq_id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("status".to_string(), "purchase_doc_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &["quotation_number", "currency"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -276,7 +267,6 @@ impl backbone_orm::EntityRepoMeta for SupplierQuotation {
 pub struct SupplierQuotationBuilder {
     quotation_number: Option<String>,
     rfq_id: Option<Uuid>,
-    company_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
     status: Option<PurchaseDocStatus>,
     quotation_date: Option<NaiveDate>,
@@ -295,12 +285,6 @@ impl SupplierQuotationBuilder {
     /// Set the rfq_id field (optional)
     pub fn rfq_id(mut self, value: Uuid) -> Self {
         self.rfq_id = Some(value);
-        self
-    }
-
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
         self
     }
 
@@ -345,7 +329,6 @@ impl SupplierQuotationBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<SupplierQuotation, String> {
         let quotation_number = self.quotation_number.ok_or_else(|| "quotation_number is required".to_string())?;
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let supplier_id = self.supplier_id.ok_or_else(|| "supplier_id is required".to_string())?;
         let quotation_date = self.quotation_date.ok_or_else(|| "quotation_date is required".to_string())?;
 
@@ -353,7 +336,6 @@ impl SupplierQuotationBuilder {
             id: Uuid::new_v4(),
             quotation_number,
             rfq_id: self.rfq_id,
-            company_id,
             supplier_id,
             status: self.status.unwrap_or_default(),
             quotation_date,

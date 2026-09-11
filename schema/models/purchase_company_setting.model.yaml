@@ -1,28 +1,25 @@
 # =============================================================================
 # Domain: Buying
 # Entity: PurchaseCompanySetting
-# Description: Per-company buying posture — the double-validation gate and the
-# receipt-reminder switch. One row per company; an ABSENT row means the runtime
+# Description: Buying posture settings — the double-validation gate and the
+# receipt-reminder switch. A single live settings row per scope (the composing
+# service's tenancy decorator re-declares that singleton org-scoped, see the
+# index note below); an ABSENT row means the runtime
 # defaults (one_step / 5,000 / send reminders), which are exactly the behavior
 # before this table existed — so rolling out without creating settings rows
-# changes nothing. Mirrors inventory's company-settings pattern.
+# changes nothing.
 # =============================================================================
 
 models:
   - name: PurchaseCompanySetting
     collection: purchase_company_settings
-    description: "Per-company buying posture (double-validation gate + receipt reminders); absent row = runtime defaults"
+    description: "Buying posture settings (double-validation gate + receipt reminders); absent row = runtime defaults"
 
     fields:
       id:
         type: uuid
         attributes: ["@id", "@default(uuid)"]
         description: "Unique settings row identifier"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id; settings are per-company by definition — this table is STRICT-fenced (NOT NULL company_id, one row per company)"
 
       double_validation:
         type: DoubleValidation
@@ -32,17 +29,17 @@ models:
       double_validation_amount:
         type: decimal
         attributes: ["@default(5000)", "@precision(18,2)", "@non_negative"]
-        description: "Double-validation threshold, DENOMINATED IN COMPANY CURRENCY — a PO is over-threshold when total * currency_rate >= this amount (currency_rate is the order-time snapshot converting the PO total INTO company currency)"
+        description: "Double-validation threshold, DENOMINATED IN HOME CURRENCY — a PO is over-threshold when total * currency_rate >= this amount (currency_rate is the order-time snapshot converting the PO total INTO home currency)"
 
       company_currency:
         type: string
         attributes: ["@default(\"IDR\")", "@max(3)"]
-        description: "The company's own ISO currency code — the denomination of the double-validation threshold; a PO in a different currency must carry a currency_rate"
+        description: "The home ISO currency code — the denomination of the double-validation threshold; a PO in a different currency must carry a currency_rate"
 
       send_reminder:
         type: bool
         attributes: ["@default(true)"]
-        description: "Master switch for the receipt-reminder cron: when false (or the settings row is absent), the cron silently skips this company"
+        description: "Master switch for the receipt-reminder cron: when false (or the settings row is absent), the cron silently skips"
 
       metadata:
         type: Metadata
@@ -50,10 +47,10 @@ models:
         description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
 
     indexes:
-      - type: unique
-        fields: [company_id]
-        where: "deleted_at IS NULL"
-        description: "One settings row per company"
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The former
+      # one-row-per-company unique is re-declared org-scoped (org_unit_id) by the
+      # composing service's tenancy decorator — module-side the table is a plain
+      # settings table and an absent row means the schema defaults.
 
 # =============================================================================
 # Enums

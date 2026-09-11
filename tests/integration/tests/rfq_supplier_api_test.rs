@@ -25,7 +25,6 @@ impl TestDataGenerator for RfqSupplierTestData {
         json!({
             "id": Uuid::new_v4().to_string(),
             "rfq_id": Uuid::new_v4().to_string(),
-            "company_id": Uuid::new_v4().to_string(),
             "supplier_id": Uuid::new_v4().to_string(),
             "metadata": json!({}),
         })
@@ -36,7 +35,6 @@ impl TestDataGenerator for RfqSupplierTestData {
         json!({
             "id": id,
             "rfq_id": Uuid::new_v4().to_string(),
-            "company_id": Uuid::new_v4().to_string(),
             "supplier_id": Uuid::new_v4().to_string(),
             "metadata": json!({}),
         })

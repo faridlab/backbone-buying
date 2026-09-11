@@ -31,20 +31,20 @@ fn line(item: Uuid, qty: &str, rate: &str) -> NewLine {
 }
 
 /// Create a same-currency (rate 1) draft PO: 10 × 100,000 = 1,000,000 total, no tax.
-async fn po(w: &BuyingWriteService, company: Uuid, item: Uuid) -> Uuid {
+async fn po(w: &BuyingWriteService, item: Uuid) -> Uuid {
     w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item, "10", "100000")],
     }).await.unwrap()
 }
 
-/// Create a USD draft PO carrying the order-time rate snapshot 1,000 (company currency IDR per
+/// Create a USD draft PO carrying the order-time rate snapshot 1,000 (home currency IDR per
 /// USD): 10 × 100,000 USD = 1,000,000 USD → converts to 1,000,000,000 IDR.
-async fn fx_po(w: &BuyingWriteService, company: Uuid, item: Uuid) -> Uuid {
+async fn fx_po(w: &BuyingWriteService, item: Uuid) -> Uuid {
     w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: Some("USD".into()), currency_rate: Some(d("1000")), agreement_id: None,
         project_id: None, tax_rate: Decimal::ZERO, notes: None,
@@ -65,23 +65,15 @@ fn db_refusal(e: &sqlx::Error, needle: &str) -> bool {
     e.as_database_error().map(|d| d.message().contains(needle)).unwrap_or(false)
 }
 
-/// Configure two-step double validation with a 1,000,000,000 IDR threshold. Only the foreign-
-/// currency test POs (raw total 1,000,000 USD, converted 1,000,000,000 IDR) reach it; the
-/// same-currency POs used across the suite stay far below, so this row cannot park another test's
-/// confirm (the test connection is a DB superuser and so is not fenced by the company RLS policy
-/// the HTTP layer applies).
-async fn seed_two_step(pool: &PgPool, company: Uuid) {
-    sqlx::query(
-        r#"INSERT INTO buying.purchase_company_settings
-               (company_id, double_validation, double_validation_amount, company_currency)
-           VALUES ($1, 'two_step', 1000000000, 'IDR')
-           ON CONFLICT (company_id) WHERE (metadata->>'deleted_at') IS NULL DO UPDATE SET
-               double_validation = EXCLUDED.double_validation,
-               double_validation_amount = EXCLUDED.double_validation_amount,
-               company_currency = EXCLUDED.company_currency"#,
-    )
-    .bind(company)
-    .execute(pool).await.expect("seed two-step purchase settings");
+/// Configure two-step double validation with a 1,000,000,000 IDR threshold, via the module's own
+/// settings upsert (update the live row, else insert — the module is tenant-agnostic, ADR-0029, so
+/// there is exactly one live settings row). Only the foreign-currency test POs (raw total
+/// 1,000,000 USD, converted 1,000,000,000 IDR) reach it; the same-currency POs used across the
+/// suite stay far below, so this row cannot park another test's confirm.
+async fn seed_two_step(w: &BuyingWriteService) {
+    w.upsert_purchase_company_settings("two_step".into(), d("1000000000"), "IDR".into(), true)
+        .await
+        .expect("seed two-step purchase settings");
 }
 
 // T2: the approve verb re-checks the double-validation gate with the same currency conversion the
@@ -91,11 +83,11 @@ async fn seed_two_step(pool: &PgPool, company: Uuid) {
 async fn approve_verb_rechecks_the_gate() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    seed_two_step(&pool, company).await;
+    let item = Uuid::new_v4();
+    seed_two_step(&w).await;
 
     // Non-manager confirm parks the over-threshold (converted) PO.
-    let id = fx_po(&w, company, item).await;
+    let id = fx_po(&w, item).await;
     w.confirm_purchase_order(id, false).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "to_approve");
 
@@ -114,8 +106,8 @@ async fn approve_verb_rechecks_the_gate() {
 async fn reset_verb_returns_cancelled_to_draft() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item).await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item).await;
 
     // HAPPY: cancelled → draft.
     w.cancel_purchase_order(id).await.unwrap();
@@ -133,8 +125,8 @@ async fn reset_verb_returns_cancelled_to_draft() {
 async fn cancel_verb_terminates_a_live_order() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item).await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item).await;
 
     // HAPPY: purchase → cancelled.
     w.confirm_purchase_order(id, false).await.unwrap();
@@ -152,18 +144,18 @@ async fn cancel_verb_terminates_a_live_order() {
 async fn cancel_refused_while_billed() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item).await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item).await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
-    w.mark_billed(id, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_received(id, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id, &[(item, d("3"))]).await.unwrap();
 
     // REFUSAL: billed_qty > 0 on a live line → typed refusal, order stays live.
     assert!(matches!(w.cancel_purchase_order(id).await.unwrap_err(), BuyingError::OrderBilled { .. }));
     assert_eq!(po_status(&pool, id).await, "purchase");
 
     // HAPPY: credit the billing back to zero → the same cancel goes through.
-    w.mark_credited(id, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_credited(id, &[(item, d("3"))]).await.unwrap();
     w.cancel_purchase_order(id).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "cancelled");
 }
@@ -174,8 +166,8 @@ async fn cancel_refused_while_billed() {
 async fn locked_order_refuses_cancel() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item).await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item).await;
     w.confirm_purchase_order(id, false).await.unwrap();
     w.lock_purchase_order(id).await.unwrap();
 
@@ -203,8 +195,8 @@ async fn locked_order_refuses_cancel() {
 async fn delete_requires_cancelled_order() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item).await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item).await;
     w.confirm_purchase_order(id, false).await.unwrap();
 
     // REFUSAL (service layer): a live order is not deletable.
@@ -240,9 +232,9 @@ async fn delete_requires_cancelled_order() {
 async fn line_delete_requires_editable_order() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item_a, item_b) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let (item_a, item_b) = (Uuid::new_v4(), Uuid::new_v4());
     let id = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item_a, "10", "100000"), line(item_b, "5", "50000")],
@@ -277,8 +269,8 @@ async fn line_delete_requires_editable_order() {
 async fn send_verb_walks_draft_to_sent() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item).await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item).await;
 
     // HAPPY: draft → sent.
     w.send_purchase_order(id).await.unwrap();

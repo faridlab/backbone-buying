@@ -7,7 +7,6 @@
 
 use async_trait::async_trait;
 use anyhow::Result;
-use uuid::Uuid;
 
 use crate::domain::entity::{MaterialRequest, MaterialRequestType, PurchaseDocStatus};
 
@@ -45,7 +44,6 @@ pub struct MaterialRequestPaginatedResult {
 #[derive(Debug, Clone, Default)]
 pub struct MaterialRequestFilter {
     pub request_number: Option<String>,
-    pub company_id: Option<Uuid>,
     pub request_type: Option<MaterialRequestType>,
     pub status: Option<PurchaseDocStatus>,
     pub notes: Option<String>,
@@ -54,7 +52,7 @@ pub struct MaterialRequestFilter {
 impl MaterialRequestFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.request_number.is_some() || self.company_id.is_some() || self.request_type.is_some() || self.status.is_some() || self.notes.is_some()
+        self.request_number.is_some() || self.request_type.is_some() || self.status.is_some() || self.notes.is_some()
     }
 }
 

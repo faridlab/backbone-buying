@@ -12,7 +12,11 @@ use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+// The multi-row read twin lives only in the legacy `company_scope` module. Its connection
+// discipline is what this repository needs — request-dedicated connection when the composing
+// service bound one, plain pool otherwise. The helper's legacy task-local branch is never
+// taken: this module sets no legacy scope of its own (ADR-0029).
+use backbone_orm::company_scope::fetch_all_rows_scoped;
 
 use crate::domain::entity::RfqItem;
 
@@ -43,7 +47,6 @@ impl RfqItemRepository {
 pub struct NewRfqItemRow {
     pub id: Uuid,
     pub rfq_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
 }
@@ -58,17 +61,18 @@ pub struct RfqLineRow {
 impl RfqItemRepository {
     /// Insert one RFQ line.
     ///
-    /// Takes the CALLER'S connection so it commits with its header. The caller has already bound the
-    /// company on it (`bind_company_on`) — don't re-bind here.
+    /// Takes the CALLER'S connection so it commits with its header. The caller has already relayed
+    /// the ambient org scope onto it (`relay_ambient_scope`) — don't re-bind here. The module
+    /// carries no tenancy of its own (ADR-0029).
     pub async fn insert_item(
         &self,
         conn: &mut sqlx::PgConnection,
         l: &NewRfqItemRow,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT INTO buying.rfq_items (id, rfq_id, company_id, item_id, quantity) VALUES ($1,$2,$3,$4,$5)",
+            "INSERT INTO buying.rfq_items (id, rfq_id, item_id, quantity) VALUES ($1,$2,$3,$4)",
         )
-        .bind(l.id).bind(l.rfq_id).bind(l.company_id).bind(l.item_id).bind(l.quantity)
+        .bind(l.id).bind(l.rfq_id).bind(l.item_id).bind(l.quantity)
         .execute(conn)
         .await?;
         Ok(())
@@ -80,7 +84,7 @@ impl RfqItemRepository {
         pool: &PgPool,
         rfq_id: Uuid,
     ) -> Result<Vec<RfqLineRow>, sqlx::Error> {
-        let rows = company_scope::fetch_all_rows_scoped(
+        let rows = fetch_all_rows_scoped(
             pool,
             sqlx::query(
                 r#"SELECT item_id, quantity FROM buying.rfq_items

@@ -27,11 +27,6 @@ models:
         attributes: ["@foreign_key(MaterialRequest.id)"]
         description: "Source material request (intra-module link)"
 
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id"
-
       status:
         type: PurchaseDocStatus
         attributes: ["@default(draft)"]
@@ -67,8 +62,9 @@ models:
       - type: unique
         fields: [rfq_number]
         where: "deleted_at IS NULL"
-      - type: index
-        fields: [company_id, status]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # status listing index is installed by the composing service's tenancy
+      # decorator (org_unit_id-leading), not declared here.
 
   - name: RfqItem
     collection: rfq_items
@@ -84,11 +80,6 @@ models:
         type: uuid
         attributes: ["@required", "@foreign_key(RequestForQuotation.id)"]
         description: "Owning RFQ"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company (denormalized from RequestForQuotation for ADR-0010 direct RLS) # logical FK to organization.Company.id"
 
       item_id:
         type: uuid
@@ -130,11 +121,6 @@ models:
         type: uuid
         attributes: ["@required", "@foreign_key(RequestForQuotation.id)"]
         description: "Owning RFQ"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company (denormalized from RequestForQuotation for ADR-0010 direct RLS) # logical FK to organization.Company.id"
 
       supplier_id:
         type: uuid

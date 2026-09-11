@@ -144,7 +144,7 @@ rules:
   - id: R5-gate
     name: double_validation_threshold
     when: confirm
-    assert: "in two_step, total * currency_rate >= double_validation_amount requires the manager leg; the threshold is COMPANY-currency denominated and the total is converted INTO company currency with the order-time rate snapshot (never reverse-divided, never a silent rate of 1)"
+    assert: "in two_step, total * currency_rate >= double_validation_amount requires the manager leg; the threshold is denominated in the home currency (the settings row's company_currency) and the total is converted INTO home currency with the order-time rate snapshot (never reverse-divided, never a silent rate of 1)"
     error_code: not_approvable
     enforcement: service
     # service-only justification: the gate is procedural multi-currency math (a settings read
@@ -205,9 +205,9 @@ rules:
     error_code: agreement_exceeded
     enforcement: service
   - id: G7
-    name: reminder_company_gate
+    name: reminder_settings_gate
     when: send_receipt_reminder
-    assert: "no company settings row, or send_reminder=false, skips the company's whole run silently; a supplier override with receipt_reminder_email=false is excluded from the claim; an absent supplier row is the enabled default (remind, 1 day)"
+    assert: "no settings row, or send_reminder=false, skips the run silently; a supplier override with receipt_reminder_email=false is excluded from the claim; an absent supplier row is the enabled default (remind, 1 day)"
     error_code: null
     enforcement: service
 

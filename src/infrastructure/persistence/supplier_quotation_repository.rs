@@ -12,7 +12,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::SupplierQuotation;
 
@@ -46,7 +46,6 @@ pub struct NewSupplierQuotationRow<'a> {
     pub id: Uuid,
     pub quotation_number: &'a str,
     pub rfq_id: Option<Uuid>,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub quotation_date: chrono::NaiveDate,
     pub valid_till: Option<chrono::NaiveDate>,
@@ -61,13 +60,11 @@ pub struct NewQuotationFromRfqRow<'a> {
     pub id: Uuid,
     pub quotation_number: &'a str,
     pub rfq_id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
 }
 
 /// A supplier quotation's convertibility state + the header fields the SQ→PO step copies forward.
 pub struct SupplierQuotationSourceRow {
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: String,
     pub status: String,
@@ -79,7 +76,8 @@ impl SupplierQuotationRepository {
     /// Insert a supplier-quotation header as `submitted`.
     ///
     /// Takes the CALLER'S connection so the header and its lines commit as one unit. The caller has
-    /// already bound the company on it (`bind_company_on`) — don't re-bind here.
+    /// already relayed the ambient org scope onto it (`relay_ambient_scope`) — don't re-bind here.
+    /// The module carries no tenancy of its own (ADR-0029).
     ///
     /// Returns the raw `sqlx::Error` deliberately: the caller inspects it for a unique violation to
     /// turn a duplicate quotation number into a domain error.
@@ -90,10 +88,10 @@ impl SupplierQuotationRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.supplier_quotations
-                (id, quotation_number, rfq_id, company_id, supplier_id, status, quotation_date, valid_till, currency)
-               VALUES ($1,$2,$3,$4,$5,'submitted'::purchase_doc_status,$6,$7,$8)"#,
+                (id, quotation_number, rfq_id, supplier_id, status, quotation_date, valid_till, currency)
+               VALUES ($1,$2,$3,$4,'submitted'::purchase_doc_status,$5,$6,$7)"#,
         )
-        .bind(q.id).bind(q.quotation_number).bind(q.rfq_id).bind(q.company_id).bind(q.supplier_id)
+        .bind(q.id).bind(q.quotation_number).bind(q.rfq_id).bind(q.supplier_id)
         .bind(q.quotation_date).bind(q.valid_till).bind(q.currency)
         .execute(conn)
         .await?;
@@ -109,10 +107,10 @@ impl SupplierQuotationRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.supplier_quotations
-                (id, quotation_number, rfq_id, company_id, supplier_id, status, quotation_date, currency)
-               VALUES ($1,$2,$3,$4,$5,'submitted'::purchase_doc_status,CURRENT_DATE,'IDR')"#,
+                (id, quotation_number, rfq_id, supplier_id, status, quotation_date, currency)
+               VALUES ($1,$2,$3,$4,'submitted'::purchase_doc_status,CURRENT_DATE,'IDR')"#,
         )
-        .bind(q.id).bind(q.quotation_number).bind(q.rfq_id).bind(q.company_id).bind(q.supplier_id)
+        .bind(q.id).bind(q.quotation_number).bind(q.rfq_id).bind(q.supplier_id)
         .execute(conn)
         .await?;
         Ok(())
@@ -125,16 +123,15 @@ impl SupplierQuotationRepository {
         pool: &PgPool,
         quotation_id: Uuid,
     ) -> Result<Option<SupplierQuotationSourceRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT company_id, supplier_id, currency, status::text AS st
+                r#"SELECT supplier_id, currency, status::text AS st
                    FROM buying.supplier_quotations WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(quotation_id),
         )
         .await?;
         Ok(row.map(|r| SupplierQuotationSourceRow {
-            company_id: r.get("company_id"),
             supplier_id: r.get("supplier_id"),
             currency: r.get("currency"),
             status: r.get("st"),
@@ -143,15 +140,15 @@ impl SupplierQuotationRepository {
 
     /// Advance a supplier quotation to `ordered` once its PO is raised.
     ///
-    /// A write outside any transaction: takes the pool and runs `execute_scoped` so the RLS fence
-    /// (ADR-0008) applies. The caller wraps this in `with_company_scope(Some(company))` using the
-    /// company it just read off the SQ's own row — so this is correct for non-request callers too.
+    /// A write outside any transaction: takes the pool and runs `execute_scoped` so the composed
+    /// decorator's fence applies (the request-dedicated connection carries its variables; an
+    /// undecorated deployment is unfenced by design — ADR-0029).
     pub async fn mark_ordered(
         &self,
         pool: &PgPool,
         quotation_id: Uuid,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
+        org_scope::execute_scoped(
             pool,
             sqlx::query(
                 "UPDATE buying.supplier_quotations SET status='ordered'::purchase_doc_status WHERE id=$1",

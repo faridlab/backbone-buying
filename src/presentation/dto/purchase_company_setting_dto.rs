@@ -34,9 +34,6 @@ use crate::domain::entity::DoubleValidation;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePurchaseCompanySettingDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[serde(alias = "double_validation")]
     pub double_validation: DoubleValidation,
     #[serde(alias = "double_validation_amount")]
@@ -63,9 +60,6 @@ pub struct CreatePurchaseCompanySettingDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdatePurchaseCompanySettingDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[serde(alias = "double_validation")]
     pub double_validation: DoubleValidation,
     #[serde(alias = "double_validation_amount")]
@@ -92,9 +86,6 @@ pub struct UpdatePurchaseCompanySettingDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchPurchaseCompanySettingDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "double_validation")]
     pub double_validation: Option<DoubleValidation>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "double_validation_amount")]
@@ -111,7 +102,7 @@ pub struct PatchPurchaseCompanySettingDto {
 impl PatchPurchaseCompanySettingDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.double_validation.is_some() || self.double_validation_amount.is_some() || self.company_currency.is_some() || self.send_reminder.is_some()
+        self.double_validation.is_some() || self.double_validation_amount.is_some() || self.company_currency.is_some() || self.send_reminder.is_some()
     }
 }
 
@@ -129,8 +120,6 @@ impl PatchPurchaseCompanySettingDto {
 pub struct PurchaseCompanySettingResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     pub double_validation: DoubleValidation,
     pub double_validation_amount: Decimal,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -194,9 +183,9 @@ impl PurchaseCompanySettingListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct PurchaseCompanySettingSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub double_validation: DoubleValidation,
     pub double_validation_amount: Decimal,
+    pub company_currency: String,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -208,7 +197,6 @@ impl From<PurchaseCompanySetting> for PurchaseCompanySettingResponseDto {
     fn from(entity: PurchaseCompanySetting) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             double_validation: entity.double_validation,
             double_validation_amount: entity.double_validation_amount,
             company_currency: entity.company_currency,
@@ -223,9 +211,9 @@ impl From<PurchaseCompanySetting> for PurchaseCompanySettingSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             double_validation: entity.double_validation,
             double_validation_amount: entity.double_validation_amount,
+            company_currency: entity.company_currency,
             created_at,
         }
     }
@@ -235,7 +223,6 @@ impl From<CreatePurchaseCompanySettingDto> for PurchaseCompanySetting {
     fn from(dto: CreatePurchaseCompanySettingDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             double_validation: dto.double_validation,
             double_validation_amount: dto.double_validation_amount,
             company_currency: dto.company_currency,
@@ -249,7 +236,6 @@ impl From<&PurchaseCompanySetting> for PurchaseCompanySettingResponseDto {
     fn from(entity: &PurchaseCompanySetting) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             double_validation: entity.double_validation.clone(),
             double_validation_amount: entity.double_validation_amount.clone(),
             company_currency: entity.company_currency.clone(),
@@ -267,7 +253,6 @@ impl backbone_core::FromCreateDto<CreatePurchaseCompanySettingDto> for PurchaseC
 
 impl backbone_core::ApplyUpdateDto<UpdatePurchaseCompanySettingDto> for PurchaseCompanySetting {
     fn apply_update(mut self, dto: UpdatePurchaseCompanySettingDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.double_validation = dto.double_validation;
         self.double_validation_amount = dto.double_validation_amount;
         self.company_currency = dto.company_currency;

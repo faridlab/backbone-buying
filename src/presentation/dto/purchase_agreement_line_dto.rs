@@ -37,9 +37,6 @@ pub struct CreatePurchaseAgreementLineDto {
     #[serde(alias = "agreement_id")]
     pub agreement_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
     pub quantity: Decimal,
@@ -64,9 +61,6 @@ pub struct UpdatePurchaseAgreementLineDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "agreement_id")]
     pub agreement_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
@@ -93,9 +87,6 @@ pub struct PatchPurchaseAgreementLineDto {
     #[serde(skip_serializing_if = "Option::is_none", alias = "agreement_id")]
     pub agreement_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "item_id")]
     pub item_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,7 +100,7 @@ pub struct PatchPurchaseAgreementLineDto {
 impl PatchPurchaseAgreementLineDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.agreement_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.quantity.is_some() || self.rate.is_some() || self.qty_ordered.is_some()
+        self.agreement_id.is_some() || self.item_id.is_some() || self.quantity.is_some() || self.rate.is_some() || self.qty_ordered.is_some()
     }
 }
 
@@ -129,8 +120,6 @@ pub struct PurchaseAgreementLineResponseDto {
     pub id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub agreement_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub item_id: Uuid,
     pub quantity: Decimal,
@@ -194,8 +183,8 @@ impl PurchaseAgreementLineListResponseDto {
 pub struct PurchaseAgreementLineSummaryDto {
     pub id: Uuid,
     pub agreement_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
+    pub quantity: Decimal,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -208,7 +197,6 @@ impl From<PurchaseAgreementLine> for PurchaseAgreementLineResponseDto {
         Self {
             id: entity.id,
             agreement_id: entity.agreement_id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
             quantity: entity.quantity,
             rate: entity.rate,
@@ -224,8 +212,8 @@ impl From<PurchaseAgreementLine> for PurchaseAgreementLineSummaryDto {
         Self {
             id: entity.id,
             agreement_id: entity.agreement_id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
+            quantity: entity.quantity,
             created_at,
         }
     }
@@ -236,7 +224,6 @@ impl From<CreatePurchaseAgreementLineDto> for PurchaseAgreementLine {
         Self {
             id: Uuid::new_v4(),
             agreement_id: dto.agreement_id,
-            company_id: dto.company_id,
             item_id: dto.item_id,
             quantity: dto.quantity,
             rate: dto.rate,
@@ -251,7 +238,6 @@ impl From<&PurchaseAgreementLine> for PurchaseAgreementLineResponseDto {
         Self {
             id: entity.id.clone(),
             agreement_id: entity.agreement_id.clone(),
-            company_id: entity.company_id.clone(),
             item_id: entity.item_id.clone(),
             quantity: entity.quantity.clone(),
             rate: entity.rate.clone(),
@@ -270,7 +256,6 @@ impl backbone_core::FromCreateDto<CreatePurchaseAgreementLineDto> for PurchaseAg
 impl backbone_core::ApplyUpdateDto<UpdatePurchaseAgreementLineDto> for PurchaseAgreementLine {
     fn apply_update(mut self, dto: UpdatePurchaseAgreementLineDto) -> backbone_core::ServiceResult<Self> {
         self.agreement_id = dto.agreement_id;
-        self.company_id = dto.company_id;
         self.item_id = dto.item_id;
         self.quantity = dto.quantity;
         self.rate = dto.rate;

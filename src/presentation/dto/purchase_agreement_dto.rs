@@ -42,9 +42,6 @@ pub struct CreatePurchaseAgreementDto {
     pub agreement_kind: AgreementKind,
     pub status: PurchaseAgreementStatus,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "validation", validate(length(max = 3)))]
@@ -79,9 +76,6 @@ pub struct UpdatePurchaseAgreementDto {
     #[serde(alias = "agreement_kind")]
     pub agreement_kind: AgreementKind,
     pub status: PurchaseAgreementStatus,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
@@ -119,9 +113,6 @@ pub struct PatchPurchaseAgreementDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<PurchaseAgreementStatus>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_id")]
     pub supplier_id: Option<Uuid>,
     #[cfg_attr(feature = "validation", validate(length(max = 3)))]
@@ -140,7 +131,7 @@ pub struct PatchPurchaseAgreementDto {
 impl PatchPurchaseAgreementDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.agreement_number.is_some() || self.agreement_kind.is_some() || self.status.is_some() || self.company_id.is_some() || self.supplier_id.is_some() || self.currency.is_some() || self.date_start.is_some() || self.date_end.is_some() || self.notes.is_some()
+        self.agreement_number.is_some() || self.agreement_kind.is_some() || self.status.is_some() || self.supplier_id.is_some() || self.currency.is_some() || self.date_start.is_some() || self.date_end.is_some() || self.notes.is_some()
     }
 }
 
@@ -162,8 +153,6 @@ pub struct PurchaseAgreementResponseDto {
     pub agreement_number: String,
     pub agreement_kind: AgreementKind,
     pub status: PurchaseAgreementStatus,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -245,7 +234,6 @@ impl From<PurchaseAgreement> for PurchaseAgreementResponseDto {
             agreement_number: entity.agreement_number,
             agreement_kind: entity.agreement_kind,
             status: entity.status,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             currency: entity.currency,
             date_start: entity.date_start,
@@ -276,7 +264,6 @@ impl From<CreatePurchaseAgreementDto> for PurchaseAgreement {
             agreement_number: dto.agreement_number,
             agreement_kind: dto.agreement_kind,
             status: dto.status,
-            company_id: dto.company_id,
             supplier_id: dto.supplier_id,
             currency: dto.currency,
             date_start: dto.date_start,
@@ -294,7 +281,6 @@ impl From<&PurchaseAgreement> for PurchaseAgreementResponseDto {
             agreement_number: entity.agreement_number.clone(),
             agreement_kind: entity.agreement_kind.clone(),
             status: entity.status.clone(),
-            company_id: entity.company_id.clone(),
             supplier_id: entity.supplier_id.clone(),
             currency: entity.currency.clone(),
             date_start: entity.date_start.clone(),
@@ -316,7 +302,6 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseAgreementDto> for PurchaseAgree
         self.agreement_number = dto.agreement_number;
         self.agreement_kind = dto.agreement_kind;
         self.status = dto.status;
-        self.company_id = dto.company_id;
         self.supplier_id = dto.supplier_id;
         self.currency = dto.currency;
         self.date_start = dto.date_start;

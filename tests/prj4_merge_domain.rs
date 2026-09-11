@@ -1,7 +1,7 @@
 //! Probes for the PO grouping domain's project partition (the never-merge-across-projects rule).
 //!
 //! The grouping domain resolves merge/group candidates through exactly one named lookup —
-//! `BuyingWriteService::find_open_po_for_demand` — whose key is (company_id, supplier_id,
+//! `BuyingWriteService::find_open_po_for_demand` — whose key is (supplier_id,
 //! project_id) with `project_id` matched exactly (NULL matches NULL only). These probes lock:
 //!
 //!   * two demands differing ONLY in project_id resolve to DISTINCT candidates — a PO bought
@@ -46,12 +46,11 @@ fn line(item: Uuid, qty: &str, rate: &str) -> NewLine {
 /// A draft PO for `supplier`, bought for `project` (None = unassigned).
 async fn project_po(
     w: &BuyingWriteService,
-    company: Uuid,
     supplier: Uuid,
     project: Option<Uuid>,
 ) -> Uuid {
     w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: supplier, order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: project,
         tax_rate: Decimal::ZERO, notes: None,
@@ -65,17 +64,17 @@ async fn project_po(
 async fn prj4_merge_domain_partitions_by_project() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, supplier) = (Uuid::new_v4(), Uuid::new_v4());
+    let supplier = Uuid::new_v4();
     let (project_a, project_b, project_c) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
 
     // One supplier, three open orders: for project A, for project B, and unassigned.
-    let po_a = project_po(&w, company, supplier, Some(project_a)).await;
-    let po_b = project_po(&w, company, supplier, Some(project_b)).await;
-    let po_n = project_po(&w, company, supplier, None).await;
+    let po_a = project_po(&w, supplier, Some(project_a)).await;
+    let po_b = project_po(&w, supplier, Some(project_b)).await;
+    let po_n = project_po(&w, supplier, None).await;
 
     // Two demands differing ONLY in project_id → DISTINCT candidates (never coalesce).
-    let cand_a = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project_a)).await.unwrap().expect("project A demand finds its PO");
-    let cand_b = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project_b)).await.unwrap().expect("project B demand finds its PO");
+    let cand_a = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project_a)).await.unwrap().expect("project A demand finds its PO");
+    let cand_b = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project_b)).await.unwrap().expect("project B demand finds its PO");
     assert_eq!(cand_a.id, po_a, "project A's demand resolves to project A's order");
     assert_eq!(cand_b.id, po_b, "project B's demand resolves to project B's order");
     assert_ne!(cand_a.id, cand_b.id, "demands differing only in project_id NEVER share a candidate");
@@ -83,11 +82,11 @@ async fn prj4_merge_domain_partitions_by_project() {
     assert_eq!(cand_b.project_id, Some(project_b), "the candidate echoes the partition it matched on");
 
     // Same project (repeated demand) → the SAME candidate.
-    let cand_a_again = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project_a)).await.unwrap().expect("same demand still finds its PO");
+    let cand_a_again = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project_a)).await.unwrap().expect("same demand still finds its PO");
     assert_eq!(cand_a_again.id, po_a, "same project → same candidate");
 
     // NULL matches NULL only: an unassigned demand sees the unassigned order, never A's or B's.
-    let cand_n = w.find_open_po_for_demand(&PoDemand::new(company, supplier).without_project()).await.unwrap().expect("unassigned demand finds the unassigned PO");
+    let cand_n = w.find_open_po_for_demand(&PoDemand::new(supplier).without_project()).await.unwrap().expect("unassigned demand finds the unassigned PO");
     assert_eq!(cand_n.id, po_n, "a project-less demand resolves to the project-less order");
     assert_ne!(cand_n.id, po_a);
     assert_ne!(cand_n.id, po_b);
@@ -95,16 +94,16 @@ async fn prj4_merge_domain_partitions_by_project() {
 
     // A demand for a project with no open order finds nothing — a grouping engine then creates a
     // fresh PO rather than borrowing another project's.
-    let none = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project_c)).await.unwrap();
+    let none = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project_c)).await.unwrap();
     assert!(none.is_none(), "no open order for project C");
 
     // A different supplier's demand never sees this supplier's orders, whatever the project.
-    let other_supplier = w.find_open_po_for_demand(&PoDemand::new(company, Uuid::new_v4()).for_project(project_a)).await.unwrap();
+    let other_supplier = w.find_open_po_for_demand(&PoDemand::new(Uuid::new_v4()).for_project(project_a)).await.unwrap();
     assert!(other_supplier.is_none(), "supplier is (and stays) part of the grouping key");
 
-    // A different company's demand never sees them either (the read rides the caller's scope).
-    let other_company = w.find_open_po_for_demand(&PoDemand::new(Uuid::new_v4(), supplier).for_project(project_a)).await.unwrap();
-    assert!(other_company.is_none(), "company fence holds in the grouping domain");
+    // Cross-tenant isolation is NOT a grouping-key concern: the module carries no tenancy of its
+    // own (ADR-0029), so what one tenant's demand may reach is the composing service's tenancy
+    // decorator's decision — asserted by the tenancy posture probe, not here.
 }
 
 // The candidate band is the still-editable one: draft and sent qualify; once parked at the
@@ -114,31 +113,31 @@ async fn prj4_merge_domain_partitions_by_project() {
 async fn prj4_open_band_is_the_editable_one() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, supplier) = (Uuid::new_v4(), Uuid::new_v4());
+    let supplier = Uuid::new_v4();
     let project = Uuid::new_v4();
 
     // draft qualifies.
-    let po1 = project_po(&w, company, supplier, Some(project)).await;
-    let cand = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project)).await.unwrap().unwrap();
+    let po1 = project_po(&w, supplier, Some(project)).await;
+    let cand = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project)).await.unwrap().unwrap();
     assert_eq!(cand.id, po1);
     assert_eq!(cand.status, "draft");
 
     // sent still qualifies.
     w.send_purchase_order(po1).await.unwrap();
-    let cand = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project)).await.unwrap().unwrap();
+    let cand = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project)).await.unwrap().unwrap();
     assert_eq!(cand.id, po1);
     assert_eq!(cand.status, "sent");
 
     // confirmed (purchase) does not: the demand must find nothing (oldest-first moves to the
     // next open order only if one exists — here none does).
     w.confirm_purchase_order(po1, false).await.unwrap();
-    let none = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project)).await.unwrap();
+    let none = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project)).await.unwrap();
     assert!(none.is_none(), "a confirmed commitment is out of the grouping domain");
 
     // cancelled does not either.
-    let po2 = project_po(&w, company, supplier, Some(project)).await;
+    let po2 = project_po(&w, supplier, Some(project)).await;
     w.cancel_purchase_order(po2).await.unwrap();
-    let none = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project)).await.unwrap();
+    let none = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project)).await.unwrap();
     assert!(none.is_none(), "a cancelled order is out of the grouping domain");
 }
 
@@ -148,17 +147,17 @@ async fn prj4_open_band_is_the_editable_one() {
 async fn prj4_candidate_is_oldest_first() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, supplier, project) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let (supplier, project) = (Uuid::new_v4(), Uuid::new_v4());
 
-    let po1 = project_po(&w, company, supplier, Some(project)).await;
+    let po1 = project_po(&w, supplier, Some(project)).await;
     // Give the first order a head start on the audit clock, then create the second.
     sqlx::query(r#"UPDATE buying.purchase_orders
                       SET metadata = jsonb_set(metadata, '{created_at}', to_jsonb(NOW() - INTERVAL '1 hour'))
                     WHERE id=$1"#)
         .bind(po1).execute(&pool).await.unwrap();
-    let po2 = project_po(&w, company, supplier, Some(project)).await;
+    let po2 = project_po(&w, supplier, Some(project)).await;
 
-    let cand = w.find_open_po_for_demand(&PoDemand::new(company, supplier).for_project(project)).await.unwrap().unwrap();
+    let cand = w.find_open_po_for_demand(&PoDemand::new(supplier).for_project(project)).await.unwrap().unwrap();
     assert_eq!(cand.id, po1, "the earlier-created order wins the partition");
     assert_ne!(cand.id, po2);
 }
@@ -169,14 +168,14 @@ async fn prj4_candidate_is_oldest_first() {
 async fn prj4_project_id_roundtrips_on_create() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, supplier, project) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let (supplier, project) = (Uuid::new_v4(), Uuid::new_v4());
 
-    let anchored = project_po(&w, company, supplier, Some(project)).await;
+    let anchored = project_po(&w, supplier, Some(project)).await;
     let stored: Option<Uuid> = sqlx::query_scalar("SELECT project_id FROM buying.purchase_orders WHERE id=$1")
         .bind(anchored).fetch_one(&pool).await.unwrap();
     assert_eq!(stored, Some(project), "the project anchor persists through the validated write path");
 
-    let bare = project_po(&w, company, supplier, None).await;
+    let bare = project_po(&w, supplier, None).await;
     let stored: Option<Uuid> = sqlx::query_scalar("SELECT project_id FROM buying.purchase_orders WHERE id=$1")
         .bind(bare).fetch_one(&pool).await.unwrap();
     assert_eq!(stored, None, "an unanchored PO stores NULL, not a default");
@@ -201,7 +200,7 @@ async fn module(pool: &PgPool) -> BuyingModule {
 }
 
 // The guarded create accepts the project anchor and threads it into the validated write path
-// (the tenant itself still comes from the signed token, never the body).
+// (the module is tenant-agnostic: no tenant crosses the wire in the body — ADR-0029).
 #[tokio::test]
 async fn prj4_guarded_create_accepts_project() {
     let pool = pool().await;

@@ -40,7 +40,6 @@ impl RfqSupplierRepository {
 pub struct NewRfqSupplierRow {
     pub id: Uuid,
     pub rfq_id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
 }
 
@@ -48,17 +47,18 @@ pub struct NewRfqSupplierRow {
 impl RfqSupplierRepository {
     /// Invite one supplier onto an RFQ.
     ///
-    /// Takes the CALLER'S connection so it commits with its header. The caller has already bound the
-    /// company on it (`bind_company_on`) — don't re-bind here.
+    /// Takes the CALLER'S connection so it commits with its header. The caller has already relayed
+    /// the ambient org scope onto it (`relay_ambient_scope`) — don't re-bind here. The module
+    /// carries no tenancy of its own (ADR-0029).
     pub async fn insert_supplier(
         &self,
         conn: &mut sqlx::PgConnection,
         s: &NewRfqSupplierRow,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT INTO buying.rfq_suppliers (id, rfq_id, company_id, supplier_id) VALUES ($1,$2,$3,$4)",
+            "INSERT INTO buying.rfq_suppliers (id, rfq_id, supplier_id) VALUES ($1,$2,$3)",
         )
-        .bind(s.id).bind(s.rfq_id).bind(s.company_id).bind(s.supplier_id)
+        .bind(s.id).bind(s.rfq_id).bind(s.supplier_id)
         .execute(conn)
         .await?;
         Ok(())

@@ -15,13 +15,12 @@
 //! `PurchaseAgreementRepository` / `PurchaseAgreementLineRepository` / `SupplierPriceRepository`,
 //! and the tx-taking repo methods ride this service's transaction.
 
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::infrastructure::persistence::{NewAgreementLineRow, NewAgreementRow};
 
-use super::buying_write_service::{is_dup, BuyingError, BuyingWriteService, NewPurchaseOrder};
+use super::buying_write_service::{is_dup, relay_ambient_scope, BuyingError, BuyingWriteService, NewPurchaseOrder};
 
 /// One negotiated line of a new blanket agreement.
 #[derive(Debug, Clone)]
@@ -37,7 +36,6 @@ pub struct NewAgreementLine {
 #[derive(Debug, Clone)]
 pub struct NewPurchaseAgreement {
     pub agreement_number: String,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: Option<String>,
     pub date_start: Option<chrono::NaiveDate>,
@@ -57,7 +55,6 @@ pub struct CallOffLine {
 #[derive(Debug, Clone)]
 pub struct NewCallOffOrder {
     pub po_number: String,
-    pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
     pub agreement_id: Uuid,
     pub order_date: chrono::NaiveDate,
@@ -81,13 +78,13 @@ impl BuyingWriteService {
         }
         let id = Uuid::new_v4();
         let currency = a.currency.clone().unwrap_or_else(|| "IDR".into());
-        // RLS scope (ADR-0008): company is on the DTO — bind it onto our own transaction.
         let mut tx = self.db_pool.begin().await?;
-        company_scope::bind_company_on(&mut tx, a.company_id).await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
+        // service's decorator set it task-locally; the fresh transaction carries none of it.
+        relay_ambient_scope(&mut tx).await?;
         let r = self.repos.purchase_agreements.insert_agreement(&mut tx, &NewAgreementRow {
             id,
             agreement_number: &a.agreement_number,
-            company_id: a.company_id,
             supplier_id: a.supplier_id,
             currency: &currency,
             date_start: a.date_start,
@@ -99,7 +96,7 @@ impl BuyingWriteService {
         }
         for l in &a.lines {
             self.repos.purchase_agreement_lines.insert_line(&mut tx, &NewAgreementLineRow {
-                id: Uuid::new_v4(), agreement_id: id, company_id: a.company_id,
+                id: Uuid::new_v4(), agreement_id: id,
                 item_id: l.item_id, quantity: l.quantity, rate: l.rate,
             }).await?;
         }
@@ -122,24 +119,22 @@ impl BuyingWriteService {
             return Err(BuyingError::EmptyDocument);
         }
 
-        let company_id = state.company_id;
         let supplier_id = state.supplier_id;
         let currency = state.currency;
-        company_scope::with_company_scope(Some(company_id), async move {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            self.repos.purchase_agreements
-                .transition(&mut tx, agreement_id, "open", &["draft"]).await?
-                .ok_or_else(|| BuyingError::AgreementNotConvertible(agreement_id.to_string()))?;
-            for l in &lines {
-                self.repos.supplier_prices.upsert_for_agreement_line(
-                    &mut tx, company_id, supplier_id, l.item_id, l.rate,
-                    &currency, agreement_id, l.id,
-                ).await?;
-            }
-            tx.commit().await?;
-            Ok(())
-        }).await
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        self.repos.purchase_agreements
+            .transition(&mut tx, agreement_id, "open", &["draft"]).await?
+            .ok_or_else(|| BuyingError::AgreementNotConvertible(agreement_id.to_string()))?;
+        for l in &lines {
+            self.repos.supplier_prices.upsert_for_agreement_line(
+                &mut tx, supplier_id, l.item_id, l.rate,
+                &currency, agreement_id, l.id,
+            ).await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
 
     /// Re-price one line of an OPEN agreement: the line's rate and its minted supplier-price row
@@ -163,18 +158,16 @@ impl BuyingWriteService {
         let state = self.repos.purchase_agreements.fetch_state(&self.db_pool, agreement_id).await?
             .ok_or(BuyingError::AgreementNotFound(agreement_id))?;
 
-        let company_id = line.company_id;
-        company_scope::with_company_scope(Some(company_id), async {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            self.repos.purchase_agreement_lines.set_line_rate(&mut tx, line_id, rate).await?;
-            self.repos.supplier_prices.upsert_for_agreement_line(
-                &mut tx, company_id, state.supplier_id, line.item_id, rate,
-                &state.currency, agreement_id, line_id,
-            ).await?;
-            tx.commit().await?;
-            Ok(())
-        }).await
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        self.repos.purchase_agreement_lines.set_line_rate(&mut tx, line_id, rate).await?;
+        self.repos.supplier_prices.upsert_for_agreement_line(
+            &mut tx, state.supplier_id, line.item_id, rate,
+            &state.currency, agreement_id, line_id,
+        ).await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     /// Replace a DRAFT agreement's line set (the resequence: the line order IS the document, so
@@ -198,20 +191,18 @@ impl BuyingWriteService {
         if state.status != "draft" {
             return Err(BuyingError::AgreementNotConvertible(agreement_id.to_string()));
         }
-        let company_id = state.company_id;
-        company_scope::with_company_scope(Some(company_id), async {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            self.repos.purchase_agreement_lines.soft_delete_all_for_agreement(&mut tx, agreement_id).await?;
-            for l in &lines {
-                self.repos.purchase_agreement_lines.insert_line(&mut tx, &NewAgreementLineRow {
-                    id: Uuid::new_v4(), agreement_id, company_id,
-                    item_id: l.item_id, quantity: l.quantity, rate: l.rate,
-                }).await?;
-            }
-            tx.commit().await?;
-            Ok(())
-        }).await
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        self.repos.purchase_agreement_lines.soft_delete_all_for_agreement(&mut tx, agreement_id).await?;
+        for l in &lines {
+            self.repos.purchase_agreement_lines.insert_line(&mut tx, &NewAgreementLineRow {
+                id: Uuid::new_v4(), agreement_id,
+                item_id: l.item_id, quantity: l.quantity, rate: l.rate,
+            }).await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
 
     /// Close (`open` → `done`) or cancel (`draft`/`open` → `cancelled`) an agreement. Both refuse
@@ -227,16 +218,14 @@ impl BuyingWriteService {
         if !from.contains(&state.status.as_str()) {
             return Err(BuyingError::AgreementNotConvertible(agreement_id.to_string()));
         }
-        let company_id = state.company_id;
-        company_scope::with_company_scope(Some(company_id), async {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            self.repos.purchase_agreements.transition(&mut tx, agreement_id, to, from).await?
-                .ok_or_else(|| BuyingError::AgreementNotConvertible(agreement_id.to_string()))?;
-            self.repos.supplier_prices.soft_delete_for_agreement(&mut tx, agreement_id).await?;
-            tx.commit().await?;
-            Ok(())
-        }).await
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        self.repos.purchase_agreements.transition(&mut tx, agreement_id, to, from).await?
+            .ok_or_else(|| BuyingError::AgreementNotConvertible(agreement_id.to_string()))?;
+        self.repos.supplier_prices.soft_delete_for_agreement(&mut tx, agreement_id).await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     /// Close an open blanket (`done`).
@@ -302,7 +291,6 @@ impl BuyingWriteService {
             po_number: o.po_number,
             supplier_quotation_id: None,
             order_kind: Some("standard".into()),
-            company_id: o.company_id,
             branch_id: o.branch_id,
             supplier_id: state.supplier_id,
             order_date: o.order_date,
@@ -318,57 +306,54 @@ impl BuyingWriteService {
         let (priced, subtotal, tax_amount, total) = super::buying_write_service::price_document(&new_order.lines, new_order.tax_rate)?;
         let po_id = Uuid::new_v4();
 
-        let company_id = o.company_id;
-        company_scope::with_company_scope(Some(company_id), async move {
-            // The same currency gate create_purchase_order applies: the agreement's currency
-            // against the company's, with a loud refusal when a rate snapshot is missing.
-            let settings = self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await?;
-            let company_currency = settings.map(|s| s.company_currency).unwrap_or_else(|| "IDR".into());
-            let rate = super::buying_order_create::resolve_rate(&new_order, &company_currency)?;
-            let currency = new_order.currency.clone().unwrap_or(company_currency);
-            let kind = new_order.order_kind.clone().unwrap_or_else(|| "standard".into());
+        // The same currency gate create_purchase_order applies: the agreement's currency against
+        // the home currency, with a loud refusal when a rate snapshot is missing.
+        let settings = self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await?;
+        let company_currency = settings.map(|s| s.company_currency).unwrap_or_else(|| "IDR".into());
+        let rate = super::buying_order_create::resolve_rate(&new_order, &company_currency)?;
+        let currency = new_order.currency.clone().unwrap_or(company_currency);
+        let kind = new_order.order_kind.clone().unwrap_or_else(|| "standard".into());
 
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            let r = self.repos.purchase_orders.insert_purchase_order(&mut tx, &crate::infrastructure::persistence::NewPurchaseOrderRow {
-                id: po_id,
-                po_number: &new_order.po_number,
-                supplier_quotation_id: new_order.supplier_quotation_id,
-                order_kind: &kind,
-                company_id,
-                branch_id: new_order.branch_id,
-                supplier_id: new_order.supplier_id,
-                order_date: new_order.order_date,
-                schedule_date: new_order.schedule_date,
-                currency: &currency,
-                currency_rate: rate,
-                agreement_id: new_order.agreement_id,
-                project_id: new_order.project_id,
-                subtotal,
-                tax_rate: new_order.tax_rate,
-                tax_amount,
-                total,
-                notes: new_order.notes.as_deref(),
-            }).await;
-            if let Err(e) = r {
-                return Err(if super::buying_write_service::is_dup(&e) { BuyingError::DuplicateNumber(new_order.po_number.clone()) } else { e.into() });
-            }
-            for (p, l) in priced.iter().zip(new_order.lines.iter()) {
-                let (rm, pm) = super::buying_order_create::line_method_pair(&l.qty_received_method, &l.purchase_method)?;
-                self.repos.purchase_order_items.insert_item(&mut tx, &crate::infrastructure::persistence::NewPurchaseOrderItemRow {
-                    id: Uuid::new_v4(), order_id: po_id, company_id, item_id: p.item_id, warehouse_id: p.warehouse_id,
-                    description: p.description.as_deref(), quantity: p.quantity, rate: p.rate,
-                    line_amount: p.line_amount, qty_received_method: rm, purchase_method: pm,
-                }).await?;
-            }
-            // The blanket consumption rides the SAME transaction — this is the call-off's
-            // defining atomicity: no PO without its counted draw, no counted draw without a PO.
-            for (_, c) in &draws {
-                self.repos.purchase_agreement_lines
-                    .increment_qty_ordered(&mut tx, c.agreement_line_id, c.quantity).await?;
-            }
-            tx.commit().await?;
-            Ok(po_id)
-        }).await
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        let r = self.repos.purchase_orders.insert_purchase_order(&mut tx, &crate::infrastructure::persistence::NewPurchaseOrderRow {
+            id: po_id,
+            po_number: &new_order.po_number,
+            supplier_quotation_id: new_order.supplier_quotation_id,
+            order_kind: &kind,
+            branch_id: new_order.branch_id,
+            supplier_id: new_order.supplier_id,
+            order_date: new_order.order_date,
+            schedule_date: new_order.schedule_date,
+            currency: &currency,
+            currency_rate: rate,
+            agreement_id: new_order.agreement_id,
+            project_id: new_order.project_id,
+            subtotal,
+            tax_rate: new_order.tax_rate,
+            tax_amount,
+            total,
+            notes: new_order.notes.as_deref(),
+        }).await;
+        if let Err(e) = r {
+            return Err(if super::buying_write_service::is_dup(&e) { BuyingError::DuplicateNumber(new_order.po_number.clone()) } else { e.into() });
+        }
+        for (p, l) in priced.iter().zip(new_order.lines.iter()) {
+            let (rm, pm) = super::buying_order_create::line_method_pair(&l.qty_received_method, &l.purchase_method)?;
+            self.repos.purchase_order_items.insert_item(&mut tx, &crate::infrastructure::persistence::NewPurchaseOrderItemRow {
+                id: Uuid::new_v4(), order_id: po_id, item_id: p.item_id, warehouse_id: p.warehouse_id,
+                description: p.description.as_deref(), quantity: p.quantity, rate: p.rate,
+                line_amount: p.line_amount, qty_received_method: rm, purchase_method: pm,
+            }).await?;
+        }
+        // The blanket consumption rides the SAME transaction — this is the call-off's
+        // defining atomicity: no PO without its counted draw, no counted draw without a PO.
+        for (_, c) in &draws {
+            self.repos.purchase_agreement_lines
+                .increment_qty_ordered(&mut tx, c.agreement_line_id, c.quantity).await?;
+        }
+        tx.commit().await?;
+        Ok(po_id)
     }
 }

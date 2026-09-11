@@ -57,7 +57,6 @@ pub struct PurchaseOrder {
     pub po_number: String,
     pub supplier_quotation_id: Option<Uuid>,
     pub order_kind: OrderKind,
-    pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
     pub supplier_id: Uuid,
     pub status: PurchaseOrderStatus,
@@ -89,13 +88,12 @@ impl PurchaseOrder {
     }
 
     /// Create a new PurchaseOrder with required fields
-    pub fn new(po_number: String, order_kind: OrderKind, company_id: Uuid, supplier_id: Uuid, status: PurchaseOrderStatus, receipt_status: PurchaseReceiptStatus, invoice_status: PurchaseInvoiceStatus, order_date: NaiveDate, currency: String, currency_rate: Decimal, acknowledged: bool, locked: bool, subtotal: Decimal, tax_rate: Decimal, tax_amount: Decimal, total: Decimal) -> Self {
+    pub fn new(po_number: String, order_kind: OrderKind, supplier_id: Uuid, status: PurchaseOrderStatus, receipt_status: PurchaseReceiptStatus, invoice_status: PurchaseInvoiceStatus, order_date: NaiveDate, currency: String, currency_rate: Decimal, acknowledged: bool, locked: bool, subtotal: Decimal, tax_rate: Decimal, tax_amount: Decimal, total: Decimal) -> Self {
         Self {
             id: Uuid::new_v4(),
             po_number,
             supplier_quotation_id: None,
             order_kind,
-            company_id,
             branch_id: None,
             supplier_id,
             status,
@@ -238,9 +236,6 @@ impl PurchaseOrder {
                 "order_kind" => {
                     if let Ok(v) = serde_json::from_value(value) { self.order_kind = v; }
                 }
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "branch_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.branch_id = v; }
                 }
@@ -353,7 +348,6 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrder {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("supplier_quotation_id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("branch_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("agreement_id".to_string(), "uuid".to_string());
@@ -367,9 +361,6 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrder {
     fn search_fields() -> &'static [&'static str] {
         &["po_number", "currency"]
     }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
-    }
 }
 
 /// Builder for PurchaseOrder entity
@@ -381,7 +372,6 @@ pub struct PurchaseOrderBuilder {
     po_number: Option<String>,
     supplier_quotation_id: Option<Uuid>,
     order_kind: Option<OrderKind>,
-    company_id: Option<Uuid>,
     branch_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
     status: Option<PurchaseOrderStatus>,
@@ -419,12 +409,6 @@ impl PurchaseOrderBuilder {
     /// Set the order_kind field (default: `OrderKind::default()`)
     pub fn order_kind(mut self, value: OrderKind) -> Self {
         self.order_kind = Some(value);
-        self
-    }
-
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
         self
     }
 
@@ -547,7 +531,6 @@ impl PurchaseOrderBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<PurchaseOrder, String> {
         let po_number = self.po_number.ok_or_else(|| "po_number is required".to_string())?;
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let supplier_id = self.supplier_id.ok_or_else(|| "supplier_id is required".to_string())?;
         let order_date = self.order_date.ok_or_else(|| "order_date is required".to_string())?;
 
@@ -556,7 +539,6 @@ impl PurchaseOrderBuilder {
             po_number,
             supplier_quotation_id: self.supplier_quotation_id,
             order_kind: self.order_kind.unwrap_or_default(),
-            company_id,
             branch_id: self.branch_id,
             supplier_id,
             status: self.status.unwrap_or_default(),

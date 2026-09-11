@@ -52,7 +52,6 @@ pub struct RequestForQuotation {
     pub id: Uuid,
     pub rfq_number: String,
     pub material_request_id: Option<Uuid>,
-    pub company_id: Uuid,
     pub status: PurchaseDocStatus,
     pub rfq_date: NaiveDate,
     pub response_due: Option<NaiveDate>,
@@ -68,12 +67,11 @@ impl RequestForQuotation {
     }
 
     /// Create a new RequestForQuotation with required fields
-    pub fn new(rfq_number: String, company_id: Uuid, status: PurchaseDocStatus, rfq_date: NaiveDate) -> Self {
+    pub fn new(rfq_number: String, status: PurchaseDocStatus, rfq_date: NaiveDate) -> Self {
         Self {
             id: Uuid::new_v4(),
             rfq_number,
             material_request_id: None,
-            company_id,
             status,
             rfq_date,
             response_due: None,
@@ -167,9 +165,6 @@ impl RequestForQuotation {
                 "material_request_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.material_request_id = v; }
                 }
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "status" => {
                     if let Ok(v) = serde_json::from_value(value) { self.status = v; }
                 }
@@ -234,15 +229,11 @@ impl backbone_orm::EntityRepoMeta for RequestForQuotation {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("material_request_id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("status".to_string(), "purchase_doc_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &["rfq_number"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -254,7 +245,6 @@ impl backbone_orm::EntityRepoMeta for RequestForQuotation {
 pub struct RequestForQuotationBuilder {
     rfq_number: Option<String>,
     material_request_id: Option<Uuid>,
-    company_id: Option<Uuid>,
     status: Option<PurchaseDocStatus>,
     rfq_date: Option<NaiveDate>,
     response_due: Option<NaiveDate>,
@@ -270,12 +260,6 @@ impl RequestForQuotationBuilder {
     /// Set the material_request_id field (optional)
     pub fn material_request_id(mut self, value: Uuid) -> Self {
         self.material_request_id = Some(value);
-        self
-    }
-
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
         self
     }
 
@@ -302,14 +286,12 @@ impl RequestForQuotationBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<RequestForQuotation, String> {
         let rfq_number = self.rfq_number.ok_or_else(|| "rfq_number is required".to_string())?;
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let rfq_date = self.rfq_date.ok_or_else(|| "rfq_date is required".to_string())?;
 
         Ok(RequestForQuotation {
             id: Uuid::new_v4(),
             rfq_number,
             material_request_id: self.material_request_id,
-            company_id,
             status: self.status.unwrap_or_default(),
             rfq_date,
             response_due: self.response_due,

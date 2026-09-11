@@ -5,7 +5,7 @@
 # post) via a ReceiptExpected request and billing's Purchase Invoice (A/P post) —
 # buying itself emits NO AccountingPost. 3-way-match watermarks received_qty /
 # billed_qty gate completion. Subcontracting is a subtype (order_kind=subcontract).
-# supplier/item/company/branch/warehouse are logical FKs.
+# supplier/item/branch/warehouse are logical FKs.
 # =============================================================================
 
 models:
@@ -33,11 +33,6 @@ models:
         type: OrderKind
         attributes: ["@default(standard)"]
         description: "Standard PO or subcontract (a PO whose lines are service + supplied-material BOM)"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Books owner # logical FK to organization.Company.id"
 
       branch_id:
         type: uuid?
@@ -148,10 +143,12 @@ models:
       - type: unique
         fields: [po_number]
         where: "deleted_at IS NULL"
-      - type: index
-        fields: [company_id, supplier_id, status]
-      - type: index
-        fields: [company_id, supplier_id, project_id]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # supplier/status listing index AND the grouping-lookup index are installed
+      # by the composing service's tenancy decorator (org_unit_id-leading over
+      # supplier_id/project_id), not declared here. The grouping domain's
+      # never-merge-across-projects rule keys on (supplier_id, project_id)
+      # exact-match; see src/application/service/buying_po_grouping.rs.
       - type: index
         fields: [order_date]
 
@@ -169,11 +166,6 @@ models:
         type: uuid
         attributes: ["@required", "@foreign_key(PurchaseOrder.id)"]
         description: "Owning purchase order"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company (denormalized from PurchaseOrder for ADR-0010 direct RLS) # logical FK to organization.Company.id"
 
       item_id:
         type: uuid

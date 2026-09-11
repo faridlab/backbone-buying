@@ -26,11 +26,6 @@ models:
         attributes: ["@foreign_key(RequestForQuotation.id)"]
         description: "Source RFQ (intra-module link; null for direct quotations)"
 
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id"
-
       supplier_id:
         type: uuid
         attributes: ["@required", "@exclude_from_foreign_key_check"]
@@ -76,8 +71,9 @@ models:
       - type: unique
         fields: [quotation_number]
         where: "deleted_at IS NULL"
-      - type: index
-        fields: [company_id, supplier_id, status]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # supplier/status listing index is installed by the composing service's tenancy
+      # decorator (org_unit_id-leading), not declared here.
 
   - name: SupplierQuotationItem
     collection: supplier_quotation_items
@@ -93,11 +89,6 @@ models:
         type: uuid
         attributes: ["@required", "@foreign_key(SupplierQuotation.id)"]
         description: "Owning supplier quotation"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company (denormalized from SupplierQuotation for ADR-0010 direct RLS) # logical FK to organization.Company.id"
 
       item_id:
         type: uuid

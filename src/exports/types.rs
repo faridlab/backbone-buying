@@ -50,7 +50,6 @@ impl From<MaterialRequestId> for Uuid {
 pub struct MaterialRequestDto {
     pub id: MaterialRequestId,
     pub request_number: String,
-    pub company_id: Uuid,
     pub request_type: MaterialRequestType,
     pub status: PurchaseDocStatus,
     pub request_date: NaiveDate,
@@ -111,7 +110,6 @@ impl From<MaterialRequestItemId> for Uuid {
 pub struct MaterialRequestItemDto {
     pub id: MaterialRequestItemId,
     pub request_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub metadata: serde_json::Value,
@@ -170,7 +168,6 @@ pub struct PurchaseAgreementDto {
     pub agreement_number: String,
     pub agreement_kind: AgreementKind,
     pub status: PurchaseAgreementStatus,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: String,
     pub date_start: Option<NaiveDate>,
@@ -231,7 +228,6 @@ impl From<PurchaseAgreementLineId> for Uuid {
 pub struct PurchaseAgreementLineDto {
     pub id: PurchaseAgreementLineId,
     pub agreement_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -289,7 +285,6 @@ impl From<PurchaseCompanySettingId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PurchaseCompanySettingDto {
     pub id: PurchaseCompanySettingId,
-    pub company_id: Uuid,
     pub double_validation: DoubleValidation,
     pub double_validation_amount: Decimal,
     pub company_currency: String,
@@ -350,7 +345,6 @@ pub struct PurchaseOrderDto {
     pub po_number: String,
     pub supplier_quotation_id: Option<Uuid>,
     pub order_kind: OrderKind,
-    pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
     pub supplier_id: Uuid,
     pub status: PurchaseOrderStatus,
@@ -425,7 +419,6 @@ impl From<PurchaseOrderItemId> for Uuid {
 pub struct PurchaseOrderItemDto {
     pub id: PurchaseOrderItemId,
     pub order_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub warehouse_id: Option<Uuid>,
     pub description: Option<String>,
@@ -491,7 +484,6 @@ pub struct RequestForQuotationDto {
     pub id: RequestForQuotationId,
     pub rfq_number: String,
     pub material_request_id: Option<Uuid>,
-    pub company_id: Uuid,
     pub status: PurchaseDocStatus,
     pub rfq_date: NaiveDate,
     pub response_due: Option<NaiveDate>,
@@ -550,7 +542,6 @@ impl From<RfqItemId> for Uuid {
 pub struct RfqItemDto {
     pub id: RfqItemId,
     pub rfq_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub metadata: serde_json::Value,
@@ -607,7 +598,6 @@ impl From<RfqSupplierId> for Uuid {
 pub struct RfqSupplierDto {
     pub id: RfqSupplierId,
     pub rfq_id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub metadata: serde_json::Value,
 }
@@ -662,7 +652,6 @@ impl From<SupplierPriceId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SupplierPriceDto {
     pub id: SupplierPriceId,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub item_id: Uuid,
     pub price: Decimal,
@@ -724,7 +713,6 @@ pub struct SupplierQuotationDto {
     pub id: SupplierQuotationId,
     pub quotation_number: String,
     pub rfq_id: Option<Uuid>,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub status: PurchaseDocStatus,
     pub quotation_date: NaiveDate,
@@ -786,7 +774,6 @@ impl From<SupplierQuotationItemId> for Uuid {
 pub struct SupplierQuotationItemDto {
     pub id: SupplierQuotationItemId,
     pub quotation_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -844,7 +831,6 @@ impl From<SupplierReminderSettingId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SupplierReminderSettingDto {
     pub id: SupplierReminderSettingId,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub receipt_reminder_email: bool,
     pub reminder_days_before: i32,

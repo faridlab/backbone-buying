@@ -15,14 +15,15 @@
 //! Per the module's 4-layer rule this file holds no SQL — the statements live on
 //! `PurchaseOrderRepository` / `PurchaseOrderItemRepository`.
 
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::infrastructure::persistence::MatchWatermark;
 
 use super::buying_events::{BillLineMatch, BillLinesMatched, BuyingEvent, ThreeWayMatchFailed};
-use super::buying_write_service::{BuyingError, BuyingWriteService};
+use super::buying_write_service::{
+    legacy_company_echo, relay_ambient_scope, BuyingError, BuyingWriteService,
+};
 
 /// One proposed bill-line ↔ PO-line pairing. `po_item_id` names the exact
 /// `buying.purchase_order_items` row (no fill-in-order spread: the operator chose the pairing).
@@ -45,7 +46,6 @@ impl BuyingWriteService {
     pub async fn match_bill_lines(
         &self,
         order_id: Uuid,
-        company_id: Uuid,
         proposals: &[BillLineProposal],
     ) -> Result<(), BuyingError> {
         if proposals.is_empty() {
@@ -57,42 +57,44 @@ impl BuyingWriteService {
             }
         }
 
-        company_scope::with_company_scope(Some(company_id), async move {
-            let hdr = self.repos.purchase_orders.fetch_header(&self.db_pool, order_id).await?
-                .ok_or(BuyingError::OrderNotFound(order_id))?;
-            if hdr.status != "purchase" {
-                return Err(BuyingError::NotConfirmable(order_id.to_string()));
-            }
+        // ID-only read: cross-tenant isolation is the composing service's tenancy decorator
+        // (ADR-0029) — an undecorated deployment is unfenced by design.
+        let hdr = self.repos.purchase_orders.fetch_header(&self.db_pool, order_id).await?
+            .ok_or(BuyingError::OrderNotFound(order_id))?;
+        if hdr.status != "purchase" {
+            return Err(BuyingError::NotConfirmable(order_id.to_string()));
+        }
 
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            for p in proposals {
-                let line = self.repos.purchase_order_items
-                    .lock_line_for_matching(&mut tx, order_id, p.po_item_id).await?
-                    .ok_or(BuyingError::OrderNotFound(p.po_item_id))?;
-                if p.quantity > line.capacity {
-                    drop(tx); // roll back — no partial match
-                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                        order_id, item_id: line.item_id, kind: "over_billing".into(),
-                    }));
-                    return Err(BuyingError::OverBilling { item_id: line.item_id });
-                }
-                self.repos.purchase_order_items
-                    .add_to_watermark(&mut tx, p.po_item_id, MatchWatermark::Billed, p.quantity).await?;
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
+        // service's decorator set it task-locally; the fresh transaction carries none of it.
+        relay_ambient_scope(&mut tx).await?;
+        for p in proposals {
+            let line = self.repos.purchase_order_items
+                .lock_line_for_matching(&mut tx, order_id, p.po_item_id).await?
+                .ok_or(BuyingError::OrderNotFound(p.po_item_id))?;
+            if p.quantity > line.capacity {
+                drop(tx); // roll back — no partial match
+                self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                    order_id, item_id: line.item_id, kind: "over_billing".into(),
+                }));
+                return Err(BuyingError::OverBilling { item_id: line.item_id });
             }
-            tx.commit().await?;
+            self.repos.purchase_order_items
+                .add_to_watermark(&mut tx, p.po_item_id, MatchWatermark::Billed, p.quantity).await?;
+        }
+        tx.commit().await?;
 
-            self.recompute_order_maturity(order_id).await?;
-            self.sink.publish(BuyingEvent::BillLinesMatched(BillLinesMatched {
-                order_id,
-                company_id,
-                matches: proposals.iter().map(|p| BillLineMatch {
-                    bill_line_ref: p.bill_line_ref.clone(),
-                    po_item_id: p.po_item_id,
-                    quantity: p.quantity,
-                }).collect(),
-            }));
-            Ok(())
-        }).await
+        self.recompute_order_maturity(order_id).await?;
+        self.sink.publish(BuyingEvent::BillLinesMatched(BillLinesMatched {
+            order_id,
+            company_id: legacy_company_echo(),
+            matches: proposals.iter().map(|p| BillLineMatch {
+                bill_line_ref: p.bill_line_ref.clone(),
+                po_item_id: p.po_item_id,
+                quantity: p.quantity,
+            }).collect(),
+        }));
+        Ok(())
     }
 }

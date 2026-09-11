@@ -7,7 +7,6 @@
 
 use async_trait::async_trait;
 use anyhow::Result;
-use uuid::Uuid;
 
 use crate::domain::entity::{PurchaseCompanySetting, DoubleValidation};
 
@@ -44,7 +43,6 @@ pub struct PurchaseCompanySettingPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct PurchaseCompanySettingFilter {
-    pub company_id: Option<Uuid>,
     pub double_validation: Option<DoubleValidation>,
     pub company_currency: Option<String>,
     pub send_reminder: Option<bool>,
@@ -53,7 +51,7 @@ pub struct PurchaseCompanySettingFilter {
 impl PurchaseCompanySettingFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.company_id.is_some() || self.double_validation.is_some() || self.company_currency.is_some() || self.send_reminder.is_some()
+        self.double_validation.is_some() || self.company_currency.is_some() || self.send_reminder.is_some()
     }
 }
 

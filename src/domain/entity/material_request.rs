@@ -52,7 +52,6 @@ impl std::ops::Deref for MaterialRequestId {
 pub struct MaterialRequest {
     pub id: Uuid,
     pub request_number: String,
-    pub company_id: Uuid,
     pub request_type: MaterialRequestType,
     pub status: PurchaseDocStatus,
     pub request_date: NaiveDate,
@@ -70,11 +69,10 @@ impl MaterialRequest {
     }
 
     /// Create a new MaterialRequest with required fields
-    pub fn new(request_number: String, company_id: Uuid, request_type: MaterialRequestType, status: PurchaseDocStatus, request_date: NaiveDate) -> Self {
+    pub fn new(request_number: String, request_type: MaterialRequestType, status: PurchaseDocStatus, request_date: NaiveDate) -> Self {
         Self {
             id: Uuid::new_v4(),
             request_number,
-            company_id,
             request_type,
             status,
             request_date,
@@ -167,9 +165,6 @@ impl MaterialRequest {
                 "request_number" => {
                     if let Ok(v) = serde_json::from_value(value) { self.request_number = v; }
                 }
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "request_type" => {
                     if let Ok(v) = serde_json::from_value(value) { self.request_type = v; }
                 }
@@ -239,16 +234,12 @@ impl backbone_orm::EntityRepoMeta for MaterialRequest {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("request_type".to_string(), "material_request_type".to_string());
         m.insert("status".to_string(), "purchase_doc_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &["request_number"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -259,7 +250,6 @@ impl backbone_orm::EntityRepoMeta for MaterialRequest {
 #[derive(Debug, Clone, Default)]
 pub struct MaterialRequestBuilder {
     request_number: Option<String>,
-    company_id: Option<Uuid>,
     request_type: Option<MaterialRequestType>,
     status: Option<PurchaseDocStatus>,
     request_date: Option<NaiveDate>,
@@ -271,12 +261,6 @@ impl MaterialRequestBuilder {
     /// Set the request_number field (required)
     pub fn request_number(mut self, value: String) -> Self {
         self.request_number = Some(value);
-        self
-    }
-
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
         self
     }
 
@@ -315,13 +299,11 @@ impl MaterialRequestBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<MaterialRequest, String> {
         let request_number = self.request_number.ok_or_else(|| "request_number is required".to_string())?;
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let request_date = self.request_date.ok_or_else(|| "request_date is required".to_string())?;
 
         Ok(MaterialRequest {
             id: Uuid::new_v4(),
             request_number,
-            company_id,
             request_type: self.request_type.unwrap_or_default(),
             status: self.status.unwrap_or_default(),
             request_date,

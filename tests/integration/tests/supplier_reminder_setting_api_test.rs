@@ -24,7 +24,6 @@ impl TestDataGenerator for SupplierReminderSettingTestData {
         let now = Utc::now().to_rfc3339();
         json!({
             "id": Uuid::new_v4().to_string(),
-            "company_id": Uuid::new_v4().to_string(),
             "supplier_id": Uuid::new_v4().to_string(),
             "receipt_reminder_email": false,
             "reminder_days_before": 1,
@@ -36,7 +35,6 @@ impl TestDataGenerator for SupplierReminderSettingTestData {
         let now = Utc::now().to_rfc3339();
         json!({
             "id": id,
-            "company_id": Uuid::new_v4().to_string(),
             "supplier_id": Uuid::new_v4().to_string(),
             "receipt_reminder_email": false,
             "reminder_days_before": 1,

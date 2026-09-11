@@ -46,7 +46,6 @@ pub struct SupplierQuotationPaginatedResult {
 pub struct SupplierQuotationFilter {
     pub quotation_number: Option<String>,
     pub rfq_id: Option<Uuid>,
-    pub company_id: Option<Uuid>,
     pub supplier_id: Option<Uuid>,
     pub status: Option<PurchaseDocStatus>,
     pub currency: Option<String>,
@@ -56,7 +55,7 @@ pub struct SupplierQuotationFilter {
 impl SupplierQuotationFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.quotation_number.is_some() || self.rfq_id.is_some() || self.company_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.currency.is_some() || self.notes.is_some()
+        self.quotation_number.is_some() || self.rfq_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.currency.is_some() || self.notes.is_some()
     }
 }
 

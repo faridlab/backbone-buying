@@ -12,7 +12,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::PurchaseAgreement;
 
@@ -45,7 +45,6 @@ impl PurchaseAgreementRepository {
 pub struct NewAgreementRow<'a> {
     pub id: Uuid,
     pub agreement_number: &'a str,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: &'a str,
     pub date_start: Option<chrono::NaiveDate>,
@@ -57,7 +56,6 @@ pub struct NewAgreementRow<'a> {
 /// live call-off POs in pre-confirmed states (`draft`/`sent`/`to_approve`) that still hang off the
 /// agreement — the close/cancel refusal (a draft call-off would silently lose its price source).
 pub struct AgreementStateRow {
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: String,
     pub status: String,
@@ -70,7 +68,8 @@ impl PurchaseAgreementRepository {
     /// Insert a blanket-agreement header as `draft`.
     ///
     /// Takes the CALLER'S connection so the header and its lines commit as one unit. The caller has
-    /// already bound the company on it (`bind_company_on`) — don't re-bind here.
+    /// already relayed the ambient org scope onto it (`relay_ambient_scope`) — don't re-bind here.
+    /// The module carries no tenancy of its own (ADR-0029).
     pub async fn insert_agreement(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -78,28 +77,28 @@ impl PurchaseAgreementRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.purchase_agreements
-                (id, agreement_number, agreement_kind, status, company_id, supplier_id, currency,
+                (id, agreement_number, agreement_kind, status, supplier_id, currency,
                  date_start, date_end, notes)
-               VALUES ($1,$2,'blanket'::agreement_kind,'draft'::purchase_agreement_status,$3,$4,$5,$6,$7,$8)"#,
+               VALUES ($1,$2,'blanket'::agreement_kind,'draft'::purchase_agreement_status,$3,$4,$5,$6,$7)"#,
         )
-        .bind(a.id).bind(a.agreement_number).bind(a.company_id).bind(a.supplier_id).bind(a.currency)
+        .bind(a.id).bind(a.agreement_number).bind(a.supplier_id).bind(a.currency)
         .bind(a.date_start).bind(a.date_end).bind(a.notes)
         .execute(conn)
         .await?;
         Ok(())
     }
 
-    /// Read an agreement's gate state. `Ok(None)` = not found (or another company's — the read
-    /// rides the connection carrying the caller's `app.company_id`).
+    /// Read an agreement's gate state. `Ok(None)` = not found — under a composed tenancy decorator
+    /// another tenant's agreement is indistinguishable from a missing one.
     pub async fn fetch_state(
         &self,
         pool: &PgPool,
         agreement_id: Uuid,
     ) -> Result<Option<AgreementStateRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT a.company_id, a.supplier_id, a.currency, a.status::text AS st,
+                r#"SELECT a.supplier_id, a.currency, a.status::text AS st,
                           (SELECT count(*) FROM buying.purchase_orders po
                             WHERE po.agreement_id = a.id
                               AND po.status IN ('draft','sent','to_approve')
@@ -110,7 +109,6 @@ impl PurchaseAgreementRepository {
         )
         .await?;
         Ok(row.map(|r| AgreementStateRow {
-            company_id: r.get("company_id"),
             supplier_id: r.get("supplier_id"),
             currency: r.get("currency"),
             status: r.get("st"),
@@ -121,7 +119,7 @@ impl PurchaseAgreementRepository {
     /// Flip the agreement's status, guarded on the allowed source states. `Ok(None)` = refused
     /// (wrong source state or absent). Takes the CALLER'S connection so the flip commits atomically
     /// with the verb's other writes (the confirm's price mint, the retire's price unlink); the
-    /// caller has already bound the company on it.
+    /// caller has already relayed the ambient org scope onto it.
     pub async fn transition(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -134,12 +132,12 @@ impl PurchaseAgreementRepository {
             r#"UPDATE buying.purchase_agreements SET status=$2::purchase_agreement_status
                 WHERE id=$1 AND status = ANY(ARRAY[{from_list}]::purchase_agreement_status[])
                   AND (metadata->>'deleted_at') IS NULL
-                RETURNING company_id"#,
+                RETURNING id"#,
             from_list = from_list,
         );
         let row = sqlx::query(&sql).bind(agreement_id).bind(to)
             .fetch_optional(conn).await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 }
 

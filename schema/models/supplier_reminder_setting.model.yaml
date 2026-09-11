@@ -1,9 +1,9 @@
 # =============================================================================
 # Domain: Buying
 # Entity: SupplierReminderSetting
-# Description: Per-company, per-supplier receipt-reminder posture — the buying-
+# Description: Per-supplier receipt-reminder posture — the buying-
 # owned side table for the vendor reminder configuration (buying cannot touch
-# party.Party, so it owns per-company rows keyed on the supplier's logical FK).
+# party.Party, so it owns rows keyed on the supplier's logical FK).
 # An ABSENT row means the enabled defaults (remind, 1 day before) — the
 # behavior before this table existed.
 # =============================================================================
@@ -11,18 +11,13 @@
 models:
   - name: SupplierReminderSetting
     collection: supplier_reminder_settings
-    description: "Per-company, per-supplier receipt-reminder posture; absent row = enabled defaults (remind, 1 day before)"
+    description: "Per-supplier receipt-reminder posture; absent row = enabled defaults (remind, 1 day before)"
 
     fields:
       id:
         type: uuid
         attributes: ["@id", "@default(uuid)"]
         description: "Unique settings row identifier"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id — STRICT-fenced"
 
       supplier_id:
         type: uuid
@@ -45,7 +40,6 @@ models:
         description: "Audit metadata (created_at, updated_at, deleted_at, created_by, updated_by, deleted_by)"
 
     indexes:
-      - type: unique
-        fields: [company_id, supplier_id]
-        where: "deleted_at IS NULL"
-        description: "One reminder-settings row per company+supplier"
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The former
+      # one-row-per-company+supplier unique is re-declared org-scoped
+      # (org_unit_id, supplier_id) by the composing service's tenancy decorator.

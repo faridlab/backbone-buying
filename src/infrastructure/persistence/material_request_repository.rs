@@ -11,7 +11,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::MaterialRequest;
 
@@ -46,7 +46,6 @@ impl MaterialRequestRepository {
 pub struct NewMaterialRequestRow<'a> {
     pub id: Uuid,
     pub request_number: &'a str,
-    pub company_id: Uuid,
     pub request_type: &'a str,
     pub request_date: chrono::NaiveDate,
     pub schedule_date: Option<chrono::NaiveDate>,
@@ -55,7 +54,6 @@ pub struct NewMaterialRequestRow<'a> {
 
 /// A material request's convertibility state, as read by the MR→RFQ funnel step.
 pub struct MaterialRequestSourceRow {
-    pub company_id: Uuid,
     pub status: String,
 }
 
@@ -65,8 +63,9 @@ impl MaterialRequestRepository {
     /// Insert a material-request header as `draft`.
     ///
     /// Takes the CALLER'S connection so the header and its lines commit as one unit. The caller has
-    /// already bound the company on it (`bind_company_on`) — don't re-bind here. The explicit
-    /// `company_id` bind stays as defense-in-depth alongside the RLS fence (ADR-0008).
+    /// already relayed the ambient org scope onto it (`relay_ambient_scope`) — don't re-bind here.
+    /// The module carries no tenancy of its own (ADR-0029): the composing service's decorator owns
+    /// isolation.
     ///
     /// Returns the raw `sqlx::Error` deliberately: the caller inspects it for a unique violation to
     /// turn a duplicate request number into a domain error.
@@ -77,36 +76,35 @@ impl MaterialRequestRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.material_requests
-                (id, request_number, company_id, request_type, status, request_date, schedule_date, notes)
-               VALUES ($1,$2,$3,$4::material_request_type,'draft'::purchase_doc_status,$5,$6,$7)"#,
+                (id, request_number, request_type, status, request_date, schedule_date, notes)
+               VALUES ($1,$2,$3::material_request_type,'draft'::purchase_doc_status,$4,$5,$6)"#,
         )
-        .bind(m.id).bind(m.request_number).bind(m.company_id).bind(m.request_type)
+        .bind(m.id).bind(m.request_number).bind(m.request_type)
         .bind(m.request_date).bind(m.schedule_date).bind(m.notes)
         .execute(conn)
         .await?;
         Ok(())
     }
 
-    /// Read a material request's company + status for the MR→RFQ conversion. `Ok(None)` = not found.
+    /// Read a material request's status for the MR→RFQ conversion. `Ok(None)` = not found.
     ///
-    /// ID-only: no company argument. `fetch_optional_row_scoped` means it rides a connection carrying
-    /// the caller's `app.company_id`, so another company's MR simply is not found. The company read
-    /// off the row is what the caller then binds onto its transaction.
+    /// ID-only: no tenant argument. `fetch_optional_row_scoped` rides the request-dedicated
+    /// connection when the composing service bound one (carrying the decorator's fence variables),
+    /// plainly on the pool otherwise (ADR-0029).
     pub async fn fetch_source(
         &self,
         pool: &PgPool,
         request_id: Uuid,
     ) -> Result<Option<MaterialRequestSourceRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT company_id, status::text AS st FROM buying.material_requests
+                r#"SELECT status::text AS st FROM buying.material_requests
                    WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(request_id),
         )
         .await?;
         Ok(row.map(|r| MaterialRequestSourceRow {
-            company_id: r.get("company_id"),
             status: r.get("st"),
         }))
     }

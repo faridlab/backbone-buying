@@ -21,11 +21,6 @@ models:
         attributes: ["@required", "@max(40)"]
         description: "Human reference (e.g. MR-2026-00042)"
 
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id"
-
       request_type:
         type: MaterialRequestType
         attributes: ["@default(purchase)"]
@@ -66,8 +61,9 @@ models:
       - type: unique
         fields: [request_number]
         where: "deleted_at IS NULL"
-      - type: index
-        fields: [company_id, status]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # status listing index is installed by the composing service's tenancy
+      # decorator (org_unit_id-leading), not declared here.
 
   - name: MaterialRequestItem
     collection: material_request_items
@@ -83,11 +79,6 @@ models:
         type: uuid
         attributes: ["@required", "@foreign_key(MaterialRequest.id)"]
         description: "Owning material request"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company (denormalized from MaterialRequest for ADR-0010 direct RLS) # logical FK to organization.Company.id"
 
       item_id:
         type: uuid

@@ -47,7 +47,6 @@ pub struct PurchaseAgreementFilter {
     pub agreement_number: Option<String>,
     pub agreement_kind: Option<AgreementKind>,
     pub status: Option<PurchaseAgreementStatus>,
-    pub company_id: Option<Uuid>,
     pub supplier_id: Option<Uuid>,
     pub currency: Option<String>,
     pub notes: Option<String>,
@@ -56,7 +55,7 @@ pub struct PurchaseAgreementFilter {
 impl PurchaseAgreementFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.agreement_number.is_some() || self.agreement_kind.is_some() || self.status.is_some() || self.company_id.is_some() || self.supplier_id.is_some() || self.currency.is_some() || self.notes.is_some()
+        self.agreement_number.is_some() || self.agreement_kind.is_some() || self.status.is_some() || self.supplier_id.is_some() || self.currency.is_some() || self.notes.is_some()
     }
 }
 

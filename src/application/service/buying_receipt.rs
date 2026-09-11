@@ -29,7 +29,6 @@
 //! bumps take the caller's transaction, so the `FOR UPDATE` lock taken by the capacity read is still
 //! held when the bumps run.
 
-use backbone_orm::company_scope;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
@@ -39,7 +38,9 @@ use super::buying_events::{
     BuyingEvent, PurchaseOrderMilestone, PurchaseReceiptLine, PurchaseReceiptRecorded,
     ReceiptRequestEnvelope, ReceiptRequestLine, ThreeWayMatchFailed,
 };
-use super::buying_write_service::{BuyingError, BuyingWriteService};
+use super::buying_write_service::{
+    legacy_company_echo, relay_ambient_scope, BuyingError, BuyingWriteService,
+};
 
 impl BuyingWriteService {
     // ---- Receipt seam (buying -> inventory) --------------------------------
@@ -48,7 +49,7 @@ impl BuyingWriteService {
     /// envelope buying emits; an ACL maps it into inventory's `ReceiptExpected`). Requests the
     /// not-yet-received quantity per `stock_moves` line. Emits `ReceiptRequested`.
     pub async fn build_receipt_request(&self, order_id: Uuid) -> Result<ReceiptRequestEnvelope, BuyingError> {
-        // RLS scope (ADR-0008), ID-only pattern: read-only, reads ride the request-dedicated connection.
+        // Id-only read — the composed decorator owns visibility.
         let hdr = self.repos.purchase_orders.fetch_header(&self.db_pool, order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if hdr.status != "purchase" {
@@ -59,7 +60,7 @@ impl BuyingWriteService {
             item_id: r.item_id, quantity: r.remaining, rate: r.rate,
         }).collect();
         let env = ReceiptRequestEnvelope {
-            order_id, company_id: hdr.company_id, supplier_id: hdr.supplier_id,
+            order_id, company_id: legacy_company_echo(), supplier_id: hdr.supplier_id,
             currency: hdr.currency, order_kind: hdr.order_kind, lines,
         };
         self.sink.publish(BuyingEvent::ReceiptRequested(env.clone()));
@@ -74,43 +75,39 @@ impl BuyingWriteService {
     pub async fn mark_received(
         &self,
         order_id: Uuid,
-        company_id: Uuid,
         receipts: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008): company on the parameter — scope the received-qty writes + maturity
-        // recompute so they run with `app.company_id` set. The inbound handler for inventory's
-        // `StockReceived` passes the event's company; an event/job caller can no longer forget to.
-        company_scope::with_company_scope(Some(company_id), async move {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            let mut applied: Vec<PurchaseReceiptLine> = Vec::new();
-            for (item_id, qty) in receipts {
-                // capacity per line = quantity - received_qty
-                if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Received,
-                    BuyingError::OverReceipt { item_id: *item_id }, &mut applied).await {
-                    drop(tx); // roll back — no partial receipt
-                    if matches!(e, BuyingError::OverReceipt { .. }) {
-                        // §33: broadcast the variance so an async consumer sees it, not just the caller.
-                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                            order_id, item_id: *item_id, kind: "over_receipt".into(),
-                        }));
-                    }
-                    return Err(e);
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
+        // service's decorator set it task-locally; the fresh transaction carries none of it.
+        relay_ambient_scope(&mut tx).await?;
+        let mut applied: Vec<PurchaseReceiptLine> = Vec::new();
+        for (item_id, qty) in receipts {
+            // capacity per line = quantity - received_qty
+            if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Received,
+                BuyingError::OverReceipt { item_id: *item_id }, &mut applied).await {
+                drop(tx); // roll back — no partial receipt
+                if matches!(e, BuyingError::OverReceipt { .. }) {
+                    // §33: broadcast the variance so an async consumer sees it, not just the caller.
+                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                        order_id, item_id: *item_id, kind: "over_receipt".into(),
+                    }));
                 }
+                return Err(e);
             }
-            tx.commit().await?;
+        }
+        tx.commit().await?;
 
-            // Goods landed: the supplier needs no further chaser for this PO.
-            let _ = self.repos.purchase_orders.set_acknowledged(&self.db_pool, order_id).await?;
+        // Goods landed: the supplier needs no further chaser for this PO.
+        let _ = self.repos.purchase_orders.set_acknowledged(&self.db_pool, order_id).await?;
 
-            let maturity = self.recompute_order_maturity(order_id).await?;
-            self.sink.publish(BuyingEvent::PurchaseReceiptRecorded(PurchaseReceiptRecorded {
-                order_id, company_id,
-                order_kind: maturity.order_kind,
-                lines: applied,
-            }));
-            Ok(())
-        }).await
+        let maturity = self.recompute_order_maturity(order_id).await?;
+        self.sink.publish(BuyingEvent::PurchaseReceiptRecorded(PurchaseReceiptRecorded {
+            order_id, company_id: legacy_company_echo(),
+            order_kind: maturity.order_kind,
+            lines: applied,
+        }));
+        Ok(())
     }
 
     /// Record billing against a PO (inbound handler for billing's `PurchaseInvoicePosted`): allocate
@@ -120,33 +117,27 @@ impl BuyingWriteService {
     pub async fn mark_billed(
         &self,
         order_id: Uuid,
-        company_id: Uuid,
         billed: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008): company on the parameter — the allocation tx binds it explicitly
-        // (`bind_company_on`), and the maturity recompute runs inside the scope. The inbound handler for
-        // billing's `PurchaseInvoicePosted` passes the event's company; an event/job caller can no
-        // longer forget to scope the `FOR UPDATE` reads inside `allocate`.
-        company_scope::with_company_scope(Some(company_id), async move {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            for (item_id, qty) in billed {
-                // capacity per line = billing capacity - billed_qty (the purchase_method CASE)
-                if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Billed,
-                    BuyingError::OverBilling { item_id: *item_id }, &mut Vec::new()).await {
-                    drop(tx); // roll back — no partial billing
-                    if matches!(e, BuyingError::OverBilling { .. }) {
-                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                            order_id, item_id: *item_id, kind: "over_billing".into(),
-                        }));
-                    }
-                    return Err(e);
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        for (item_id, qty) in billed {
+            // capacity per line = billing capacity - billed_qty (the purchase_method CASE)
+            if let Err(e) = self.allocate(&mut tx, order_id, *item_id, *qty, MatchWatermark::Billed,
+                BuyingError::OverBilling { item_id: *item_id }, &mut Vec::new()).await {
+                drop(tx); // roll back — no partial billing
+                if matches!(e, BuyingError::OverBilling { .. }) {
+                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                        order_id, item_id: *item_id, kind: "over_billing".into(),
+                    }));
                 }
+                return Err(e);
             }
-            tx.commit().await?;
-            self.recompute_order_maturity(order_id).await?;
-            Ok(())
-        }).await
+        }
+        tx.commit().await?;
+        self.recompute_order_maturity(order_id).await?;
+        Ok(())
     }
 
     /// Record a purchase return against a PO (inbound handler for inventory's `StockReturned`): reverse-
@@ -158,35 +149,30 @@ impl BuyingWriteService {
     pub async fn mark_returned(
         &self,
         order_id: Uuid,
-        company_id: Uuid,
         returns: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008): company on the parameter — scope the received-qty writes + maturity
-        // recompute so they run with `app.company_id` set. The inbound handler for inventory's
-        // `StockReturned` passes the event's company; an event/job caller can no longer forget to scope.
-        company_scope::with_company_scope(Some(company_id), async move {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            for (item_id, qty) in returns {
-                // reverse capacity per line = received_qty - billed_qty (un-billed received goods),
-                // clamped at 0 (a purchase-method line may have billed ahead of receipt)
-                if let Err(e) = self.deallocate(&mut tx, order_id, *item_id, *qty, ReverseWatermark::Returned,
-                    BuyingError::OverReturn { item_id: *item_id }).await {
-                    drop(tx); // roll back — no partial return
-                    if matches!(e, BuyingError::OverReturn { .. }) {
-                        // §33: broadcast the variance so an async consumer sees it, not just the caller.
-                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                            order_id, item_id: *item_id, kind: "over_return".into(),
-                        }));
-                    }
-                    return Err(e);
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        for (item_id, qty) in returns {
+            // reverse capacity per line = received_qty - billed_qty (un-billed received goods),
+            // clamped at 0 (a purchase-method line may have billed ahead of receipt)
+            if let Err(e) = self.deallocate(&mut tx, order_id, *item_id, *qty, ReverseWatermark::Returned,
+                BuyingError::OverReturn { item_id: *item_id }).await {
+                drop(tx); // roll back — no partial return
+                if matches!(e, BuyingError::OverReturn { .. }) {
+                    // §33: broadcast the variance so an async consumer sees it, not just the caller.
+                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                        order_id, item_id: *item_id, kind: "over_return".into(),
+                    }));
                 }
+                return Err(e);
             }
-            tx.commit().await?;
-            self.recompute_order_maturity(order_id).await?;
-            self.sink.publish(BuyingEvent::PurchaseReturned(PurchaseOrderMilestone { order_id, company_id }));
-            Ok(())
-        }).await
+        }
+        tx.commit().await?;
+        self.recompute_order_maturity(order_id).await?;
+        self.sink.publish(BuyingEvent::PurchaseReturned(PurchaseOrderMilestone { order_id, company_id: legacy_company_echo() }));
+        Ok(())
     }
 
     /// Record a credit note against a PO (inbound handler for billing's `PurchaseCreditPosted`): reverse-
@@ -197,32 +183,28 @@ impl BuyingWriteService {
     pub async fn mark_credited(
         &self,
         order_id: Uuid,
-        company_id: Uuid,
         credits: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008): company on the parameter — the allocation tx binds it explicitly
-        // (`bind_company_on`), and the maturity recompute runs inside the scope.
-        company_scope::with_company_scope(Some(company_id), async move {
-            let mut tx = self.db_pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
-            for (item_id, qty) in credits {
-                // reverse capacity per line = billed_qty
-                if let Err(e) = self.deallocate(&mut tx, order_id, *item_id, *qty, ReverseWatermark::Credited,
-                    BuyingError::OverCredit { item_id: *item_id }).await {
-                    drop(tx); // roll back — no partial credit
-                    if matches!(e, BuyingError::OverCredit { .. }) {
-                        self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
-                            order_id, item_id: *item_id, kind: "over_credit".into(),
-                        }));
-                    }
-                    return Err(e);
+        let mut tx = self.db_pool.begin().await?;
+        // Relay the caller's ambient org scope onto this transaction (ADR-0029).
+        relay_ambient_scope(&mut tx).await?;
+        for (item_id, qty) in credits {
+            // reverse capacity per line = billed_qty
+            if let Err(e) = self.deallocate(&mut tx, order_id, *item_id, *qty, ReverseWatermark::Credited,
+                BuyingError::OverCredit { item_id: *item_id }).await {
+                drop(tx); // roll back — no partial credit
+                if matches!(e, BuyingError::OverCredit { .. }) {
+                    self.sink.publish(BuyingEvent::ThreeWayMatchFailed(ThreeWayMatchFailed {
+                        order_id, item_id: *item_id, kind: "over_credit".into(),
+                    }));
                 }
+                return Err(e);
             }
-            tx.commit().await?;
-            self.recompute_order_maturity(order_id).await?;
-            self.sink.publish(BuyingEvent::CreditNoted(PurchaseOrderMilestone { order_id, company_id }));
-            Ok(())
-        }).await
+        }
+        tx.commit().await?;
+        self.recompute_order_maturity(order_id).await?;
+        self.sink.publish(BuyingEvent::CreditNoted(PurchaseOrderMilestone { order_id, company_id: legacy_company_echo() }));
+        Ok(())
     }
 
     /// Set a `manual`-method line's received quantity directly (the operator tier of the two-tier
@@ -233,23 +215,20 @@ impl BuyingWriteService {
     pub async fn set_manual_line_receipt(
         &self,
         order_id: Uuid,
-        company_id: Uuid,
         line_id: Uuid,
         qty: Decimal,
     ) -> Result<(), BuyingError> {
-        company_scope::with_company_scope(Some(company_id), async move {
-            let row = self.repos.purchase_order_items
-                .set_manual_line_receipt(&self.db_pool, order_id, line_id, qty).await?
-                .ok_or_else(|| BuyingError::InvalidLineMethod(line_id.to_string()))?;
+        let row = self.repos.purchase_order_items
+            .set_manual_line_receipt(&self.db_pool, order_id, line_id, qty).await?
+            .ok_or_else(|| BuyingError::InvalidLineMethod(line_id.to_string()))?;
 
-            let maturity = self.recompute_order_maturity(order_id).await?;
-            self.sink.publish(BuyingEvent::PurchaseReceiptRecorded(PurchaseReceiptRecorded {
-                order_id, company_id,
-                order_kind: maturity.order_kind,
-                lines: vec![PurchaseReceiptLine { item_id: row.item_id, quantity: qty, rate: row.rate }],
-            }));
-            Ok(())
-        }).await
+        let maturity = self.recompute_order_maturity(order_id).await?;
+        self.sink.publish(BuyingEvent::PurchaseReceiptRecorded(PurchaseReceiptRecorded {
+            order_id, company_id: legacy_company_echo(),
+            order_kind: maturity.order_kind,
+            lines: vec![PurchaseReceiptLine { item_id: row.item_id, quantity: qty, rate: row.rate }],
+        }));
+        Ok(())
     }
 
     /// Allocate `qty` of `item_id` across a PO's lines, advancing `watermark` up to each line's cap
@@ -327,11 +306,9 @@ impl BuyingWriteService {
     ///
     /// `pub(super)`: the bill-matching sibling shares it (it bumps billed watermarks too).
     pub(super) async fn recompute_order_maturity(&self, order_id: Uuid) -> Result<MaturityRow, BuyingError> {
-        // RLS scope (ADR-0008), ID-only pattern: no company argument — this runs under whatever scope
-        // its caller (`mark_received` / `mark_billed` / the manual receipt tier) established, i.e. the
-        // request connection under HTTP or the event caller's `with_company_scope`.
+        // Id-only read + write — this runs under whatever ambient scope its caller relayed onto
+        // their transaction; the composed decorator owns isolation.
         let row = self.repos.purchase_orders.fetch_maturity(&self.db_pool, order_id).await?;
-        let company_id = row.company_id;
         let received_all = row.received_all.unwrap_or(false);
         let any_received = row.any_received.unwrap_or(false);
         let any_to_invoice = row.any_to_invoice.unwrap_or(false);
@@ -342,20 +319,17 @@ impl BuyingWriteService {
         // (a received-but-never-billed PO IS to invoice); else any billing history -> invoiced; else no.
         let invoice_status = if any_to_invoice { "to_invoice" } else if any_billed { "invoiced" } else { "no" };
 
-        // The PO's company was just read off the row above — scope the compute write on it explicitly.
-        company_scope::with_company_scope(
-            Some(company_id),
-            self.repos.purchase_orders.update_maturity(&self.db_pool, order_id, receipt_status, invoice_status),
-        ).await?;
+        self.repos.purchase_orders
+            .update_maturity(&self.db_pool, order_id, receipt_status, invoice_status).await?;
 
         // Milestone events on the FIRST transition into full receipt / invoiced.
         let was_full = row.prior_receipt == "full";
         let was_invoiced = row.prior_invoice == "invoiced";
         if received_all && !was_full {
-            self.sink.publish(BuyingEvent::PurchaseOrderFullyReceived(PurchaseOrderMilestone { order_id, company_id }));
+            self.sink.publish(BuyingEvent::PurchaseOrderFullyReceived(PurchaseOrderMilestone { order_id, company_id: legacy_company_echo() }));
         }
         if invoice_status == "invoiced" && !was_invoiced {
-            self.sink.publish(BuyingEvent::PurchaseOrderFullyBilled(PurchaseOrderMilestone { order_id, company_id }));
+            self.sink.publish(BuyingEvent::PurchaseOrderFullyBilled(PurchaseOrderMilestone { order_id, company_id: legacy_company_echo() }));
         }
         Ok(row)
     }

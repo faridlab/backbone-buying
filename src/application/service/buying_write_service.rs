@@ -12,9 +12,15 @@
 //! money, owns the unit of work (`begin`/`commit`), drives the repositories, and publishes events.
 //! It holds no SQL: every statement lives on the repositories in `infrastructure::persistence`,
 //! whose custom methods take the caller's transaction so a cross-entity write (header + lines, or
-//! the receipt watermark bumps + status recompute) commits as one unit. The RLS scope wrappers
-//! (ADR-0008) stay HERE, in the service, because the service is what knows the company; tx-taking
-//! repo methods ride the bind this service already made.
+//! the receipt watermark bumps + status recompute) commits as one unit.
+//!
+//! **Tenancy (ADR-0029).** The module is tenant-agnostic: its tables carry no scoping column and
+//! the module keys no statement on a tenant. A composing service's tenancy decorator installs the
+//! org-unit axis; this service only re-binds the caller's ambient org scope onto the transactions
+//! it opens itself (the scope is task-local and does not survive a fresh pool transaction). Wire
+//! shapes consumed by still-company-fenced callers (the outbound seam events, the `PurchaseOrderRef`
+//! handed across the receipt seam) carry a legacy company id echoed from that ambient scope — nil
+//! when none is bound.
 //!
 //! **This file is the hub:** it holds the module's vocabulary (input structs, `Repos`, errors,
 //! shared money helpers) and the constructors. The rest of the write surface is chunked into
@@ -30,6 +36,7 @@
 //!   (`find_open_po_for_demand`) any merge/group/find-or-create must resolve through; its key
 //!   matches `project_id` exactly, so two demands with different projects never coalesce.
 
+use backbone_orm::org_scope;
 use rust_decimal::{Decimal, RoundingStrategy};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -47,6 +54,31 @@ use super::buying_events::{BuyingEventSink, LoggingSink};
 
 pub(super) fn money(v: Decimal) -> Decimal {
     v.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+}
+
+/// The legacy tenancy twin echo (ADR-0029): outbound wire shapes that still carry a `company_id`
+/// (the seam events, the `PurchaseOrderRef`) get the ambient org scope's legacy company id when
+/// the composing service bound one; nil otherwise. Nothing in this module keys a statement on it,
+/// and an undecorated deployment is unfenced by design.
+pub(super) fn legacy_company_echo() -> Uuid {
+    org_scope::current_org_scope()
+        .and_then(|s| s.legacy_company_id())
+        .unwrap_or(Uuid::nil())
+}
+
+/// Re-bind the caller's ambient org scope onto a transaction this service opened itself — the
+/// scope is task-local and a fresh pool transaction carries none of it. With no ambient scope
+/// (standalone deployment, jobs) the transaction stays plain: the module is tenant-agnostic and
+/// the composed decorator owns isolation.
+pub(super) async fn relay_ambient_scope(
+    tx: &mut sqlx::PgConnection,
+) -> Result<(), BuyingError> {
+    if let Some(scope) = org_scope::current_org_scope() {
+        org_scope::bind_org_scope_on(tx, &scope)
+            .await
+            .map_err(BuyingError::Db)?;
+    }
+    Ok(())
 }
 
 // --- input structs -----------------------------------------------------------
@@ -75,7 +107,6 @@ pub struct SimpleLine {
 #[derive(Debug, Clone)]
 pub struct NewMaterialRequest {
     pub request_number: String,
-    pub company_id: Uuid,
     pub request_type: Option<String>,
     pub request_date: chrono::NaiveDate,
     pub schedule_date: Option<chrono::NaiveDate>,
@@ -87,7 +118,6 @@ pub struct NewMaterialRequest {
 pub struct NewSupplierQuotation {
     pub quotation_number: String,
     pub rfq_id: Option<Uuid>,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub quotation_date: chrono::NaiveDate,
     pub valid_till: Option<chrono::NaiveDate>,
@@ -100,15 +130,14 @@ pub struct NewPurchaseOrder {
     pub po_number: String,
     pub supplier_quotation_id: Option<Uuid>,
     pub order_kind: Option<String>,
-    pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
     pub supplier_id: Uuid,
     pub order_date: chrono::NaiveDate,
     pub schedule_date: Option<chrono::NaiveDate>,
     pub currency: Option<String>,
-    /// Order-time exchange-rate snapshot, COMPANY currency per 1 PO-currency unit. REQUIRED
-    /// (loudly) whenever the PO currency differs from the company currency; same-currency POs
-    /// fix 1 regardless of what was supplied.
+    /// Order-time exchange-rate snapshot, HOME currency (the settings row's denomination) per 1
+    /// PO-currency unit. REQUIRED (loudly) whenever the PO currency differs from the home
+    /// currency; same-currency POs fix 1 regardless of what was supplied.
     pub currency_rate: Option<Decimal>,
     /// Blanket call-off source (set by `create_call_off_po`; direct POs leave it None).
     pub agreement_id: Option<Uuid>,

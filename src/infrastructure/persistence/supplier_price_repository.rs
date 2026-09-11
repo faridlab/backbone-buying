@@ -19,8 +19,6 @@ use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
-
 use crate::domain::entity::SupplierPrice;
 
 /// Table name for SupplierPrice entities
@@ -51,13 +49,13 @@ impl SupplierPriceRepository {
 impl SupplierPriceRepository {
     /// Mint (or refresh) the supplier-price row for one agreement line. Used by the agreement
     /// confirm (one row per line, from the negotiated rate) and by the open-price update (same
-    /// upsert, new rate). One row per (company, supplier, item, agreement line) — re-confirming
-    /// cannot mint duplicates.
-    #[allow(clippy::too_many_arguments)]
+    /// refresh, new rate). One live price row per agreement line — the agreement verbs are the
+    /// only writers, and re-confirming refreshes rather than mints duplicates. No module-side
+    /// unique backs that shape: the composing service's tenancy decorator re-declares the
+    /// one-live-row-per-line guarantee org-scoped (ADR-0029).
     pub async fn upsert_for_agreement_line(
         &self,
         conn: &mut sqlx::PgConnection,
-        company_id: Uuid,
         supplier_id: Uuid,
         item_id: Uuid,
         price: Decimal,
@@ -66,15 +64,25 @@ impl SupplierPriceRepository {
         agreement_line_id: Uuid,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            r#"INSERT INTO buying.supplier_prices
-                (id, company_id, supplier_id, item_id, price, currency, agreement_id, agreement_line_id)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-               ON CONFLICT (company_id, supplier_id, item_id, agreement_line_id)
-               WHERE (metadata->>'deleted_at') IS NULL DO UPDATE SET
-                   price = EXCLUDED.price,
-                   currency = EXCLUDED.currency"#,
+            r#"WITH live AS (
+                   SELECT id FROM buying.supplier_prices
+                    WHERE agreement_line_id = $7
+                      AND (metadata->>'deleted_at') IS NULL
+                    ORDER BY (metadata->>'created_at') ASC
+                    LIMIT 1
+               ), upd AS (
+                   UPDATE buying.supplier_prices sp
+                      SET price = $4,
+                          currency = $5
+                     FROM live WHERE sp.id = live.id
+                   RETURNING sp.id
+               )
+               INSERT INTO buying.supplier_prices
+                   (id, supplier_id, item_id, price, currency, agreement_id, agreement_line_id)
+               SELECT $1, $2, $3, $4, $5, $6, $7
+                WHERE NOT EXISTS (SELECT 1 FROM upd)"#,
         )
-        .bind(Uuid::new_v4()).bind(company_id).bind(supplier_id).bind(item_id)
+        .bind(Uuid::new_v4()).bind(supplier_id).bind(item_id)
         .bind(price).bind(currency).bind(agreement_id).bind(agreement_line_id)
         .execute(conn)
         .await?;

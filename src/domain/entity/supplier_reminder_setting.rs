@@ -48,7 +48,6 @@ impl std::ops::Deref for SupplierReminderSettingId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SupplierReminderSetting {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub receipt_reminder_email: bool,
     pub reminder_days_before: i32,
@@ -64,10 +63,9 @@ impl SupplierReminderSetting {
     }
 
     /// Create a new SupplierReminderSetting with required fields
-    pub fn new(company_id: Uuid, supplier_id: Uuid, receipt_reminder_email: bool, reminder_days_before: i32) -> Self {
+    pub fn new(supplier_id: Uuid, receipt_reminder_email: bool, reminder_days_before: i32) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id,
             supplier_id,
             receipt_reminder_email,
             reminder_days_before,
@@ -134,9 +132,6 @@ impl SupplierReminderSetting {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "supplier_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.supplier_id = v; }
                 }
@@ -200,15 +195,11 @@ impl backbone_orm::EntityRepoMeta for SupplierReminderSetting {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &[]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -218,19 +209,12 @@ impl backbone_orm::EntityRepoMeta for SupplierReminderSetting {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct SupplierReminderSettingBuilder {
-    company_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
     receipt_reminder_email: Option<bool>,
     reminder_days_before: Option<i32>,
 }
 
 impl SupplierReminderSettingBuilder {
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
-        self
-    }
-
     /// Set the supplier_id field (required)
     pub fn supplier_id(mut self, value: Uuid) -> Self {
         self.supplier_id = Some(value);
@@ -253,12 +237,10 @@ impl SupplierReminderSettingBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<SupplierReminderSetting, String> {
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let supplier_id = self.supplier_id.ok_or_else(|| "supplier_id is required".to_string())?;
 
         Ok(SupplierReminderSetting {
             id: Uuid::new_v4(),
-            company_id,
             supplier_id,
             receipt_reminder_email: self.receipt_reminder_email.unwrap_or(true),
             reminder_days_before: self.reminder_days_before.unwrap_or(1),

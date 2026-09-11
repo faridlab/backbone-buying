@@ -14,29 +14,18 @@ version: 2
 schema: buying
 
 # -----------------------------------------------------------------------------
-# Company fence (ADR-0014) — module-level declaration; the DSL admits exactly
-# one per module, so the per-entity posture is realized by column nullability:
+# Tenancy: none, by design (ADR-0029). The module is tenant-agnostic and
+# reusable — it ships no scoping column and no fence declaration. A composing
+# backend-service that wants these tables org-scoped declares them in its
+# tenancy.yaml; the decorator installs org_unit_id, the RLS policy, and the
+# org-scoped per-unit indexes (the supplier/status listing indexes, the
+# settings and price uniques) at composition time.
 #
-#   shared_blank  : nullable company_id — NULL rows are first-class shared rows
-#                   (the port of Odoo's `[False]` escape). Applies to MASTER
-#                   DATA that is shared across companies.
-#   strict        : NOT NULL company_id — the `company_id IS NULL` arm of the
-#                   shared_blank predicate is dead on these tables, making
-#                   them behaviorally strict. Applies to TRANSACTIONS and
-#                   their configuration rows.
-#
-# Posture map (entity -> realized fence, all under this one declaration):
-#   MaterialRequest       -> strict (@required company_id)
-#   RequestForQuotation   -> strict
-#   SupplierQuotation    -> strict
-#   PurchaseOrder         -> strict
-#   PurchaseCompanySetting -> strict (NOT NULL company_id, one row per company)
-#   SupplierReminderSetting -> strict (NOT NULL company_id, one row per company+supplier)
-#   PurchaseAgreement / PurchaseAgreementLine -> strict (line carries direct company_id per ADR-0010)
-#   SupplierPrice         -> strict
-#   all header/line items -> strict
+# Singleton note: purchase_company_settings formerly carried one row per
+# company (a company-leading unique). After the strip the module treats it as
+# a plain settings table; a composing service re-declares that uniqueness
+# org-scoped (org_unit_id) in its tenancy.yaml.
 # -----------------------------------------------------------------------------
-company_fence: strict
 
 description: "Buying: Material Request -> RFQ -> Supplier Quotation -> Purchase Order. Procure-to-pay intent; drives inventory Purchase Receipt (asset post) via ReceiptExpected and billing Purchase Invoice (A/P). Emits no AccountingPost."
 

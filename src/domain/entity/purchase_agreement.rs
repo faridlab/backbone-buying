@@ -54,7 +54,6 @@ pub struct PurchaseAgreement {
     pub agreement_number: String,
     pub agreement_kind: AgreementKind,
     pub status: PurchaseAgreementStatus,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: String,
     pub date_start: Option<NaiveDate>,
@@ -72,13 +71,12 @@ impl PurchaseAgreement {
     }
 
     /// Create a new PurchaseAgreement with required fields
-    pub fn new(agreement_number: String, agreement_kind: AgreementKind, status: PurchaseAgreementStatus, company_id: Uuid, supplier_id: Uuid, currency: String) -> Self {
+    pub fn new(agreement_number: String, agreement_kind: AgreementKind, status: PurchaseAgreementStatus, supplier_id: Uuid, currency: String) -> Self {
         Self {
             id: Uuid::new_v4(),
             agreement_number,
             agreement_kind,
             status,
-            company_id,
             supplier_id,
             currency,
             date_start: None,
@@ -183,9 +181,6 @@ impl PurchaseAgreement {
                 "status" => {
                     if let Ok(v) = serde_json::from_value(value) { self.status = v; }
                 }
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "supplier_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.supplier_id = v; }
                 }
@@ -255,7 +250,6 @@ impl backbone_orm::EntityRepoMeta for PurchaseAgreement {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("agreement_kind".to_string(), "agreement_kind".to_string());
         m.insert("status".to_string(), "purchase_agreement_status".to_string());
@@ -263,9 +257,6 @@ impl backbone_orm::EntityRepoMeta for PurchaseAgreement {
     }
     fn search_fields() -> &'static [&'static str] {
         &["agreement_number", "currency"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -278,7 +269,6 @@ pub struct PurchaseAgreementBuilder {
     agreement_number: Option<String>,
     agreement_kind: Option<AgreementKind>,
     status: Option<PurchaseAgreementStatus>,
-    company_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
     currency: Option<String>,
     date_start: Option<NaiveDate>,
@@ -302,12 +292,6 @@ impl PurchaseAgreementBuilder {
     /// Set the status field (default: `PurchaseAgreementStatus::default()`)
     pub fn status(mut self, value: PurchaseAgreementStatus) -> Self {
         self.status = Some(value);
-        self
-    }
-
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
         self
     }
 
@@ -346,7 +330,6 @@ impl PurchaseAgreementBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<PurchaseAgreement, String> {
         let agreement_number = self.agreement_number.ok_or_else(|| "agreement_number is required".to_string())?;
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let supplier_id = self.supplier_id.ok_or_else(|| "supplier_id is required".to_string())?;
 
         Ok(PurchaseAgreement {
@@ -354,7 +337,6 @@ impl PurchaseAgreementBuilder {
             agreement_number,
             agreement_kind: self.agreement_kind.unwrap_or_default(),
             status: self.status.unwrap_or_default(),
-            company_id,
             supplier_id,
             currency: self.currency.unwrap_or("IDR".to_string()),
             date_start: self.date_start,

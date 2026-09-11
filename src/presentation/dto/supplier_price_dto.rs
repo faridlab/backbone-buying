@@ -34,9 +34,6 @@ use crate::domain::entity::AuditMetadata;
 #[serde(rename_all = "camelCase")]
 pub struct CreateSupplierPriceDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -67,9 +64,6 @@ pub struct CreateSupplierPriceDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSupplierPriceDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
@@ -102,9 +96,6 @@ pub struct UpdateSupplierPriceDto {
 #[serde(rename_all = "camelCase")]
 pub struct PatchSupplierPriceDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_id")]
     pub supplier_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -127,7 +118,7 @@ pub struct PatchSupplierPriceDto {
 impl PatchSupplierPriceDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.supplier_id.is_some() || self.item_id.is_some() || self.price.is_some() || self.currency.is_some() || self.agreement_id.is_some() || self.agreement_line_id.is_some()
+        self.supplier_id.is_some() || self.item_id.is_some() || self.price.is_some() || self.currency.is_some() || self.agreement_id.is_some() || self.agreement_line_id.is_some()
     }
 }
 
@@ -145,8 +136,6 @@ impl PatchSupplierPriceDto {
 pub struct SupplierPriceResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -215,9 +204,9 @@ impl SupplierPriceListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct SupplierPriceSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub item_id: Uuid,
+    pub price: Decimal,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -229,7 +218,6 @@ impl From<SupplierPrice> for SupplierPriceResponseDto {
     fn from(entity: SupplierPrice) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             item_id: entity.item_id,
             price: entity.price,
@@ -246,9 +234,9 @@ impl From<SupplierPrice> for SupplierPriceSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             item_id: entity.item_id,
+            price: entity.price,
             created_at,
         }
     }
@@ -258,7 +246,6 @@ impl From<CreateSupplierPriceDto> for SupplierPrice {
     fn from(dto: CreateSupplierPriceDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             supplier_id: dto.supplier_id,
             item_id: dto.item_id,
             price: dto.price,
@@ -274,7 +261,6 @@ impl From<&SupplierPrice> for SupplierPriceResponseDto {
     fn from(entity: &SupplierPrice) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             supplier_id: entity.supplier_id.clone(),
             item_id: entity.item_id.clone(),
             price: entity.price.clone(),
@@ -294,7 +280,6 @@ impl backbone_core::FromCreateDto<CreateSupplierPriceDto> for SupplierPrice {
 
 impl backbone_core::ApplyUpdateDto<UpdateSupplierPriceDto> for SupplierPrice {
     fn apply_update(mut self, dto: UpdateSupplierPriceDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.supplier_id = dto.supplier_id;
         self.item_id = dto.item_id;
         self.price = dto.price;

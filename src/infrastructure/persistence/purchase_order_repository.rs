@@ -12,7 +12,7 @@ use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::PurchaseOrder;
 
@@ -52,7 +52,6 @@ pub struct NewPurchaseOrderRow<'a> {
     pub po_number: &'a str,
     pub supplier_quotation_id: Option<Uuid>,
     pub order_kind: &'a str,
-    pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
     pub supplier_id: Uuid,
     pub order_date: chrono::NaiveDate,
@@ -73,7 +72,6 @@ pub struct NewPurchaseOrderRow<'a> {
 /// A PO's cross-module reference projection (the brief §42 DTO's row shape).
 pub struct PurchaseOrderRefRow {
     pub supplier_id: Uuid,
-    pub company_id: Uuid,
     pub order_kind: String,
     pub total: Decimal,
     pub currency: String,
@@ -91,7 +89,6 @@ pub struct PoDemandCandidateRow {
 
 /// A PO's header, as read by the receipt seam.
 pub struct PurchaseOrderHeaderRow {
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: String,
     pub status: String,
@@ -100,7 +97,6 @@ pub struct PurchaseOrderHeaderRow {
 
 /// The PO fields returned by a successful confirmation (either entry path into `purchase`).
 pub struct ConfirmedOrderRow {
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub total: Decimal,
     pub currency: String,
@@ -110,7 +106,6 @@ pub struct ConfirmedOrderRow {
 /// Everything the double-validation gate and the lifecycle guards need to decide, read in one
 /// scoped query: the money (with its currency snapshot), the current state, and the lock flag.
 pub struct OrderGateRow {
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub total: Decimal,
     pub currency: String,
@@ -127,7 +122,6 @@ pub struct OrderGateRow {
 ///
 /// The `Option<bool>` aggregates are `bool_and`/`bool_or` over zero rows → NULL.
 pub struct MaturityRow {
-    pub company_id: Uuid,
     pub order_kind: String,
     pub prior_receipt: String,
     pub prior_invoice: String,
@@ -142,8 +136,8 @@ pub struct MaturityRow {
 impl PurchaseOrderRepository {
     /// Insert a purchase-order header as `draft`.
     ///
-    /// Takes the CALLER'S connection so the header and its lines commit as one unit. The caller has
-    /// already bound the company on it (`bind_company_on`) — don't re-bind here.
+    /// Takes the CALLER'S connection so the header and its lines commit as one unit. The caller
+    /// relays the AMBIENT org scope onto it (`org_scope::bind_org_scope_on`) — don't re-bind here.
     ///
     /// Returns the raw `sqlx::Error` deliberately: the caller inspects it for a unique violation to
     /// turn a duplicate PO number into a domain error.
@@ -154,12 +148,12 @@ impl PurchaseOrderRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.purchase_orders
-                (id, po_number, supplier_quotation_id, order_kind, company_id, branch_id, supplier_id,
+                (id, po_number, supplier_quotation_id, order_kind, branch_id, supplier_id,
                  status, order_date, schedule_date, currency, currency_rate, agreement_id, project_id,
                  subtotal, tax_rate, tax_amount, total, notes)
-               VALUES ($1,$2,$3,$4::order_kind,$5,$6,$7,'draft'::purchase_order_status,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)"#,
+               VALUES ($1,$2,$3,$4::order_kind,$5,$6,'draft'::purchase_order_status,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)"#,
         )
-        .bind(o.id).bind(o.po_number).bind(o.supplier_quotation_id).bind(o.order_kind).bind(o.company_id)
+        .bind(o.id).bind(o.po_number).bind(o.supplier_quotation_id).bind(o.order_kind)
         .bind(o.branch_id).bind(o.supplier_id).bind(o.order_date).bind(o.schedule_date).bind(o.currency)
         .bind(o.currency_rate).bind(o.agreement_id).bind(o.project_id)
         .bind(o.subtotal).bind(o.tax_rate).bind(o.tax_amount).bind(o.total).bind(o.notes)
@@ -172,40 +166,39 @@ impl PurchaseOrderRepository {
     /// the ONE lookup any PO merge/group/find-or-create resolves through (the grouping-domain
     /// rule: two demands with different `project_id`s can NEVER coalesce into one PO).
     ///
-    /// The lookup key is `(company_id, supplier_id, project_id)` with `project_id` matched by
+    /// The lookup key is `(supplier_id, project_id)` with `project_id` matched by
     /// `IS NOT DISTINCT FROM` — exact-match semantics, NULL matches NULL only. A PO bought for
     /// project A is simply not in the candidate set of a demand for project B (or of a
     /// project-less demand, and vice versa), so no grouping engine built on this finder can
-    /// merge across projects.
+    /// merge across projects. Cross-tenant isolation is the composing service's tenancy
+    /// decorator (ADR-0029) — the module's own key carries no tenant axis.
     ///
     /// "Open" = the still-editable band of the lifecycle (`draft` / `sent`): the same band the
     /// module's own line-edit guards treat as editable-in-the-draft-sense. A parked
     /// (`to_approve`) or confirmed (`purchase`) commitment never silently absorbs new lines.
     /// Oldest first (`created_at`, then id) so grouping is deterministic.
     ///
-    /// `fetch_optional_row_scoped`: rides the request-dedicated connection under the caller's
-    /// `app.company_id`, so another company's PO can never surface as a candidate.
+    /// `fetch_optional_row_scoped` rides the request-dedicated connection when the composing
+    /// service bound one (carrying the decorator's fence variables), plainly on the pool
+    /// otherwise (ADR-0029).
     pub async fn find_open_po_for_demand(
         &self,
         pool: &PgPool,
-        company_id: Uuid,
         supplier_id: Uuid,
         project_id: Option<Uuid>,
     ) -> Result<Option<PoDemandCandidateRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"SELECT id, po_number, status::text AS st, project_id
                      FROM buying.purchase_orders
-                    WHERE company_id = $1
-                      AND supplier_id = $2
-                      AND project_id IS NOT DISTINCT FROM $3
+                    WHERE supplier_id = $1
+                      AND project_id IS NOT DISTINCT FROM $2
                       AND status = ANY(ARRAY['draft','sent']::purchase_order_status[])
                       AND (metadata->>'deleted_at') IS NULL
                     ORDER BY (metadata->>'created_at') ASC, id
                     LIMIT 1"#,
             )
-            .bind(company_id)
             .bind(supplier_id)
             .bind(project_id),
         )
@@ -220,24 +213,24 @@ impl PurchaseOrderRepository {
 
     /// Load a PO's cross-module reference projection. `Ok(None)` = not found.
     ///
-    /// ID-only: no company argument. `fetch_optional_row_scoped` means it rides a connection carrying
-    /// the caller's `app.company_id`, so another company's PO simply is not found.
+    /// ID-only: no tenant argument. `fetch_optional_row_scoped` rides the request-dedicated
+    /// connection when the composing service bound one (carrying the decorator's fence variables),
+    /// plainly on the pool otherwise (ADR-0029).
     pub async fn fetch_ref(
         &self,
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<PurchaseOrderRefRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT supplier_id, company_id, order_kind::text AS kind, total, currency
+                r#"SELECT supplier_id, order_kind::text AS kind, total, currency
                    FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(order_id),
         )
         .await?;
         Ok(row.map(|r| PurchaseOrderRefRow {
             supplier_id: r.get("supplier_id"),
-            company_id: r.get("company_id"),
             order_kind: r.get("kind"),
             total: r.get("total"),
             currency: r.get("currency"),
@@ -251,16 +244,15 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<PurchaseOrderHeaderRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT company_id, supplier_id, currency, status::text AS st, order_kind::text AS kind
+                r#"SELECT supplier_id, currency, status::text AS st, order_kind::text AS kind
                    FROM buying.purchase_orders WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(order_id),
         )
         .await?;
         Ok(row.map(|r| PurchaseOrderHeaderRow {
-            company_id: r.get("company_id"),
             supplier_id: r.get("supplier_id"),
             currency: r.get("currency"),
             status: r.get("st"),
@@ -268,17 +260,17 @@ impl PurchaseOrderRepository {
         }))
     }
 
-    /// Read everything the lifecycle gates need for one PO. `Ok(None)` = not found (or another
-    /// company's — the read rides the request-dedicated connection under the caller's RLS scope).
+    /// Read everything the lifecycle gates need for one PO. `Ok(None)` = not found — under a
+    /// composed tenancy decorator another tenant's PO is indistinguishable from a missing one.
     pub async fn fetch_gate_row(
         &self,
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<OrderGateRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT po.company_id, po.supplier_id, po.total, po.currency, po.currency_rate,
+                r#"SELECT po.supplier_id, po.total, po.currency, po.currency_rate,
                           po.status::text AS st, po.order_kind::text AS kind, po.locked,
                           EXISTS (SELECT 1 FROM buying.purchase_order_items i
                                   WHERE i.order_id = po.id
@@ -290,7 +282,6 @@ impl PurchaseOrderRepository {
         )
         .await?;
         Ok(row.map(|r| OrderGateRow {
-            company_id: r.get("company_id"),
             supplier_id: r.get("supplier_id"),
             total: r.get("total"),
             currency: r.get("currency"),
@@ -306,8 +297,9 @@ impl PurchaseOrderRepository {
     /// path (confirm with the gate passed, or manager approve). State-guarded on the allowed
     /// sources so a stale double-fire is a no-op (`Ok(None)`).
     ///
-    /// ID-only: the `UPDATE ... RETURNING` rides the request-dedicated connection carrying the
-    /// caller's `app.company_id`, so it can only confirm a PO in the caller's own company.
+    /// ID-only: the `UPDATE ... RETURNING` rides the request-dedicated connection when the
+    /// composing service bound one, plainly on the pool otherwise — under a composed decorator
+    /// another tenant's PO is indistinguishable from a missing one (ADR-0029).
     pub async fn enter_purchase(
         &self,
         pool: &PgPool,
@@ -321,16 +313,15 @@ impl PurchaseOrderRepository {
                 WHERE id=$1
                   AND status = ANY(ARRAY[{from_list}]::purchase_order_status[])
                   AND (metadata->>'deleted_at') IS NULL
-                RETURNING company_id, supplier_id, total, currency, order_kind::text AS kind"#,
+                RETURNING supplier_id, total, currency, order_kind::text AS kind"#,
             from_list = from_list,
         );
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(&sql).bind(order_id),
         )
         .await?;
         Ok(row.map(|r| ConfirmedOrderRow {
-            company_id: r.get("company_id"),
             supplier_id: r.get("supplier_id"),
             total: r.get("total"),
             currency: r.get("currency"),
@@ -345,17 +336,17 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET status='to_approve'::purchase_order_status
                    WHERE id=$1 AND status = ANY(ARRAY['draft','sent']::purchase_order_status[])
                      AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id"#,
+                   RETURNING id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Reset to `draft` from any non-draft state (cancelled included — cancelled→draft must be
@@ -366,17 +357,17 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET status='draft'::purchase_order_status
                    WHERE id=$1 AND status = ANY(ARRAY['sent','to_approve','purchase','cancelled']::purchase_order_status[])
                      AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id"#,
+                   RETURNING id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Cancel from any live state. State-guarded here; the G4 (locked) and G5 (billed) triggers on
@@ -386,17 +377,17 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET status='cancelled'::purchase_order_status
                    WHERE id=$1 AND status = ANY(ARRAY['draft','sent','to_approve','purchase']::purchase_order_status[])
                      AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id"#,
+                   RETURNING id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// `draft` → `sent` (the print/send step). `Ok(None)` = not in draft.
@@ -405,17 +396,17 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET status='sent'::purchase_order_status
                    WHERE id=$1 AND status='draft'::purchase_order_status
                      AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id"#,
+                   RETURNING id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Flip the lock flag. Orthogonal to the lifecycle band; state-guarded to live rows only.
@@ -425,16 +416,16 @@ impl PurchaseOrderRepository {
         order_id: Uuid,
         locked: bool,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET locked=$2
                    WHERE id=$1 AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id"#,
+                   RETURNING id"#,
             ).bind(order_id).bind(locked),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Stamp `acknowledged=true` (the reminder suppressor). Guarded to the operational state, so a
@@ -444,17 +435,17 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders SET acknowledged=true
                    WHERE id=$1 AND status='purchase'::purchase_order_status
                      AND (metadata->>'deleted_at') IS NULL
-                   RETURNING company_id"#,
+                   RETURNING id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Soft-delete a cancelled PO (the G8 verb; the trigger backstops any raw attempt on a live
@@ -464,18 +455,18 @@ impl PurchaseOrderRepository {
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders
                       SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(NOW()))
                     WHERE id=$1 AND status='cancelled'::purchase_order_status
                       AND (metadata->>'deleted_at') IS NULL
-                    RETURNING company_id"#,
+                    RETURNING id"#,
             ).bind(order_id),
         )
         .await?;
-        Ok(row.map(|r| { let v: Uuid = r.get("company_id"); v }))
+        Ok(row.map(|r| { let v: Uuid = r.get("id"); v }))
     }
 
     /// Aggregate a PO's delivery/billing maturity across its live lines, alongside the two computes
@@ -484,18 +475,18 @@ impl PurchaseOrderRepository {
     /// same per-line CASE the maturity compute and the allocation caps use — one formula, three
     /// surfaces (migration CHECK, allocation cap, maturity recompute).
     ///
-    /// ID-only: no company argument — this runs under whatever scope its caller established, i.e. the
-    /// request connection under HTTP, or an event caller's `with_company_scope`.
+    /// ID-only: no tenant argument — rides the request-dedicated connection when the composing
+    /// service bound one, plainly on the pool otherwise (ADR-0029). `Err(RowNotFound)` when the
+    /// order has no live lines (the allocation paths refuse that shape before recomputing).
     pub async fn fetch_maturity(
         &self,
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<MaturityRow, sqlx::Error> {
-        let row = company_scope::fetch_one_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT po.company_id,
-                          po.order_kind::text AS kind,
+                r#"SELECT po.order_kind::text AS kind,
                           po.receipt_status::text AS prior_receipt,
                           po.invoice_status::text AS prior_invoice,
                           bool_and(i.received_qty >= i.quantity) AS received_all,
@@ -505,12 +496,12 @@ impl PurchaseOrderRepository {
                    FROM buying.purchase_order_items i
                    JOIN buying.purchase_orders po ON po.id = i.order_id
                    WHERE i.order_id=$1 AND (i.metadata->>'deleted_at') IS NULL
-                   GROUP BY po.company_id, po.order_kind, po.receipt_status, po.invoice_status"#,
+                   GROUP BY po.order_kind, po.receipt_status, po.invoice_status"#,
             ).bind(order_id),
         )
-        .await?;
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)?;
         Ok(MaturityRow {
-            company_id: row.get("company_id"),
             order_kind: row.get("kind"),
             prior_receipt: row.get("prior_receipt"),
             prior_invoice: row.get("prior_invoice"),
@@ -525,9 +516,9 @@ impl PurchaseOrderRepository {
     /// `cancelled` PO is never dragged forward by a stray recompute — the band has no watermark
     /// states, the computes ARE the maturity record.
     ///
-    /// The two enum values bind as `&str` and cast at the DB. A write outside any transaction: the
-    /// caller wraps this in `with_company_scope(Some(company))` using the company it just read off
-    /// the PO's own row, so this is correct for non-request callers too.
+    /// The two enum values bind as `&str` and cast at the DB. A plain pool write: under a composed
+    /// tenancy decorator the request scope the caller bound owns isolation; with none bound this
+    /// is an unfenced execute (ADR-0029).
     pub async fn update_maturity(
         &self,
         pool: &PgPool,
@@ -535,7 +526,7 @@ impl PurchaseOrderRepository {
         receipt_status: &str,
         invoice_status: &str,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
+        org_scope::execute_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_orders

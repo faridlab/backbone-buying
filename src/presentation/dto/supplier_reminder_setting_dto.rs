@@ -33,9 +33,6 @@ use crate::domain::entity::AuditMetadata;
 #[serde(rename_all = "camelCase")]
 pub struct CreateSupplierReminderSettingDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = true))]
@@ -59,9 +56,6 @@ pub struct CreateSupplierReminderSettingDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSupplierReminderSettingDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
@@ -87,9 +81,6 @@ pub struct UpdateSupplierReminderSettingDto {
 #[serde(rename_all = "camelCase")]
 pub struct PatchSupplierReminderSettingDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_id")]
     pub supplier_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = true))]
@@ -103,7 +94,7 @@ pub struct PatchSupplierReminderSettingDto {
 impl PatchSupplierReminderSettingDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.supplier_id.is_some() || self.receipt_reminder_email.is_some() || self.reminder_days_before.is_some()
+        self.supplier_id.is_some() || self.receipt_reminder_email.is_some() || self.reminder_days_before.is_some()
     }
 }
 
@@ -121,8 +112,6 @@ impl PatchSupplierReminderSettingDto {
 pub struct SupplierReminderSettingResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = true))]
@@ -186,9 +175,9 @@ impl SupplierReminderSettingListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct SupplierReminderSettingSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub receipt_reminder_email: bool,
+    pub reminder_days_before: i32,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -200,7 +189,6 @@ impl From<SupplierReminderSetting> for SupplierReminderSettingResponseDto {
     fn from(entity: SupplierReminderSetting) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             receipt_reminder_email: entity.receipt_reminder_email,
             reminder_days_before: entity.reminder_days_before,
@@ -214,9 +202,9 @@ impl From<SupplierReminderSetting> for SupplierReminderSettingSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             receipt_reminder_email: entity.receipt_reminder_email,
+            reminder_days_before: entity.reminder_days_before,
             created_at,
         }
     }
@@ -226,7 +214,6 @@ impl From<CreateSupplierReminderSettingDto> for SupplierReminderSetting {
     fn from(dto: CreateSupplierReminderSettingDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             supplier_id: dto.supplier_id,
             receipt_reminder_email: dto.receipt_reminder_email,
             reminder_days_before: dto.reminder_days_before,
@@ -239,7 +226,6 @@ impl From<&SupplierReminderSetting> for SupplierReminderSettingResponseDto {
     fn from(entity: &SupplierReminderSetting) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             supplier_id: entity.supplier_id.clone(),
             receipt_reminder_email: entity.receipt_reminder_email.clone(),
             reminder_days_before: entity.reminder_days_before.clone(),
@@ -256,7 +242,6 @@ impl backbone_core::FromCreateDto<CreateSupplierReminderSettingDto> for Supplier
 
 impl backbone_core::ApplyUpdateDto<UpdateSupplierReminderSettingDto> for SupplierReminderSetting {
     fn apply_update(mut self, dto: UpdateSupplierReminderSettingDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.supplier_id = dto.supplier_id;
         self.receipt_reminder_email = dto.receipt_reminder_email;
         self.reminder_days_before = dto.reminder_days_before;

@@ -15,14 +15,15 @@
 //! integration surface.
 //!
 //! Per the module's 4-layer rule this file holds no SQL — the statements live on
-//! `PurchaseOrderRepository` / `PurchaseOrderItemRepository`. ID-only paths (no company argument);
-//! under HTTP the request-dedicated connection carries the caller's `app.company_id`, so another
-//! company's PO simply isn't found.
+//! `PurchaseOrderRepository` / `PurchaseOrderItemRepository`. ID-only paths: cross-tenant
+//! isolation is the composing service's tenancy decorator (ADR-0029) — an undecorated
+//! deployment is unfenced by design, so another tenant's PO simply isn't found only under a
+//! composed scope.
 
 use uuid::Uuid;
 
 use super::buying_events::{BuyingEvent, PurchaseOrderConfirmed, PurchaseOrderPendingApproval, PurchaseOrderRef};
-use super::buying_write_service::{BuyingError, BuyingWriteService};
+use super::buying_write_service::{legacy_company_echo, BuyingError, BuyingWriteService};
 
 impl BuyingWriteService {
     /// Confirm a `draft`/`sent` PO. With the double-validation gate configured (`two_step`) and no
@@ -35,8 +36,8 @@ impl BuyingWriteService {
     /// (`total * currency_rate >= threshold` needs a manager). Never the reverse division, never a
     /// silent rate of 1 — the snapshot is `NOT NULL CHECK (> 0)` at the DB and resolved at create.
     pub async fn confirm_purchase_order(&self, order_id: Uuid, is_manager: bool) -> Result<(), BuyingError> {
-        // RLS scope (ADR-0008), ID-only pattern: the reads/UPDATEs ride the request-dedicated
-        // connection, so they can only act on a PO in the caller's own company.
+        // ID-only read: cross-tenant isolation is the composing service's tenancy decorator
+        // (ADR-0029) — an undecorated deployment is unfenced by design.
         let gate = self.repos.purchase_orders.fetch_gate_row(&self.db_pool, order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if gate.status != "draft" && gate.status != "sent" {
@@ -54,10 +55,10 @@ impl BuyingWriteService {
             && gate.total * gate.currency_rate >= threshold.unwrap_or(rust_decimal::Decimal::ZERO);
 
         if needs_manager {
-            let company_id = self.repos.purchase_orders.park_for_approval(&self.db_pool, order_id).await?
+            self.repos.purchase_orders.park_for_approval(&self.db_pool, order_id).await?
                 .ok_or_else(|| BuyingError::NotConfirmable(order_id.to_string()))?;
             self.sink.publish(BuyingEvent::PurchaseOrderPendingApproval(PurchaseOrderPendingApproval {
-                order_id, company_id,
+                order_id, company_id: legacy_company_echo(),
             }));
             return Ok(());
         }
@@ -102,7 +103,7 @@ impl BuyingWriteService {
         let row = self.repos.purchase_orders.enter_purchase(&self.db_pool, order_id, from).await?
             .ok_or_else(|| BuyingError::NotConfirmable(order_id.to_string()))?;
         self.sink.publish(BuyingEvent::PurchaseOrderConfirmed(PurchaseOrderConfirmed {
-            order_id, company_id: row.company_id, supplier_id: row.supplier_id,
+            order_id, company_id: legacy_company_echo(), supplier_id: row.supplier_id,
             grand_total: row.total, currency: row.currency, order_kind: row.order_kind,
         }));
         Ok(())
@@ -183,13 +184,16 @@ impl BuyingWriteService {
 
     /// Load the exported `PurchaseOrderRef` (the brief §42 cross-module DTO) for one PO.
     pub async fn purchase_order_ref(&self, order_id: Uuid) -> Result<PurchaseOrderRef, BuyingError> {
-        // RLS scope (ADR-0008), ID-only pattern: read rides the request-dedicated connection.
+        // ID-only read: cross-tenant isolation is the composing service's tenancy decorator
+        // (ADR-0029) — an undecorated deployment is unfenced by design.
         let row = self.repos.purchase_orders.fetch_ref(&self.db_pool, order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         Ok(PurchaseOrderRef {
             id: order_id,
             supplier_id: row.supplier_id,
-            company_id: row.company_id,
+            // The ref's legacy tenant twin (ADR-0029) for still-company-fenced consumers —
+            // the ambient org scope's legacy company id, nil when none is bound.
+            company_id: legacy_company_echo(),
             order_kind: row.order_kind,
             grand_total: row.total,
             currency: row.currency,

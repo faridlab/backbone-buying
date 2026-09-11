@@ -35,11 +35,6 @@ models:
         attributes: ["@default(draft)"]
         description: "Lifecycle: draft → open (confirmed; call-offs allowed) → done/cancelled"
 
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id — STRICT-fenced"
-
       supplier_id:
         type: uuid
         attributes: ["@required", "@exclude_from_foreign_key_check"]
@@ -80,8 +75,9 @@ models:
         fields: [agreement_number]
         where: "deleted_at IS NULL"
         description: "Agreement numbers are unique among live rows"
-      - type: index
-        fields: [company_id, supplier_id, status]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # supplier/status listing index is installed by the composing service's tenancy
+      # decorator (org_unit_id-leading), not declared here.
 
   - name: PurchaseAgreementLine
     collection: purchase_agreement_lines
@@ -97,11 +93,6 @@ models:
         type: uuid
         attributes: ["@required", "@foreign_key(PurchaseAgreement.id)"]
         description: "Owning agreement"
-
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company (denormalized from PurchaseAgreement for ADR-0010 direct RLS) # logical FK to organization.Company.id"
 
       item_id:
         type: uuid

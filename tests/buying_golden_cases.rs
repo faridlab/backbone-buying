@@ -23,9 +23,9 @@ async fn pool() -> PgPool {
 fn line(item: Uuid, qty: &str, rate: &str) -> NewLine {
     NewLine { item_id: item, warehouse_id: None, description: None, quantity: d(qty), rate: d(rate), qty_received_method: None, purchase_method: None }
 }
-async fn po(w: &BuyingWriteService, company: Uuid, item: Uuid, qty: &str, rate: &str, tax: &str) -> Uuid {
+async fn po(w: &BuyingWriteService, item: Uuid, qty: &str, rate: &str, tax: &str) -> Uuid {
     w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: d(tax), notes: None,
         lines: vec![line(item, qty, rate)],
@@ -47,8 +47,8 @@ async fn po_maturity(pool: &PgPool, id: Uuid) -> (String, String) {
 async fn po_line_and_total_math() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "11").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "11").await;
     let row = sqlx::query("SELECT subtotal, tax_amount, total FROM buying.purchase_orders WHERE id=$1")
         .bind(id).fetch_one(&pool).await.unwrap();
     assert_eq!(row.get::<Decimal, _>("subtotal"), d("1000000"));
@@ -62,8 +62,8 @@ async fn po_line_and_total_math() {
 async fn confirm_then_receipt_request() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("pending".into(), "no".into()));
@@ -80,24 +80,24 @@ async fn confirm_then_receipt_request() {
 async fn over_receipt_and_over_billing_rejected() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
 
     // Receiving 12 against a PO of 10 is refused; no over-receipt.
-    let e = w.mark_received(id, company, &[(item, d("12"))]).await.unwrap_err();
+    let e = w.mark_received(id,&[(item, d("12"))]).await.unwrap_err();
     assert!(matches!(e, BuyingError::OverReceipt { .. }));
     let rq0: Decimal = sqlx::query_scalar("SELECT received_qty FROM buying.purchase_order_items WHERE order_id=$1").bind(id).fetch_one(&pool).await.unwrap();
     assert_eq!(rq0, d("0.0000"), "rejected receipt leaves the watermark untouched");
 
     // Receive exactly 10; then billing 15 against 10 received is refused (invoice > receipt).
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
-    let e = w.mark_billed(id, company, &[(item, d("15"))]).await.unwrap_err();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
+    let e = w.mark_billed(id,&[(item, d("15"))]).await.unwrap_err();
     assert!(matches!(e, BuyingError::OverBilling { .. }));
     let bq0: Decimal = sqlx::query_scalar("SELECT billed_qty FROM buying.purchase_order_items WHERE order_id=$1").bind(id).fetch_one(&pool).await.unwrap();
     assert_eq!(bq0, d("0.0000"), "rejected billing leaves the watermark untouched");
     // Billing exactly 10 completes it: invoice capacity exhausted, billing history present.
-    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id,&[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("full".into(), "invoiced".into()));
 }
@@ -109,14 +109,14 @@ async fn over_receipt_and_over_billing_rejected() {
 async fn watermarks_gate_completion() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
 
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("full".into(), "to_invoice".into()), "received, awaiting billing");
-    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id,&[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("full".into(), "invoiced".into()), "received AND billed → invoiced");
     let (rq, bq): (Decimal, Decimal) = sqlx::query_as("SELECT received_qty, billed_qty FROM buying.purchase_order_items WHERE order_id=$1")
@@ -132,10 +132,10 @@ async fn watermarks_gate_completion() {
 async fn partial_receipt_requests_remainder() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("4"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("4"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("partial".into(), "to_invoice".into()), "partial receipt, still awaiting both");
     let req = w.build_receipt_request(id).await.unwrap();
@@ -147,16 +147,16 @@ async fn partial_receipt_requests_remainder() {
 async fn intent_creates_and_validation() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let item = Uuid::new_v4();
     let mr = w.create_material_request(NewMaterialRequest {
-        request_number: uq("MR"), company_id: company, request_type: None, request_date: day(),
+        request_number: uq("MR"), request_type: None, request_date: day(),
         schedule_date: None, notes: None, lines: vec![SimpleLine { item_id: item, quantity: d("5") }],
     }).await.unwrap();
     let cnt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM buying.material_request_items WHERE request_id=$1").bind(mr).fetch_one(&pool).await.unwrap();
     assert_eq!(cnt, 1);
 
     let sq = w.create_supplier_quotation(NewSupplierQuotation {
-        quotation_number: uq("SQ"), rfq_id: None, company_id: company, supplier_id: Uuid::new_v4(),
+        quotation_number: uq("SQ"), rfq_id: None, supplier_id: Uuid::new_v4(),
         quotation_date: day(), valid_till: None, currency: None,
         lines: vec![line(item, "5", "90000")],
     }).await.unwrap();
@@ -165,7 +165,7 @@ async fn intent_creates_and_validation() {
 
     // empty PO / negative rate rejected
     let e = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![],
     }).await.unwrap_err();
@@ -173,7 +173,7 @@ async fn intent_creates_and_validation() {
     // duplicate PO number
     let num = uq("DUP");
     let mut a = NewPurchaseOrder { po_number: num.clone(), supplier_quotation_id: None, order_kind: None,
-        company_id: company, branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
+        branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "1", "10")] };
     w.create_purchase_order(a.clone()).await.unwrap();
     a.po_number = num;
@@ -185,10 +185,10 @@ async fn intent_creates_and_validation() {
 async fn subcontract_order_kind() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let item = Uuid::new_v4();
     let id = w.create_purchase_order(NewPurchaseOrder {
         po_number: uq("SCO"), supplier_quotation_id: None, order_kind: Some("subcontract".into()),
-        company_id: company, branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(),
+        branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(),
         schedule_date: None, currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![line(item, "1", "50000")],
     }).await.unwrap();
@@ -213,15 +213,15 @@ async fn wms(pool: &PgPool, id: Uuid) -> (Decimal, Decimal) {
 async fn credit_note_reopens_completed() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
-    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id,&[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("full".into(), "invoiced".into()));
 
-    w.mark_credited(id, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_credited(id,&[(item, d("3"))]).await.unwrap();
     assert_eq!(wms(&pool, id).await, (d("10.0000"), d("7.0000")), "credit decrements billed_qty only");
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("full".into(), "to_invoice".into()), "received all, no longer fully billed");
@@ -233,14 +233,14 @@ async fn credit_note_reopens_completed() {
 async fn purchase_return_reopens_po() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("full".into(), "to_invoice".into()));
 
-    w.mark_returned(id, company, &[(item, d("4"))]).await.unwrap();
+    w.mark_returned(id,&[(item, d("4"))]).await.unwrap();
     assert_eq!(wms(&pool, id).await, (d("6.0000"), d("0.0000")), "return decrements received_qty only");
     assert_eq!(po_status(&pool, id).await, "purchase");
     assert_eq!(po_maturity(&pool, id).await, ("partial".into(), "to_invoice".into()), "no longer fully received");
@@ -251,13 +251,13 @@ async fn purchase_return_reopens_po() {
 async fn over_return_on_billed_goods_rejected() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
-    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id,&[(item, d("10"))]).await.unwrap();
 
-    let e = w.mark_returned(id, company, &[(item, d("1"))]).await.unwrap_err();
+    let e = w.mark_returned(id,&[(item, d("1"))]).await.unwrap_err();
     assert!(matches!(e, BuyingError::OverReturn { .. }));
     assert_eq!(wms(&pool, id).await, (d("10.0000"), d("10.0000")), "rejected return leaves watermarks untouched");
 }
@@ -267,13 +267,13 @@ async fn over_return_on_billed_goods_rejected() {
 async fn over_credit_rejected() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
-    w.mark_billed(id, company, &[(item, d("7"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id,&[(item, d("7"))]).await.unwrap();
 
-    let e = w.mark_credited(id, company, &[(item, d("10"))]).await.unwrap_err();
+    let e = w.mark_credited(id,&[(item, d("10"))]).await.unwrap_err();
     assert!(matches!(e, BuyingError::OverCredit { .. }));
     let (_, bq) = wms(&pool, id).await;
     assert_eq!(bq, d("7.0000"), "rejected credit leaves billed_qty untouched");
@@ -284,14 +284,14 @@ async fn over_credit_rejected() {
 async fn return_after_credit_chain() {
     let pool = pool().await;
     let w = BuyingWriteService::new(pool.clone());
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    let id = po(&w, company, item, "10", "100000", "0").await;
+    let item = Uuid::new_v4();
+    let id = po(&w, item, "10", "100000", "0").await;
     w.confirm_purchase_order(id, false).await.unwrap();
-    w.mark_received(id, company, &[(item, d("10"))]).await.unwrap();
-    w.mark_billed(id, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(id,&[(item, d("10"))]).await.unwrap();
+    w.mark_billed(id,&[(item, d("10"))]).await.unwrap();
 
-    w.mark_credited(id, company, &[(item, d("3"))]).await.unwrap();
-    w.mark_returned(id, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_credited(id,&[(item, d("3"))]).await.unwrap();
+    w.mark_returned(id,&[(item, d("3"))]).await.unwrap();
     assert_eq!(wms(&pool, id).await, (d("7.0000"), d("7.0000")), "credit then return keeps billed ≤ received");
     assert_eq!(po_status(&pool, id).await, "purchase");
     // received 7 of 10 → partial; billed 7 of the 7 received → invoiced (nothing left to invoice).
@@ -300,11 +300,12 @@ async fn return_after_credit_chain() {
 
 // --- the double-validation gate (multi-currency) -----------------------------
 //
-// The gate threshold is denominated in the COMPANY currency: the comparison converts the PO total
-// INTO company currency with the order-time `currency_rate` snapshot (`total * currency_rate >=
-// threshold`). A two_step-configured company parks an over-threshold PO in `to_approve` on a
-// non-manager confirm; the manager approve verb re-checks the SAME conversion and walks it into
-// `purchase`. The boundary is inclusive (`>=`): at-threshold parks, one step under passes.
+// The gate threshold is denominated in the home currency (the settings row's `company_currency`):
+// the comparison converts the PO total INTO home currency with the order-time `currency_rate`
+// snapshot (`total * currency_rate >= threshold`). A two_step-configured deployment parks an
+// over-threshold PO in `to_approve` on a non-manager confirm; the manager approve verb re-checks
+// the SAME conversion and walks it into `purchase`. The boundary is inclusive (`>=`): at-threshold
+// parks, one step under passes.
 
 #[derive(Default, Clone)]
 struct Rec { events: Arc<Mutex<Vec<BuyingEvent>>> }
@@ -315,22 +316,15 @@ impl Rec {
     }
 }
 
-/// Configure two-step double validation for `company`, threshold in the company currency (IDR).
-/// Deliberately high: every other PO total in this suite is far below it, so this settings row
-/// cannot flip another test's confirm into a park even though the test connection (a DB superuser)
-/// is not fenced by the company RLS policy the HTTP layer applies.
-async fn seed_two_step(pool: &PgPool, company: Uuid, threshold: Decimal) {
-    sqlx::query(
-        r#"INSERT INTO buying.purchase_company_settings
-               (company_id, double_validation, double_validation_amount, company_currency)
-           VALUES ($1, 'two_step', $2, 'IDR')
-           ON CONFLICT (company_id) WHERE (metadata->>'deleted_at') IS NULL DO UPDATE SET
-               double_validation = EXCLUDED.double_validation,
-               double_validation_amount = EXCLUDED.double_validation_amount,
-               company_currency = EXCLUDED.company_currency"#,
-    )
-    .bind(company).bind(threshold)
-    .execute(pool).await.expect("seed two-step purchase settings");
+/// Configure two-step double validation, threshold in the home currency (IDR). Rides the module's
+/// own settings upsert (update the live row, else insert) — the module is tenant-agnostic
+/// (ADR-0029), so there is exactly one live settings row, not one per company. The threshold is
+/// deliberately high: every other PO total in this suite is far below it, so this row cannot flip
+/// another test's confirm into a park.
+async fn seed_two_step(w: &BuyingWriteService, threshold: Decimal) {
+    w.upsert_purchase_company_settings("two_step".into(), threshold, "IDR".into(), true)
+        .await
+        .expect("seed two-step purchase settings");
 }
 
 // BGC-9: the gate compares the CONVERTED amount. The PO's raw total (1,000,000 USD) sits far below
@@ -343,13 +337,13 @@ async fn double_validation_gate_converts_currency() {
     let pool = pool().await;
     let rec = Rec::default();
     let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
-    seed_two_step(&pool, company, d("1000000000")).await;
+    let item = Uuid::new_v4();
+    seed_two_step(&w, d("1000000000")).await;
 
     // AT the threshold (inclusive boundary): 10 × 100,000 USD = 1,000,000 USD total;
     // 1,000,000 × 1,000 = 1,000,000,000 IDR = threshold → a non-manager confirm parks it.
     let at = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: Some("USD".into()), currency_rate: Some(d("1000")), agreement_id: None,
         project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "10", "100000")],
@@ -367,7 +361,7 @@ async fn double_validation_gate_converts_currency() {
     // Just UNDER the threshold: 10 × 99,999 USD = 999,990 USD; × 1,000 = 999,990,000 IDR — one
     // rate-unit step below. The same non-manager confirm passes the gate straight into purchase.
     let under = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: Some("USD".into()), currency_rate: Some(d("1000")), agreement_id: None,
         project_id: None, tax_rate: Decimal::ZERO, notes: None, lines: vec![line(item, "10", "99999")],

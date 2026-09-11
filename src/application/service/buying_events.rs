@@ -4,6 +4,11 @@
 //! billing's Purchase Invoice (A/P post) via events. `ReceiptRequestEnvelope` is the serialized
 //! cross-module request an ACL maps into inventory's `ReceiptExpected` (adding the warehouse + GL
 //! accounts inventory owns). Zero shared Rust type, zero Cargo edge.
+//!
+//! Every payload's `company_id` is a legacy tenant twin (ADR-0029): the module keys no statement
+//! on it and stores nothing by it — the write service fills it from the ambient org scope's
+//! legacy company id (nil when a deployment binds none), so still-company-fenced consumers in a
+//! composition keep reading a usable value.
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -21,6 +26,7 @@ fn default_order_kind() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PurchaseOrderConfirmed {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub grand_total: Decimal,
@@ -34,6 +40,7 @@ pub struct PurchaseOrderConfirmed {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PurchaseOrderPendingApproval {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
 }
 
@@ -41,6 +48,7 @@ pub struct PurchaseOrderPendingApproval {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DocumentRaised {
     pub document_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     /// The source document it was converted from (None for a directly-created document).
     pub source_id: Option<Uuid>,
@@ -61,6 +69,7 @@ pub struct ThreeWayMatchFailed {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PurchaseOrderMilestone {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
 }
 
@@ -78,6 +87,7 @@ pub struct ReceiptRequestLine {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReceiptRequestEnvelope {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub currency: String,
@@ -101,6 +111,7 @@ pub struct PurchaseReceiptLine {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PurchaseReceiptRecorded {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     #[serde(default = "default_order_kind")]
     pub order_kind: String,
@@ -122,6 +133,7 @@ pub struct BillLineMatch {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BillLinesMatched {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     pub matches: Vec<BillLineMatch>,
 }
@@ -131,6 +143,7 @@ pub struct BillLinesMatched {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PurchaseReceiptReminderDue {
     pub order_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub schedule_date: NaiveDate,
@@ -142,6 +155,7 @@ pub struct PurchaseReceiptReminderDue {
 pub struct PurchaseOrderRef {
     pub id: Uuid,
     pub supplier_id: Uuid,
+    /// Legacy tenant twin (ADR-0029) for unstripped consumers — see the module docs.
     pub company_id: Uuid,
     pub order_kind: String,
     pub grand_total: Decimal,

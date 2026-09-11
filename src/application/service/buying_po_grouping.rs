@@ -8,11 +8,15 @@
 //! coalesce into one purchase order.** Purchase cost collection is per project; a merged PO
 //! would post its receipt and invoice against one project while half its lines belong to
 //! another. The rule is enforced structurally, not by a check at merge time: the candidate
-//! lookup's key is `(company_id, supplier_id, project_id)` with `project_id` matched exactly
+//! lookup's key is `(supplier_id, project_id)` with `project_id` matched exactly
 //! (`IS NOT DISTINCT FROM` — NULL matches NULL only), so an order bought for project A is not
 //! in the candidate set of a demand for project B at all. Any future grouping/merge engine
 //! MUST resolve its candidate through [`BuyingWriteService::find_open_po_for_demand`] — that
 //! is the point of having exactly one named shape for it.
+//!
+//! The module carries no tenant axis of its own (ADR-0029): the composing service's tenancy
+//! decorator fences the candidate read, so a tenant's demands never see another tenant's
+//! orders to group into.
 //!
 //! "Open" means the still-editable band of the lifecycle (`draft` / `sent`) — the same band the
 //! module's own line-edit guards treat as editable-in-the-draft-sense. A parked
@@ -22,7 +26,7 @@ use uuid::Uuid;
 
 use super::buying_write_service::{BuyingError, BuyingWriteService};
 
-/// A demand's grouping key: which company, which supplier, and which project the demand buys
+/// A demand's grouping key: which supplier, and which project the demand buys
 /// for. Build one with [`PoDemand::new`] + [`PoDemand::for_project`] /
 /// [`PoDemand::without_project`].
 ///
@@ -31,7 +35,6 @@ use super::buying_write_service::{BuyingError, BuyingWriteService};
 /// together — never a second, parallel lookup path.
 #[derive(Debug, Clone)]
 pub struct PoDemand {
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     /// The project partition of the demand. `None` = an unassigned demand; it can only ever
     /// group with orders that also carry no project (exact-match, NULL with NULL).
@@ -39,9 +42,9 @@ pub struct PoDemand {
 }
 
 impl PoDemand {
-    /// Start a demand key for one company and supplier, unassigned to any project.
-    pub fn new(company_id: Uuid, supplier_id: Uuid) -> Self {
-        Self { company_id, supplier_id, project_id: None }
+    /// Start a demand key for one supplier, unassigned to any project.
+    pub fn new(supplier_id: Uuid) -> Self {
+        Self { supplier_id, project_id: None }
     }
 
     /// Assign the demand to a project (logical FK project.Project.id). Once set, the demand can
@@ -75,22 +78,19 @@ impl BuyingWriteService {
     /// Resolve the open PO a demand may group into — the ONE named lookup of the grouping
     /// domain.
     ///
-    /// `Ok(None)` = no open order for this (company, supplier, project) key; a grouping engine
+    /// `Ok(None)` = no open order for this (supplier, project) key; a grouping engine
     /// then creates a fresh PO rather than reusing any other project's. The read rides the
-    /// caller's company scope (the demand's own company is bound for non-request callers).
+    /// request-dedicated connection when the composing service bound one (carrying the
+    /// decorator's fence variables), plainly on the pool otherwise (ADR-0029).
     pub async fn find_open_po_for_demand(&self, demand: &PoDemand) -> Result<Option<PoMergeCandidate>, BuyingError> {
-        let row = backbone_orm::company_scope::with_company_scope(Some(demand.company_id), async {
-            self.repos
-                .purchase_orders
-                .find_open_po_for_demand(
-                    &self.db_pool,
-                    demand.company_id,
-                    demand.supplier_id,
-                    demand.project_id,
-                )
-                .await
-        })
-        .await?;
+        let row = self.repos
+            .purchase_orders
+            .find_open_po_for_demand(
+                &self.db_pool,
+                demand.supplier_id,
+                demand.project_id,
+            )
+            .await?;
         Ok(row.map(|r| PoMergeCandidate {
             id: r.id,
             po_number: r.po_number,

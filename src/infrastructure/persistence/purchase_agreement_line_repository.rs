@@ -13,7 +13,12 @@ use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
+// The multi-row read twin lives only in the legacy `company_scope` module. Its connection
+// discipline is what this repository needs — request-dedicated connection when the composing
+// service bound one, plain pool otherwise. The helper's legacy task-local branch is never
+// taken: this module sets no legacy scope of its own (ADR-0029).
+use backbone_orm::company_scope::fetch_all_rows_scoped;
 
 use crate::domain::entity::PurchaseAgreementLine;
 
@@ -45,7 +50,6 @@ impl PurchaseAgreementLineRepository {
 pub struct NewAgreementLineRow {
     pub id: Uuid,
     pub agreement_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -55,7 +59,6 @@ pub struct NewAgreementLineRow {
 /// and how much of the blanket has already been called off (`qty_ordered`).
 pub struct AgreementLineRow {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -67,8 +70,9 @@ pub struct AgreementLineRow {
 impl PurchaseAgreementLineRepository {
     /// Insert one agreement line.
     ///
-    /// Takes the CALLER'S connection so it commits with its header. The caller has already bound
-    /// the company on it — don't re-bind here.
+    /// Takes the CALLER'S connection so it commits with its header. The caller has already relayed
+    /// the ambient org scope onto it (`relay_ambient_scope`) — don't re-bind here. The module
+    /// carries no tenancy of its own (ADR-0029).
     pub async fn insert_line(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -76,10 +80,10 @@ impl PurchaseAgreementLineRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.purchase_agreement_lines
-                (id, agreement_id, company_id, item_id, quantity, rate, qty_ordered)
-               VALUES ($1,$2,$3,$4,$5,$6,0)"#,
+                (id, agreement_id, item_id, quantity, rate, qty_ordered)
+               VALUES ($1,$2,$3,$4,$5,0)"#,
         )
-        .bind(l.id).bind(l.agreement_id).bind(l.company_id).bind(l.item_id)
+        .bind(l.id).bind(l.agreement_id).bind(l.item_id)
         .bind(l.quantity).bind(l.rate)
         .execute(conn)
         .await?;
@@ -105,16 +109,17 @@ impl PurchaseAgreementLineRepository {
     }
 
     /// Read an agreement's live lines (the call-off price source). Pool-based, ID-only: rides the
-    /// caller's RLS scope.
+    /// request-dedicated connection when the composing service bound one, plainly on the pool
+    /// otherwise (ADR-0029).
     pub async fn fetch_lines(
         &self,
         pool: &PgPool,
         agreement_id: Uuid,
     ) -> Result<Vec<AgreementLineRow>, sqlx::Error> {
-        let rows = company_scope::fetch_all_rows_scoped(
+        let rows = fetch_all_rows_scoped(
             pool,
             sqlx::query(
-                r#"SELECT id, company_id, item_id, quantity, rate, qty_ordered
+                r#"SELECT id, item_id, quantity, rate, qty_ordered
                    FROM buying.purchase_agreement_lines
                    WHERE agreement_id=$1 AND (metadata->>'deleted_at') IS NULL
                    ORDER BY id"#,
@@ -123,7 +128,6 @@ impl PurchaseAgreementLineRepository {
         .await?;
         Ok(rows.iter().map(|r| AgreementLineRow {
             id: r.get("id"),
-            company_id: r.get("company_id"),
             item_id: r.get("item_id"),
             quantity: r.get("quantity"),
             rate: r.get("rate"),
@@ -139,10 +143,10 @@ impl PurchaseAgreementLineRepository {
         pool: &PgPool,
         line_id: Uuid,
     ) -> Result<Option<AgreementLineRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT id, company_id, item_id, quantity, rate, qty_ordered
+                r#"SELECT id, item_id, quantity, rate, qty_ordered
                    FROM buying.purchase_agreement_lines
                    WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(line_id),
@@ -150,7 +154,6 @@ impl PurchaseAgreementLineRepository {
         .await?;
         Ok(row.map(|r| AgreementLineRow {
             id: r.get("id"),
-            company_id: r.get("company_id"),
             item_id: r.get("item_id"),
             quantity: r.get("quantity"),
             rate: r.get("rate"),
@@ -164,7 +167,7 @@ impl PurchaseAgreementLineRepository {
         pool: &PgPool,
         line_id: Uuid,
     ) -> Result<Option<(Uuid, String)>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"SELECT l.agreement_id, a.status::text AS st

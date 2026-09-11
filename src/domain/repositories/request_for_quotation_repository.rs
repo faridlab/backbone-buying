@@ -46,14 +46,13 @@ pub struct RequestForQuotationPaginatedResult {
 pub struct RequestForQuotationFilter {
     pub rfq_number: Option<String>,
     pub material_request_id: Option<Uuid>,
-    pub company_id: Option<Uuid>,
     pub status: Option<PurchaseDocStatus>,
 }
 
 impl RequestForQuotationFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.rfq_number.is_some() || self.material_request_id.is_some() || self.company_id.is_some() || self.status.is_some()
+        self.rfq_number.is_some() || self.material_request_id.is_some() || self.status.is_some()
     }
 }
 

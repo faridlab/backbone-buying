@@ -45,14 +45,13 @@ pub struct PurchaseAgreementLinePaginatedResult {
 #[derive(Debug, Clone, Default)]
 pub struct PurchaseAgreementLineFilter {
     pub agreement_id: Option<Uuid>,
-    pub company_id: Option<Uuid>,
     pub item_id: Option<Uuid>,
 }
 
 impl PurchaseAgreementLineFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.agreement_id.is_some() || self.company_id.is_some() || self.item_id.is_some()
+        self.agreement_id.is_some() || self.item_id.is_some()
     }
 }
 

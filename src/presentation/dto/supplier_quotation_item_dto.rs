@@ -37,9 +37,6 @@ pub struct CreateSupplierQuotationItemDto {
     #[serde(alias = "quotation_id")]
     pub quotation_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
     pub quantity: Decimal,
@@ -64,9 +61,6 @@ pub struct UpdateSupplierQuotationItemDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "quotation_id")]
     pub quotation_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
@@ -93,9 +87,6 @@ pub struct PatchSupplierQuotationItemDto {
     #[serde(skip_serializing_if = "Option::is_none", alias = "quotation_id")]
     pub quotation_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "item_id")]
     pub item_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,7 +100,7 @@ pub struct PatchSupplierQuotationItemDto {
 impl PatchSupplierQuotationItemDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.quotation_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.quantity.is_some() || self.rate.is_some() || self.lead_time_days.is_some()
+        self.quotation_id.is_some() || self.item_id.is_some() || self.quantity.is_some() || self.rate.is_some() || self.lead_time_days.is_some()
     }
 }
 
@@ -129,8 +120,6 @@ pub struct SupplierQuotationItemResponseDto {
     pub id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub quotation_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub item_id: Uuid,
     pub quantity: Decimal,
@@ -194,8 +183,8 @@ impl SupplierQuotationItemListResponseDto {
 pub struct SupplierQuotationItemSummaryDto {
     pub id: Uuid,
     pub quotation_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
+    pub quantity: Decimal,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -208,7 +197,6 @@ impl From<SupplierQuotationItem> for SupplierQuotationItemResponseDto {
         Self {
             id: entity.id,
             quotation_id: entity.quotation_id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
             quantity: entity.quantity,
             rate: entity.rate,
@@ -224,8 +212,8 @@ impl From<SupplierQuotationItem> for SupplierQuotationItemSummaryDto {
         Self {
             id: entity.id,
             quotation_id: entity.quotation_id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
+            quantity: entity.quantity,
             created_at,
         }
     }
@@ -236,7 +224,6 @@ impl From<CreateSupplierQuotationItemDto> for SupplierQuotationItem {
         Self {
             id: Uuid::new_v4(),
             quotation_id: dto.quotation_id,
-            company_id: dto.company_id,
             item_id: dto.item_id,
             quantity: dto.quantity,
             rate: dto.rate,
@@ -251,7 +238,6 @@ impl From<&SupplierQuotationItem> for SupplierQuotationItemResponseDto {
         Self {
             id: entity.id.clone(),
             quotation_id: entity.quotation_id.clone(),
-            company_id: entity.company_id.clone(),
             item_id: entity.item_id.clone(),
             quantity: entity.quantity.clone(),
             rate: entity.rate.clone(),
@@ -270,7 +256,6 @@ impl backbone_core::FromCreateDto<CreateSupplierQuotationItemDto> for SupplierQu
 impl backbone_core::ApplyUpdateDto<UpdateSupplierQuotationItemDto> for SupplierQuotationItem {
     fn apply_update(mut self, dto: UpdateSupplierQuotationItemDto) -> backbone_core::ServiceResult<Self> {
         self.quotation_id = dto.quotation_id;
-        self.company_id = dto.company_id;
         self.item_id = dto.item_id;
         self.quantity = dto.quantity;
         self.rate = dto.rate;

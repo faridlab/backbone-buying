@@ -37,9 +37,6 @@ pub struct CreateMaterialRequestItemDto {
     #[serde(alias = "request_id")]
     pub request_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
     pub quantity: Decimal,
@@ -61,9 +58,6 @@ pub struct UpdateMaterialRequestItemDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "request_id")]
     pub request_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "item_id")]
     pub item_id: Uuid,
@@ -87,9 +81,6 @@ pub struct PatchMaterialRequestItemDto {
     #[serde(skip_serializing_if = "Option::is_none", alias = "request_id")]
     pub request_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "item_id")]
     pub item_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,7 +90,7 @@ pub struct PatchMaterialRequestItemDto {
 impl PatchMaterialRequestItemDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.request_id.is_some() || self.company_id.is_some() || self.item_id.is_some() || self.quantity.is_some()
+        self.request_id.is_some() || self.item_id.is_some() || self.quantity.is_some()
     }
 }
 
@@ -119,8 +110,6 @@ pub struct MaterialRequestItemResponseDto {
     pub id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub request_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub item_id: Uuid,
     pub quantity: Decimal,
@@ -182,8 +171,8 @@ impl MaterialRequestItemListResponseDto {
 pub struct MaterialRequestItemSummaryDto {
     pub id: Uuid,
     pub request_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
+    pub quantity: Decimal,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -196,7 +185,6 @@ impl From<MaterialRequestItem> for MaterialRequestItemResponseDto {
         Self {
             id: entity.id,
             request_id: entity.request_id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
             quantity: entity.quantity,
             metadata: entity.metadata,
@@ -210,8 +198,8 @@ impl From<MaterialRequestItem> for MaterialRequestItemSummaryDto {
         Self {
             id: entity.id,
             request_id: entity.request_id,
-            company_id: entity.company_id,
             item_id: entity.item_id,
+            quantity: entity.quantity,
             created_at,
         }
     }
@@ -222,7 +210,6 @@ impl From<CreateMaterialRequestItemDto> for MaterialRequestItem {
         Self {
             id: Uuid::new_v4(),
             request_id: dto.request_id,
-            company_id: dto.company_id,
             item_id: dto.item_id,
             quantity: dto.quantity,
             metadata: AuditMetadata::default(),
@@ -235,7 +222,6 @@ impl From<&MaterialRequestItem> for MaterialRequestItemResponseDto {
         Self {
             id: entity.id.clone(),
             request_id: entity.request_id.clone(),
-            company_id: entity.company_id.clone(),
             item_id: entity.item_id.clone(),
             quantity: entity.quantity.clone(),
             metadata: entity.metadata.clone(),
@@ -252,7 +238,6 @@ impl backbone_core::FromCreateDto<CreateMaterialRequestItemDto> for MaterialRequ
 impl backbone_core::ApplyUpdateDto<UpdateMaterialRequestItemDto> for MaterialRequestItem {
     fn apply_update(mut self, dto: UpdateMaterialRequestItemDto) -> backbone_core::ServiceResult<Self> {
         self.request_id = dto.request_id;
-        self.company_id = dto.company_id;
         self.item_id = dto.item_id;
         self.quantity = dto.quantity;
         Ok(self)

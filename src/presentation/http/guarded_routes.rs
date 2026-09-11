@@ -75,15 +75,14 @@ struct CreatePoBody {
     po_number: String,
     #[serde(default)] supplier_quotation_id: Option<Uuid>,
     #[serde(default)] order_kind: Option<String>,
-    // No `company_id` / `branch_id`: the tenant is derived from the signed token via
-    // `CompanyContext`, never from the request body — a client must not be able to name the tenant
-    // it writes into.
+    // No tenant anywhere in the body: the module is tenant-agnostic (ADR-0029) — a composing
+    // service's tenancy decorator scopes the write from the authenticated session.
     supplier_id: Uuid,
     order_date: chrono::NaiveDate,
     #[serde(default)] schedule_date: Option<chrono::NaiveDate>,
     #[serde(default)] currency: Option<String>,
-    /// Order-time rate snapshot (company currency per 1 PO-currency unit). Required whenever the
-    /// PO currency differs from the company currency; same-currency POs fix 1.
+    /// Order-time rate snapshot (home currency per 1 PO-currency unit). Required whenever the
+    /// PO currency differs from the home currency; same-currency POs fix 1.
     #[serde(default)] currency_rate: Option<Decimal>,
     /// Project this order buys for (logical FK project.Project.id). Part of the PO grouping key:
     /// demands/orders of different projects never coalesce into one PO.
@@ -99,7 +98,8 @@ async fn create_po(
 ) -> axum::response::Response {
     let o = NewPurchaseOrder {
         po_number: b.po_number, supplier_quotation_id: b.supplier_quotation_id, order_kind: b.order_kind,
-        company_id: tenant.company_id, branch_id: tenant.branch_id, supplier_id: b.supplier_id, order_date: b.order_date,
+        // branch_id is a business column, not the tenancy axis — it still comes off the token.
+        branch_id: tenant.branch_id, supplier_id: b.supplier_id, order_date: b.order_date,
         schedule_date: b.schedule_date, currency: b.currency, currency_rate: b.currency_rate,
         agreement_id: None, project_id: b.project_id, tax_rate: b.tax_rate, notes: b.notes,
         lines: b.lines.into_iter().map(Into::into).collect(),
@@ -163,10 +163,10 @@ async fn delete_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<Ord
 struct ManualReceiptBody { order_id: Uuid, line_id: Uuid, quantity: Decimal }
 async fn set_manual_receipt(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _tenant: CompanyContext,
     Json(b): Json<ManualReceiptBody>,
 ) -> axum::response::Response {
-    match svc.set_manual_line_receipt(b.order_id, tenant.company_id, b.line_id, b.quantity).await {
+    match svc.set_manual_line_receipt(b.order_id, b.line_id, b.quantity).await {
         Ok(()) => ok_id(b.order_id),
         Err(e) => err(e),
     }
@@ -201,12 +201,11 @@ struct CreateAgreementBody {
 }
 async fn create_agreement(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _tenant: CompanyContext,
     Json(b): Json<CreateAgreementBody>,
 ) -> axum::response::Response {
     let a = NewPurchaseAgreement {
         agreement_number: b.agreement_number,
-        company_id: tenant.company_id,
         supplier_id: b.supplier_id,
         currency: b.currency,
         date_start: b.date_start,
@@ -282,7 +281,7 @@ async fn create_call_off(
 ) -> axum::response::Response {
     let o = NewCallOffOrder {
         po_number: b.po_number,
-        company_id: tenant.company_id,
+        // branch_id is a business column, not the tenancy axis — it still comes off the token.
         branch_id: tenant.branch_id,
         agreement_id: b.agreement_id,
         order_date: b.order_date,
@@ -313,13 +312,13 @@ struct BillMatchLineBody { bill_line_ref: String, po_item_id: Uuid, quantity: De
 struct MatchBillsBody { order_id: Uuid, matches: Vec<BillMatchLineBody> }
 async fn match_bills(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _tenant: CompanyContext,
     Json(b): Json<MatchBillsBody>,
 ) -> axum::response::Response {
     let proposals: Vec<BillLineProposal> = b.matches.into_iter()
         .map(|m| BillLineProposal { bill_line_ref: m.bill_line_ref, po_item_id: m.po_item_id, quantity: m.quantity })
         .collect();
-    match svc.match_bill_lines(b.order_id, tenant.company_id, &proposals).await {
+    match svc.match_bill_lines(b.order_id, &proposals).await {
         Ok(()) => ok_id(b.order_id),
         Err(e) => err(e),
     }
@@ -336,14 +335,14 @@ struct CompanySettingsBody {
 fn default_send_reminder() -> bool { true }
 async fn upsert_company_settings(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _tenant: CompanyContext,
     Json(b): Json<CompanySettingsBody>,
 ) -> axum::response::Response {
     match svc.upsert_purchase_company_settings(
-        tenant.company_id, b.double_validation, b.double_validation_amount,
+        b.double_validation, b.double_validation_amount,
         b.company_currency, b.send_reminder,
     ).await {
-        Ok(()) => ok_id(tenant.company_id),
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => err(e),
     }
 }
@@ -358,11 +357,11 @@ struct SupplierSettingsBody {
 fn default_days_before() -> i32 { 1 }
 async fn upsert_supplier_settings(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _tenant: CompanyContext,
     Json(b): Json<SupplierSettingsBody>,
 ) -> axum::response::Response {
     match svc.upsert_supplier_reminder_settings(
-        tenant.company_id, b.supplier_id, b.receipt_reminder_email, b.reminder_days_before,
+        b.supplier_id, b.receipt_reminder_email, b.reminder_days_before,
     ).await {
         Ok(()) => ok_id(b.supplier_id),
         Err(e) => err(e),
@@ -393,8 +392,9 @@ fn write_routes(svc: Arc<BuyingWriteService>, verifier: CompanyVerifier) -> Rout
         .route("/agreements/call-off", post(create_call_off))
         .route("/settings/company", post(upsert_company_settings))
         .route("/settings/supplier-reminder", post(upsert_supplier_settings))
-        // Every write above is tenant-scoped: `company_auth` rejects a request whose token is absent,
-        // invalid, or carries no `company_id`, so a handler only ever runs with a proven tenant.
+        // Every route above demands a signed token: `company_auth` rejects a request whose token
+        // is absent or invalid, so a handler only ever runs for an authenticated caller. What
+        // that caller may SEE is the composing service's tenancy decorator's decision (ADR-0029).
         //
         // `route_layer`, not `layer`: `layer` would also wrap this router's fallback, so once merged
         // every *unmatched* path (e.g. the generic CRUD paths this surface deliberately does not
@@ -404,13 +404,14 @@ fn write_routes(svc: Arc<BuyingWriteService>, verifier: CompanyVerifier) -> Rout
         .with_state(svc)
 }
 
-/// Mount the buying module: read documents + validated, tenant-scoped creates + the lifecycle /
+/// Mount the buying module: read documents + validated creates + the lifecycle /
 /// agreement / matching / settings verbs. Generic mutation is not mounted — supplier prices in
 /// particular have NO route: only the agreement verbs write them. **Prefer this over
 /// `BuyingModule::all_crud_routes()` for any real deployment.**
 ///
 /// The composing service builds one [`CompanyVerifier`] from its JWT secret and passes it here; the
-/// write surface derives `company_id` from the token, so no tenant crosses the wire in a body.
+/// module is tenant-agnostic (ADR-0029), so no tenant crosses the wire in a body — what a caller
+/// may see or touch is the composing service's tenancy decorator's decision.
 pub fn create_guarded_buying_routes(
     m: &BuyingModule,
     pool: PgPool,

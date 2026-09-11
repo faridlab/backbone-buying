@@ -44,7 +44,6 @@ pub struct SupplierReminderSettingPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct SupplierReminderSettingFilter {
-    pub company_id: Option<Uuid>,
     pub supplier_id: Option<Uuid>,
     pub receipt_reminder_email: Option<bool>,
 }
@@ -52,7 +51,7 @@ pub struct SupplierReminderSettingFilter {
 impl SupplierReminderSettingFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.company_id.is_some() || self.supplier_id.is_some() || self.receipt_reminder_email.is_some()
+        self.supplier_id.is_some() || self.receipt_reminder_email.is_some()
     }
 }
 

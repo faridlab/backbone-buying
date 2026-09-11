@@ -33,11 +33,6 @@ models:
         attributes: ["@id", "@default(uuid)"]
         description: "Unique supplier-price row identifier"
 
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id — STRICT-fenced"
-
       supplier_id:
         type: uuid
         attributes: ["@required", "@exclude_from_foreign_key_check"]
@@ -74,9 +69,9 @@ models:
         description: "Audit metadata"
 
     indexes:
-      - type: unique
-        fields: [company_id, supplier_id, item_id, agreement_line_id]
-        where: "deleted_at IS NULL"
-        description: "One price row per company+supplier+item+agreement-line"
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The former
+      # company-leading price unique is re-declared org-scoped by the composing
+      # service's tenancy decorator; the agreement verbs remain the only writer,
+      # keyed on the agreement line (one live price row per line).
       - type: index
         fields: [agreement_id]

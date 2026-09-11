@@ -68,6 +68,15 @@ user_owned:
   - "migrations/20260827100200_purchase_agreements.*"
   # Project anchoring on purchase orders: nullable logical FK + the grouping-domain index.
   - "migrations/20260829120000_po_project_id.*"
+  # Tenancy strip: drops the module's own company scoping (columns, company-leading
+  # indexes/uniques, RLS policies). Org scoping installs at composition time via the
+  # composing service's tenancy decorator (ADR-0029) — the module ships none of it.
+  - "migrations/20260911120000_strip_tenancy.*"
+  # Undecorated-posture probe: pins that the module schema carries zero tenancy of its
+  # own — no org_unit_id columns, no RLS policies, flags still armed for the decorator,
+  # and ambient org scope relaying onto service transactions when a composing service
+  # binds one.
+  - "tests/tenancy_posture_probe.rs"
   # Hand-authored behavior (services + their HTTP surface). Examples:
   # - "src/application/service/onboarding_service.rs"
   # - "src/presentation/http/guarded_routes.rs"

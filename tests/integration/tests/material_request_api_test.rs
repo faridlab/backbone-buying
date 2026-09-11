@@ -25,7 +25,6 @@ impl TestDataGenerator for MaterialRequestTestData {
         json!({
             "id": Uuid::new_v4().to_string(),
             "request_number": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
-            "company_id": Uuid::new_v4().to_string(),
             "request_type": "purchase",
             "status": "draft",
             "request_date": Utc::now().format("%Y-%m-%d").to_string(),
@@ -40,7 +39,6 @@ impl TestDataGenerator for MaterialRequestTestData {
         json!({
             "id": id,
             "request_number": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
-            "company_id": Uuid::new_v4().to_string(),
             "request_type": "purchase",
             "status": "draft",
             "request_date": Utc::now().format("%Y-%m-%d").to_string(),

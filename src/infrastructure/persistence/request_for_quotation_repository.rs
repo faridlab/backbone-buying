@@ -12,7 +12,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::RequestForQuotation;
 
@@ -46,13 +46,11 @@ pub struct NewRfqRow<'a> {
     pub id: Uuid,
     pub rfq_number: &'a str,
     pub material_request_id: Uuid,
-    pub company_id: Uuid,
     pub response_due: Option<chrono::NaiveDate>,
 }
 
 /// An RFQ's convertibility state, as read by the RFQ→SupplierQuotation funnel step.
 pub struct RfqSourceRow {
-    pub company_id: Uuid,
     pub status: String,
 }
 
@@ -62,8 +60,9 @@ impl RequestForQuotationRepository {
     /// Insert an RFQ header as `submitted`, dated today.
     ///
     /// Takes the CALLER'S connection so the header, its lines, its invited suppliers and the source
-    /// MR's status flip all commit as one unit. The caller has already bound the company on it
-    /// (`bind_company_on`) — don't re-bind here.
+    /// MR's status flip all commit as one unit. The caller has already relayed the ambient org
+    /// scope onto it (`relay_ambient_scope`) — don't re-bind here. The module carries no tenancy
+    /// of its own (ADR-0029).
     ///
     /// Returns the raw `sqlx::Error` deliberately: the caller inspects it for a unique violation to
     /// turn a duplicate RFQ number into a domain error.
@@ -74,33 +73,32 @@ impl RequestForQuotationRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.request_for_quotations
-                (id, rfq_number, material_request_id, company_id, status, rfq_date, response_due)
-               VALUES ($1,$2,$3,$4,'submitted'::purchase_doc_status,CURRENT_DATE,$5)"#,
+                (id, rfq_number, material_request_id, status, rfq_date, response_due)
+               VALUES ($1,$2,$3,'submitted'::purchase_doc_status,CURRENT_DATE,$4)"#,
         )
-        .bind(r.id).bind(r.rfq_number).bind(r.material_request_id).bind(r.company_id)
+        .bind(r.id).bind(r.rfq_number).bind(r.material_request_id)
         .bind(r.response_due)
         .execute(conn)
         .await?;
         Ok(())
     }
 
-    /// Read an RFQ's company + status for the RFQ→SupplierQuotation conversion. `Ok(None)` = not
-    /// found. ID-only + scoped read — see [`super::MaterialRequestRepository::fetch_source`].
+    /// Read an RFQ's status for the RFQ→SupplierQuotation conversion. `Ok(None)` = not found.
+    /// ID-only + scoped read — see [`super::MaterialRequestRepository::fetch_source`].
     pub async fn fetch_source(
         &self,
         pool: &PgPool,
         rfq_id: Uuid,
     ) -> Result<Option<RfqSourceRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT company_id, status::text AS st FROM buying.request_for_quotations
+                r#"SELECT status::text AS st FROM buying.request_for_quotations
                    WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             ).bind(rfq_id),
         )
         .await?;
         Ok(row.map(|r| RfqSourceRow {
-            company_id: r.get("company_id"),
             status: r.get("st"),
         }))
     }

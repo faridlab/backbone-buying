@@ -12,7 +12,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::SupplierReminderSetting;
 
@@ -46,7 +46,9 @@ pub struct SupplierReminderRow {
     pub reminder_days_before: i32,
 }
 
-/// The fields a supplier-reminder upsert may set. `company_id` rides the RLS scope.
+/// The fields a supplier-reminder upsert may set. The row carries no tenant axis (ADR-0029) —
+/// the composing service's tenancy decorator re-declares the one-row-per-supplier unique
+/// org-scoped.
 pub struct SupplierReminderUpsert {
     pub supplier_id: Uuid,
     pub receipt_reminder_email: bool,
@@ -57,16 +59,17 @@ pub struct SupplierReminderUpsert {
 /// 4-layer rule: services orchestrate and own the unit of work, repositories hold the SQL.
 impl SupplierReminderSettingRepository {
     /// Read one supplier's reminder settings. `Ok(None)` = not configured → the job's enabled
-    /// defaults (remind, 1 day before) apply; the COMPANY-level `send_reminder=false` is the only
+    /// defaults (remind, 1 day before) apply; the settings-level `send_reminder=false` is the only
     /// off-switch (G7).
     ///
-    /// ID-only: the read rides the connection carrying the caller's `app.company_id`.
+    /// Rides the request-dedicated connection when the composing service bound one (carrying the
+    /// decorator's fence variables), plainly on the pool otherwise (ADR-0029).
     pub async fn fetch_for_supplier(
         &self,
         pool: &PgPool,
         supplier_id: Uuid,
     ) -> Result<Option<SupplierReminderRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"SELECT supplier_id, receipt_reminder_email, reminder_days_before
@@ -82,26 +85,37 @@ impl SupplierReminderSettingRepository {
         }))
     }
 
-    /// Insert-or-update one supplier's reminder settings (one row per company+supplier). Company
-    /// comes from the RLS scope the caller established — never from the row.
+    /// Insert-or-update one supplier's reminder settings: the supplier's live row is updated when
+    /// present, a fresh row inserted otherwise (no module-side unique backs the one-row-per-
+    /// supplier shape — the composing service's tenancy decorator re-declares it org-scoped;
+    /// ADR-0029).
     pub async fn upsert_for_supplier(
         &self,
         pool: &PgPool,
         s: &SupplierReminderUpsert,
-        company_id: Uuid,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
+        org_scope::execute_scoped(
             pool,
             sqlx::query(
-                r#"INSERT INTO buying.supplier_reminder_settings
-                       (id, company_id, supplier_id, receipt_reminder_email, reminder_days_before)
-                   VALUES ($1,$2,$3,$4,$5)
-                   ON CONFLICT (company_id, supplier_id) WHERE (metadata->>'deleted_at') IS NULL DO UPDATE SET
-                       receipt_reminder_email = EXCLUDED.receipt_reminder_email,
-                       reminder_days_before = EXCLUDED.reminder_days_before"#,
+                r#"WITH live AS (
+                       SELECT id FROM buying.supplier_reminder_settings
+                        WHERE supplier_id = $2
+                          AND (metadata->>'deleted_at') IS NULL
+                        ORDER BY (metadata->>'created_at') ASC
+                        LIMIT 1
+                   ), upd AS (
+                       UPDATE buying.supplier_reminder_settings st
+                          SET receipt_reminder_email = $3,
+                              reminder_days_before = $4
+                         FROM live WHERE st.id = live.id
+                       RETURNING st.id
+                   )
+                   INSERT INTO buying.supplier_reminder_settings
+                       (id, supplier_id, receipt_reminder_email, reminder_days_before)
+                   SELECT $1, $2, $3, $4
+                    WHERE NOT EXISTS (SELECT 1 FROM upd)"#,
             )
             .bind(Uuid::new_v4())
-            .bind(company_id)
             .bind(s.supplier_id)
             .bind(s.receipt_reminder_email)
             .bind(s.reminder_days_before),

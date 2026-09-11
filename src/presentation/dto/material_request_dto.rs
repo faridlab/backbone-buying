@@ -38,9 +38,6 @@ pub struct CreateMaterialRequestDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "request_number")]
     pub request_number: String,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[serde(alias = "request_type")]
     pub request_type: MaterialRequestType,
     pub status: PurchaseDocStatus,
@@ -71,9 +68,6 @@ pub struct UpdateMaterialRequestDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "request_number")]
     pub request_number: String,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[serde(alias = "request_type")]
     pub request_type: MaterialRequestType,
     pub status: PurchaseDocStatus,
@@ -104,9 +98,6 @@ pub struct PatchMaterialRequestDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "request_number")]
     pub request_number: Option<String>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "request_type")]
     pub request_type: Option<MaterialRequestType>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -124,7 +115,7 @@ pub struct PatchMaterialRequestDto {
 impl PatchMaterialRequestDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.request_number.is_some() || self.company_id.is_some() || self.request_type.is_some() || self.status.is_some() || self.request_date.is_some() || self.schedule_date.is_some() || self.notes.is_some()
+        self.request_number.is_some() || self.request_type.is_some() || self.status.is_some() || self.request_date.is_some() || self.schedule_date.is_some() || self.notes.is_some()
     }
 }
 
@@ -144,8 +135,6 @@ pub struct MaterialRequestResponseDto {
     pub id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub request_number: String,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     pub request_type: MaterialRequestType,
     pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
@@ -210,8 +199,8 @@ impl MaterialRequestListResponseDto {
 pub struct MaterialRequestSummaryDto {
     pub id: Uuid,
     pub request_number: String,
-    pub company_id: Uuid,
     pub request_type: MaterialRequestType,
+    pub status: PurchaseDocStatus,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -224,7 +213,6 @@ impl From<MaterialRequest> for MaterialRequestResponseDto {
         Self {
             id: entity.id,
             request_number: entity.request_number,
-            company_id: entity.company_id,
             request_type: entity.request_type,
             status: entity.status,
             request_date: entity.request_date,
@@ -241,8 +229,8 @@ impl From<MaterialRequest> for MaterialRequestSummaryDto {
         Self {
             id: entity.id,
             request_number: entity.request_number,
-            company_id: entity.company_id,
             request_type: entity.request_type,
+            status: entity.status,
             created_at,
         }
     }
@@ -253,7 +241,6 @@ impl From<CreateMaterialRequestDto> for MaterialRequest {
         Self {
             id: Uuid::new_v4(),
             request_number: dto.request_number,
-            company_id: dto.company_id,
             request_type: dto.request_type,
             status: dto.status,
             request_date: dto.request_date,
@@ -269,7 +256,6 @@ impl From<&MaterialRequest> for MaterialRequestResponseDto {
         Self {
             id: entity.id.clone(),
             request_number: entity.request_number.clone(),
-            company_id: entity.company_id.clone(),
             request_type: entity.request_type.clone(),
             status: entity.status.clone(),
             request_date: entity.request_date.clone(),
@@ -289,7 +275,6 @@ impl backbone_core::FromCreateDto<CreateMaterialRequestDto> for MaterialRequest 
 impl backbone_core::ApplyUpdateDto<UpdateMaterialRequestDto> for MaterialRequest {
     fn apply_update(mut self, dto: UpdateMaterialRequestDto) -> backbone_core::ServiceResult<Self> {
         self.request_number = dto.request_number;
-        self.company_id = dto.company_id;
         self.request_type = dto.request_type;
         self.status = dto.status;
         self.request_date = dto.request_date;

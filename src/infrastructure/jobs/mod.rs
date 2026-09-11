@@ -5,6 +5,4 @@
 
 pub mod send_receipt_reminder;
 
-pub use send_receipt_reminder::{
-    send_receipt_reminder, send_receipt_reminder_for_companies, ReminderReport,
-};
+pub use send_receipt_reminder::{send_receipt_reminder, ReminderReport};

@@ -12,7 +12,7 @@ use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::domain::entity::PurchaseCompanySetting;
 
@@ -39,19 +39,21 @@ impl PurchaseCompanySettingRepository {
     }
 }
 
-/// The company's purchase settings, as the write paths read them. `Ok(None)` from
-/// [`PurchaseCompanySettingRepository::fetch_settings`] = the company never configured the row;
+/// The purchase settings, as the write paths read them. `Ok(None)` from
+/// [`PurchaseCompanySettingRepository::fetch_settings`] = settings were never configured;
 /// callers apply the schema defaults (one_step, 5000, IDR, reminders on) in that case.
 pub struct CompanyPurchaseSettingsRow {
     pub double_validation: String,
-    /// Denominated in the COMPANY currency — the double-validation gate converts the PO total INTO
-    /// company currency (via the order-time `currency_rate` snapshot) before comparing.
+    /// Denominated in the home currency — the double-validation gate converts the PO total INTO
+    /// home currency (via the order-time `currency_rate` snapshot) before comparing.
     pub double_validation_amount: Decimal,
     pub company_currency: String,
     pub send_reminder: bool,
 }
 
-/// The fields a settings upsert may set. `company_id` rides the RLS scope, not the row.
+/// The fields a settings upsert may set. The row carries no tenant axis (ADR-0029) — the
+/// composing service's tenancy decorator re-declares the one-live-row-per-scope unique
+/// org-scoped.
 pub struct SettingsUpsert<'a> {
     pub double_validation: &'a str,
     pub double_validation_amount: Decimal,
@@ -62,15 +64,16 @@ pub struct SettingsUpsert<'a> {
 /// Hand-written PurchaseCompanySetting SQL. Lives here (not in the write service) per the module's
 /// 4-layer rule: services orchestrate and own the unit of work, repositories hold the SQL.
 impl PurchaseCompanySettingRepository {
-    /// Read the caller's company settings row. `Ok(None)` = not configured (defaults apply).
+    /// Read the settings row. `Ok(None)` = not configured (defaults apply).
     ///
-    /// ID-only: no company argument — the read rides the connection carrying the caller's
-    /// `app.company_id` (request-dedicated under HTTP, or the scope a job/event caller established).
+    /// The table is a plain settings table module-side (ADR-0029) — under a composed tenancy
+    /// decorator the read rides the request-dedicated connection carrying the fence variables,
+    /// so the row seen is the caller's own scope's; plainly on the pool otherwise.
     pub async fn fetch_settings(
         &self,
         pool: &PgPool,
     ) -> Result<Option<CompanyPurchaseSettingsRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"SELECT double_validation::text AS dv, double_validation_amount,
@@ -88,30 +91,38 @@ impl PurchaseCompanySettingRepository {
         }))
     }
 
-    /// Insert-or-update the caller's company settings row (one row per company). Company comes from
-    /// the RLS scope the caller established — never from the row — so an upsert can only ever touch
-    /// the caller's own company.
+    /// Insert-or-update the one live settings row: the existing live row is updated when present,
+    /// a fresh row inserted otherwise (no module-side unique backs the singleton — the composing
+    /// service's tenancy decorator re-declares it org-scoped; ADR-0029).
     pub async fn upsert_settings(
         &self,
         pool: &PgPool,
         s: &SettingsUpsert<'_>,
-        company_id: Uuid,
     ) -> Result<(), sqlx::Error> {
-        company_scope::execute_scoped(
+        org_scope::execute_scoped(
             pool,
             sqlx::query(
-                r#"INSERT INTO buying.purchase_company_settings
-                       (id, company_id, double_validation, double_validation_amount,
+                r#"WITH live AS (
+                       SELECT id FROM buying.purchase_company_settings
+                        WHERE (metadata->>'deleted_at') IS NULL
+                        ORDER BY (metadata->>'created_at') ASC
+                        LIMIT 1
+                   ), upd AS (
+                       UPDATE buying.purchase_company_settings st
+                          SET double_validation = $2::double_validation,
+                              double_validation_amount = $3,
+                              company_currency = $4,
+                              send_reminder = $5
+                         FROM live WHERE st.id = live.id
+                       RETURNING st.id
+                   )
+                   INSERT INTO buying.purchase_company_settings
+                       (id, double_validation, double_validation_amount,
                         company_currency, send_reminder)
-                   VALUES ($1,$2,$3::double_validation,$4,$5,$6)
-                   ON CONFLICT (company_id) WHERE (metadata->>'deleted_at') IS NULL DO UPDATE SET
-                       double_validation = EXCLUDED.double_validation,
-                       double_validation_amount = EXCLUDED.double_validation_amount,
-                       company_currency = EXCLUDED.company_currency,
-                       send_reminder = EXCLUDED.send_reminder"#,
+                   SELECT $1, $2::double_validation, $3, $4, $5
+                    WHERE NOT EXISTS (SELECT 1 FROM upd)"#,
             )
             .bind(Uuid::new_v4())
-            .bind(company_id)
             .bind(s.double_validation)
             .bind(s.double_validation_amount)
             .bind(s.company_currency)

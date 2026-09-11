@@ -24,7 +24,6 @@ impl TestDataGenerator for PurchaseCompanySettingTestData {
         let now = Utc::now().to_rfc3339();
         json!({
             "id": Uuid::new_v4().to_string(),
-            "company_id": Uuid::new_v4().to_string(),
             "double_validation": "one_step",
             "double_validation_amount": 0,
             "company_currency": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
@@ -37,7 +36,6 @@ impl TestDataGenerator for PurchaseCompanySettingTestData {
         let now = Utc::now().to_rfc3339();
         json!({
             "id": id,
-            "company_id": Uuid::new_v4().to_string(),
             "double_validation": "one_step",
             "double_validation_amount": 0,
             "company_currency": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),

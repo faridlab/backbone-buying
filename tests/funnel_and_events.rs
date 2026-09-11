@@ -41,11 +41,11 @@ async fn conversion_funnel_mr_to_po() {
     let pool = pool().await;
     let rec = Rec::default();
     let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
-    let (company, item_a, item_b, supplier) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let (item_a, item_b, supplier) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
 
     // MR with two lines.
     let mr = w.create_material_request(NewMaterialRequest {
-        request_number: uq("MR"), company_id: company, request_type: None, request_date: day(),
+        request_number: uq("MR"), request_type: None, request_date: day(),
         schedule_date: None, notes: None,
         lines: vec![SimpleLine { item_id: item_a, quantity: d("10") }, SimpleLine { item_id: item_b, quantity: d("4") }],
     }).await.unwrap();
@@ -105,16 +105,16 @@ async fn variance_broadcasts_three_way_match_failed() {
     let pool = pool().await;
     let rec = Rec::default();
     let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let item = Uuid::new_v4();
     let po = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
     w.confirm_purchase_order(po, false).await.unwrap();
     // over-receipt → rejected AND broadcast.
-    assert!(w.mark_received(po, company, &[(item, d("12"))]).await.is_err());
+    assert!(w.mark_received(po, &[(item, d("12"))]).await.is_err());
     assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_receipt")));
 }
 
@@ -124,17 +124,17 @@ async fn completion_milestones_emitted() {
     let pool = pool().await;
     let rec = Rec::default();
     let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let item = Uuid::new_v4();
     let po = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
     w.confirm_purchase_order(po, false).await.unwrap();
-    w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(po, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyReceived(_))), "fully received milestone");
-    w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(po, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyBilled(_))), "fully billed milestone");
     // Received milestone fired exactly once (not re-emitted on the billing recompute).
     let n_recv = rec.events.lock().unwrap().iter().filter(|e| matches!(e, BuyingEvent::PurchaseOrderFullyReceived(_))).count();
@@ -152,22 +152,22 @@ async fn duplicate_mark_billed_is_contained_not_doubled() {
     let pool = pool().await;
     let rec = Rec::default();
     let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let item = Uuid::new_v4();
     let po = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
     w.confirm_purchase_order(po, false).await.unwrap();
-    w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(po, &[(item, d("10"))]).await.unwrap();
 
     // First bill applies fully + emits the FullyBilled milestone.
-    w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(po, &[(item, d("10"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseOrderFullyBilled(_))), "first bill → fully billed");
 
     // The duplicate is REJECTED — allocate sees no remaining capacity (received 10 − billed 10 = 0).
-    let err = w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap_err();
+    let err = w.mark_billed(po, &[(item, d("10"))]).await.unwrap_err();
     assert!(matches!(err, BuyingError::OverBilling { .. }), "duplicate bill rejected as OverBilling, got {err:?}");
     assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_billing")),
         "duplicate bill broadcasts ThreeWayMatchFailed{{over_billing}}");
@@ -186,27 +186,27 @@ async fn reverse_events_emitted() {
     let pool = pool().await;
     let rec = Rec::default();
     let w = BuyingWriteService::with_sink(pool.clone(), Arc::new(rec.clone()));
-    let (company, item) = (Uuid::new_v4(), Uuid::new_v4());
+    let item = Uuid::new_v4();
     let po = w.create_purchase_order(NewPurchaseOrder {
-        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None, company_id: company,
+        po_number: uq("PO"), supplier_quotation_id: None, order_kind: None,
         branch_id: None, supplier_id: Uuid::new_v4(), order_date: day(), schedule_date: None,
         currency: None, currency_rate: None, agreement_id: None, project_id: None, tax_rate: Decimal::ZERO, notes: None,
         lines: vec![NewLine { item_id: item, warehouse_id: None, description: None, quantity: d("10"), rate: d("100"), qty_received_method: None, purchase_method: None }],
     }).await.unwrap();
     w.confirm_purchase_order(po, false).await.unwrap();
-    w.mark_received(po, company, &[(item, d("10"))]).await.unwrap();
-    w.mark_billed(po, company, &[(item, d("10"))]).await.unwrap();
+    w.mark_received(po, &[(item, d("10"))]).await.unwrap();
+    w.mark_billed(po, &[(item, d("10"))]).await.unwrap();
 
     // A credit note for 3 of the 10 billed emits CreditNoted.
-    w.mark_credited(po, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_credited(po, &[(item, d("3"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::CreditNoted(_))), "credit note emits CreditNoted");
 
     // The credit freed 3 of the received goods; returning them emits PurchaseReturned.
-    w.mark_returned(po, company, &[(item, d("3"))]).await.unwrap();
+    w.mark_returned(po, &[(item, d("3"))]).await.unwrap();
     assert!(rec.has(|e| matches!(e, BuyingEvent::PurchaseReturned(_))), "purchase return emits PurchaseReturned");
 
     // Now received_qty == billed_qty == 7 → returnable portion is 0; a further return broadcasts over_return.
-    assert!(w.mark_returned(po, company, &[(item, d("1"))]).await.is_err());
+    assert!(w.mark_returned(po, &[(item, d("1"))]).await.is_err());
     assert!(rec.has(|e| matches!(e, BuyingEvent::ThreeWayMatchFailed(f) if f.kind == "over_return")),
         "over-return broadcasts ThreeWayMatchFailed{{over_return}}");
 }

@@ -50,7 +50,6 @@ impl std::ops::Deref for PurchaseAgreementLineId {
 pub struct PurchaseAgreementLine {
     pub id: Uuid,
     pub agreement_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
@@ -67,11 +66,10 @@ impl PurchaseAgreementLine {
     }
 
     /// Create a new PurchaseAgreementLine with required fields
-    pub fn new(agreement_id: Uuid, company_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal, qty_ordered: Decimal) -> Self {
+    pub fn new(agreement_id: Uuid, item_id: Uuid, quantity: Decimal, rate: Decimal, qty_ordered: Decimal) -> Self {
         Self {
             id: Uuid::new_v4(),
             agreement_id,
-            company_id,
             item_id,
             quantity,
             rate,
@@ -142,9 +140,6 @@ impl PurchaseAgreementLine {
                 "agreement_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.agreement_id = v; }
                 }
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "item_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.item_id = v; }
                 }
@@ -212,15 +207,11 @@ impl backbone_orm::EntityRepoMeta for PurchaseAgreementLine {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("agreement_id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("item_id".to_string(), "uuid".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &[]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
     fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
         &[("agreement", "purchase_agreements", "agreementId")]
@@ -234,7 +225,6 @@ impl backbone_orm::EntityRepoMeta for PurchaseAgreementLine {
 #[derive(Debug, Clone, Default)]
 pub struct PurchaseAgreementLineBuilder {
     agreement_id: Option<Uuid>,
-    company_id: Option<Uuid>,
     item_id: Option<Uuid>,
     quantity: Option<Decimal>,
     rate: Option<Decimal>,
@@ -245,12 +235,6 @@ impl PurchaseAgreementLineBuilder {
     /// Set the agreement_id field (required)
     pub fn agreement_id(mut self, value: Uuid) -> Self {
         self.agreement_id = Some(value);
-        self
-    }
-
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
         self
     }
 
@@ -283,7 +267,6 @@ impl PurchaseAgreementLineBuilder {
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<PurchaseAgreementLine, String> {
         let agreement_id = self.agreement_id.ok_or_else(|| "agreement_id is required".to_string())?;
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let item_id = self.item_id.ok_or_else(|| "item_id is required".to_string())?;
         let quantity = self.quantity.ok_or_else(|| "quantity is required".to_string())?;
         let rate = self.rate.ok_or_else(|| "rate is required".to_string())?;
@@ -291,7 +274,6 @@ impl PurchaseAgreementLineBuilder {
         Ok(PurchaseAgreementLine {
             id: Uuid::new_v4(),
             agreement_id,
-            company_id,
             item_id,
             quantity,
             rate,

@@ -36,9 +36,6 @@ pub struct CreateRfqSupplierDto {
     #[serde(alias = "rfq_id")]
     pub rfq_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
 }
@@ -59,9 +56,6 @@ pub struct UpdateRfqSupplierDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "rfq_id")]
     pub rfq_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
@@ -84,9 +78,6 @@ pub struct PatchRfqSupplierDto {
     #[serde(skip_serializing_if = "Option::is_none", alias = "rfq_id")]
     pub rfq_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_id")]
     pub supplier_id: Option<Uuid>,
 }
@@ -94,7 +85,7 @@ pub struct PatchRfqSupplierDto {
 impl PatchRfqSupplierDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.rfq_id.is_some() || self.company_id.is_some() || self.supplier_id.is_some()
+        self.rfq_id.is_some() || self.supplier_id.is_some()
     }
 }
 
@@ -114,8 +105,6 @@ pub struct RfqSupplierResponseDto {
     pub id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub rfq_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub supplier_id: Uuid,
     pub metadata: AuditMetadata,
@@ -176,7 +165,6 @@ impl RfqSupplierListResponseDto {
 pub struct RfqSupplierSummaryDto {
     pub id: Uuid,
     pub rfq_id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub created_at: Option<DateTime<Utc>>,
 }
@@ -190,7 +178,6 @@ impl From<RfqSupplier> for RfqSupplierResponseDto {
         Self {
             id: entity.id,
             rfq_id: entity.rfq_id,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             metadata: entity.metadata,
         }
@@ -203,7 +190,6 @@ impl From<RfqSupplier> for RfqSupplierSummaryDto {
         Self {
             id: entity.id,
             rfq_id: entity.rfq_id,
-            company_id: entity.company_id,
             supplier_id: entity.supplier_id,
             created_at,
         }
@@ -215,7 +201,6 @@ impl From<CreateRfqSupplierDto> for RfqSupplier {
         Self {
             id: Uuid::new_v4(),
             rfq_id: dto.rfq_id,
-            company_id: dto.company_id,
             supplier_id: dto.supplier_id,
             metadata: AuditMetadata::default(),
         }
@@ -227,7 +212,6 @@ impl From<&RfqSupplier> for RfqSupplierResponseDto {
         Self {
             id: entity.id.clone(),
             rfq_id: entity.rfq_id.clone(),
-            company_id: entity.company_id.clone(),
             supplier_id: entity.supplier_id.clone(),
             metadata: entity.metadata.clone(),
         }
@@ -243,7 +227,6 @@ impl backbone_core::FromCreateDto<CreateRfqSupplierDto> for RfqSupplier {
 impl backbone_core::ApplyUpdateDto<UpdateRfqSupplierDto> for RfqSupplier {
     fn apply_update(mut self, dto: UpdateRfqSupplierDto) -> backbone_core::ServiceResult<Self> {
         self.rfq_id = dto.rfq_id;
-        self.company_id = dto.company_id;
         self.supplier_id = dto.supplier_id;
         Ok(self)
     }

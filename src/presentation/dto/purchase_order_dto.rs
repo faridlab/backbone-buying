@@ -45,9 +45,6 @@ pub struct CreatePurchaseOrderDto {
     pub supplier_quotation_id: Option<Uuid>,
     #[serde(alias = "order_kind")]
     pub order_kind: OrderKind,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "branch_id")]
     pub branch_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -106,9 +103,6 @@ pub struct UpdatePurchaseOrderDto {
     pub supplier_quotation_id: Option<Uuid>,
     #[serde(alias = "order_kind")]
     pub order_kind: OrderKind,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "branch_id")]
     pub branch_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -167,9 +161,6 @@ pub struct PatchPurchaseOrderDto {
     pub supplier_quotation_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "order_kind")]
     pub order_kind: Option<OrderKind>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "branch_id")]
     pub branch_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
@@ -216,7 +207,7 @@ pub struct PatchPurchaseOrderDto {
 impl PatchPurchaseOrderDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.company_id.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.order_date.is_some() || self.schedule_date.is_some() || self.currency.is_some() || self.currency_rate.is_some() || self.acknowledged.is_some() || self.locked.is_some() || self.date_approve.is_some() || self.agreement_id.is_some() || self.project_id.is_some() || self.subtotal.is_some() || self.tax_rate.is_some() || self.tax_amount.is_some() || self.total.is_some() || self.notes.is_some()
+        self.po_number.is_some() || self.supplier_quotation_id.is_some() || self.order_kind.is_some() || self.branch_id.is_some() || self.supplier_id.is_some() || self.status.is_some() || self.order_date.is_some() || self.schedule_date.is_some() || self.currency.is_some() || self.currency_rate.is_some() || self.acknowledged.is_some() || self.locked.is_some() || self.date_approve.is_some() || self.agreement_id.is_some() || self.project_id.is_some() || self.subtotal.is_some() || self.tax_rate.is_some() || self.tax_amount.is_some() || self.total.is_some() || self.notes.is_some()
     }
 }
 
@@ -238,8 +229,6 @@ pub struct PurchaseOrderResponseDto {
     pub po_number: String,
     pub supplier_quotation_id: Option<Uuid>,
     pub order_kind: OrderKind,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub supplier_id: Uuid,
@@ -338,7 +327,6 @@ impl From<PurchaseOrder> for PurchaseOrderResponseDto {
             po_number: entity.po_number,
             supplier_quotation_id: entity.supplier_quotation_id,
             order_kind: entity.order_kind,
-            company_id: entity.company_id,
             branch_id: entity.branch_id,
             supplier_id: entity.supplier_id,
             status: entity.status,
@@ -383,7 +371,6 @@ impl From<CreatePurchaseOrderDto> for PurchaseOrder {
             po_number: dto.po_number,
             supplier_quotation_id: dto.supplier_quotation_id,
             order_kind: dto.order_kind,
-            company_id: dto.company_id,
             branch_id: dto.branch_id,
             supplier_id: dto.supplier_id,
             status: dto.status,
@@ -415,7 +402,6 @@ impl From<&PurchaseOrder> for PurchaseOrderResponseDto {
             po_number: entity.po_number.clone(),
             supplier_quotation_id: entity.supplier_quotation_id.clone(),
             order_kind: entity.order_kind.clone(),
-            company_id: entity.company_id.clone(),
             branch_id: entity.branch_id.clone(),
             supplier_id: entity.supplier_id.clone(),
             status: entity.status.clone(),
@@ -451,7 +437,6 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseOrderDto> for PurchaseOrder {
         self.po_number = dto.po_number;
         self.supplier_quotation_id = dto.supplier_quotation_id;
         self.order_kind = dto.order_kind;
-        self.company_id = dto.company_id;
         self.branch_id = dto.branch_id;
         self.supplier_id = dto.supplier_id;
         self.status = dto.status;

@@ -4804,7 +4804,6 @@ components:
       required:
         - id
         - request_number
-        - company_id
         - request_type
         - status
         - request_date
@@ -4816,9 +4815,6 @@ components:
         request_number:
           type: string
           maxLength: 40
-        company_id:
-          type: string
-          format: uuid
         request_type:
           type: string
         status:
@@ -4854,7 +4850,6 @@ components:
       type: object
       required:
         - request_number
-        - company_id
         - request_type
         - status
         - request_date
@@ -4863,9 +4858,6 @@ components:
         request_number:
           type: string
           maxLength: 40
-        company_id:
-          type: string
-          format: uuid
         request_type:
           type: string
         status:
@@ -4888,7 +4880,6 @@ components:
       type: object
       required:
         - request_number
-        - company_id
         - request_type
         - status
         - request_date
@@ -4897,9 +4888,6 @@ components:
         request_number:
           type: string
           maxLength: 40
-        company_id:
-          type: string
-          format: uuid
         request_type:
           type: string
         status:
@@ -4924,9 +4912,6 @@ components:
         request_number:
           type: string
           maxLength: 40
-        company_id:
-          type: string
-          format: uuid
         request_type:
           type: string
         status:
@@ -4960,7 +4945,6 @@ components:
       required:
         - id
         - request_id
-        - company_id
         - item_id
         - quantity
         - metadata
@@ -4969,9 +4953,6 @@ components:
           type: string
           format: uuid
         request_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -4999,15 +4980,11 @@ components:
       type: object
       required:
         - request_id
-        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         request_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5022,15 +4999,11 @@ components:
       type: object
       required:
         - request_id
-        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         request_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5045,9 +5018,6 @@ components:
       type: object
       properties:
         request_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5075,7 +5045,6 @@ components:
         - agreement_number
         - agreement_kind
         - status
-        - company_id
         - supplier_id
         - currency
         - metadata
@@ -5090,9 +5059,6 @@ components:
           type: string
         status:
           type: string
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid
@@ -5133,7 +5099,6 @@ components:
         - agreement_number
         - agreement_kind
         - status
-        - company_id
         - supplier_id
         - currency
         - metadata
@@ -5145,9 +5110,6 @@ components:
           type: string
         status:
           type: string
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid
@@ -5175,7 +5137,6 @@ components:
         - agreement_number
         - agreement_kind
         - status
-        - company_id
         - supplier_id
         - currency
         - metadata
@@ -5187,9 +5148,6 @@ components:
           type: string
         status:
           type: string
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid
@@ -5221,9 +5179,6 @@ components:
           type: string
         status:
           type: string
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid
@@ -5260,7 +5215,6 @@ components:
       required:
         - id
         - agreement_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -5271,9 +5225,6 @@ components:
           type: string
           format: uuid
         agreement_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5305,7 +5256,6 @@ components:
       type: object
       required:
         - agreement_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -5313,9 +5263,6 @@ components:
         - metadata
       properties:
         agreement_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5334,7 +5281,6 @@ components:
       type: object
       required:
         - agreement_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -5342,9 +5288,6 @@ components:
         - metadata
       properties:
         agreement_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5363,9 +5306,6 @@ components:
       type: object
       properties:
         agreement_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5394,7 +5334,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - double_validation
         - double_validation_amount
         - company_currency
@@ -5402,9 +5341,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         double_validation:
@@ -5435,16 +5371,12 @@ components:
     CreatePurchaseCompanySettingRequest:
       type: object
       required:
-        - company_id
         - double_validation
         - double_validation_amount
         - company_currency
         - send_reminder
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         double_validation:
           type: string
         double_validation_amount:
@@ -5460,16 +5392,12 @@ components:
     UpdatePurchaseCompanySettingRequest:
       type: object
       required:
-        - company_id
         - double_validation
         - double_validation_amount
         - company_currency
         - send_reminder
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         double_validation:
           type: string
         double_validation_amount:
@@ -5485,9 +5413,6 @@ components:
     PatchPurchaseCompanySettingRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         double_validation:
           type: string
         double_validation_amount:
@@ -5516,7 +5441,6 @@ components:
         - id
         - po_number
         - order_kind
-        - company_id
         - supplier_id
         - status
         - receipt_status
@@ -5544,9 +5468,6 @@ components:
           format: uuid
         order_kind:
           type: string
-        company_id:
-          type: string
-          format: uuid
         branch_id:
           nullable: true
           type: string
@@ -5621,7 +5542,6 @@ components:
       required:
         - po_number
         - order_kind
-        - company_id
         - supplier_id
         - status
         - receipt_status
@@ -5646,9 +5566,6 @@ components:
           format: uuid
         order_kind:
           type: string
-        company_id:
-          type: string
-          format: uuid
         branch_id:
           nullable: true
           type: string
@@ -5710,7 +5627,6 @@ components:
       required:
         - po_number
         - order_kind
-        - company_id
         - supplier_id
         - status
         - receipt_status
@@ -5735,9 +5651,6 @@ components:
           format: uuid
         order_kind:
           type: string
-        company_id:
-          type: string
-          format: uuid
         branch_id:
           nullable: true
           type: string
@@ -5806,9 +5719,6 @@ components:
           format: uuid
         order_kind:
           type: string
-        company_id:
-          type: string
-          format: uuid
         branch_id:
           nullable: true
           type: string
@@ -5880,7 +5790,6 @@ components:
       required:
         - id
         - order_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -5895,9 +5804,6 @@ components:
           type: string
           format: uuid
         order_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5945,7 +5851,6 @@ components:
       type: object
       required:
         - order_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -5957,9 +5862,6 @@ components:
         - metadata
       properties:
         order_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -5994,7 +5896,6 @@ components:
       type: object
       required:
         - order_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -6006,9 +5907,6 @@ components:
         - metadata
       properties:
         order_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6043,9 +5941,6 @@ components:
       type: object
       properties:
         order_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6091,7 +5986,6 @@ components:
       required:
         - id
         - rfq_number
-        - company_id
         - status
         - rfq_date
         - metadata
@@ -6104,9 +5998,6 @@ components:
           maxLength: 40
         material_request_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         status:
@@ -6138,7 +6029,6 @@ components:
       type: object
       required:
         - rfq_number
-        - company_id
         - status
         - rfq_date
         - metadata
@@ -6148,9 +6038,6 @@ components:
           maxLength: 40
         material_request_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         status:
@@ -6169,7 +6056,6 @@ components:
       type: object
       required:
         - rfq_number
-        - company_id
         - status
         - rfq_date
         - metadata
@@ -6179,9 +6065,6 @@ components:
           maxLength: 40
         material_request_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         status:
@@ -6204,9 +6087,6 @@ components:
           maxLength: 40
         material_request_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         status:
@@ -6236,7 +6116,6 @@ components:
       required:
         - id
         - rfq_id
-        - company_id
         - item_id
         - quantity
         - metadata
@@ -6245,9 +6124,6 @@ components:
           type: string
           format: uuid
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6275,15 +6151,11 @@ components:
       type: object
       required:
         - rfq_id
-        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6298,15 +6170,11 @@ components:
       type: object
       required:
         - rfq_id
-        - company_id
         - item_id
         - quantity
         - metadata
       properties:
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6321,9 +6189,6 @@ components:
       type: object
       properties:
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6349,7 +6214,6 @@ components:
       required:
         - id
         - rfq_id
-        - company_id
         - supplier_id
         - metadata
       properties:
@@ -6357,9 +6221,6 @@ components:
           type: string
           format: uuid
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6385,14 +6246,10 @@ components:
       type: object
       required:
         - rfq_id
-        - company_id
         - supplier_id
         - metadata
       properties:
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6405,14 +6262,10 @@ components:
       type: object
       required:
         - rfq_id
-        - company_id
         - supplier_id
         - metadata
       properties:
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6425,9 +6278,6 @@ components:
       type: object
       properties:
         rfq_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6451,7 +6301,6 @@ components:
       required:
         - id
         - quotation_number
-        - company_id
         - supplier_id
         - status
         - quotation_date
@@ -6466,9 +6315,6 @@ components:
           maxLength: 40
         rfq_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6510,7 +6356,6 @@ components:
       type: object
       required:
         - quotation_number
-        - company_id
         - supplier_id
         - status
         - quotation_date
@@ -6522,9 +6367,6 @@ components:
           maxLength: 40
         rfq_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6553,7 +6395,6 @@ components:
       type: object
       required:
         - quotation_number
-        - company_id
         - supplier_id
         - status
         - quotation_date
@@ -6565,9 +6406,6 @@ components:
           maxLength: 40
         rfq_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6600,9 +6438,6 @@ components:
           maxLength: 40
         rfq_id:
           nullable: true
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6642,7 +6477,6 @@ components:
       required:
         - id
         - quotation_id
-        - company_id
         - item_id
         - quantity
         - rate
@@ -6652,9 +6486,6 @@ components:
           type: string
           format: uuid
         quotation_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6688,16 +6519,12 @@ components:
       type: object
       required:
         - quotation_id
-        - company_id
         - item_id
         - quantity
         - rate
         - metadata
       properties:
         quotation_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6718,16 +6545,12 @@ components:
       type: object
       required:
         - quotation_id
-        - company_id
         - item_id
         - quantity
         - rate
         - metadata
       properties:
         quotation_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6748,9 +6571,6 @@ components:
       type: object
       properties:
         quotation_id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         item_id:
@@ -6781,16 +6601,12 @@ components:
       type: object
       required:
         - id
-        - company_id
         - supplier_id
         - receipt_reminder_email
         - reminder_days_before
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         supplier_id:
@@ -6820,15 +6636,11 @@ components:
     CreateSupplierReminderSettingRequest:
       type: object
       required:
-        - company_id
         - supplier_id
         - receipt_reminder_email
         - reminder_days_before
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid
@@ -6843,15 +6655,11 @@ components:
     UpdateSupplierReminderSettingRequest:
       type: object
       required:
-        - company_id
         - supplier_id
         - receipt_reminder_email
         - reminder_days_before
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid
@@ -6866,9 +6674,6 @@ components:
     PatchSupplierReminderSettingRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         supplier_id:
           type: string
           format: uuid

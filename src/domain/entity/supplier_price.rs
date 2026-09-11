@@ -49,7 +49,6 @@ impl std::ops::Deref for SupplierPriceId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SupplierPrice {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub supplier_id: Uuid,
     pub item_id: Uuid,
     pub price: Decimal,
@@ -68,10 +67,9 @@ impl SupplierPrice {
     }
 
     /// Create a new SupplierPrice with required fields
-    pub fn new(company_id: Uuid, supplier_id: Uuid, item_id: Uuid, price: Decimal, currency: String, agreement_id: Uuid, agreement_line_id: Uuid) -> Self {
+    pub fn new(supplier_id: Uuid, item_id: Uuid, price: Decimal, currency: String, agreement_id: Uuid, agreement_line_id: Uuid) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id,
             supplier_id,
             item_id,
             price,
@@ -141,9 +139,6 @@ impl SupplierPrice {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "supplier_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.supplier_id = v; }
                 }
@@ -216,7 +211,6 @@ impl backbone_orm::EntityRepoMeta for SupplierPrice {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("item_id".to_string(), "uuid".to_string());
         m.insert("agreement_id".to_string(), "uuid".to_string());
@@ -226,9 +220,6 @@ impl backbone_orm::EntityRepoMeta for SupplierPrice {
     fn search_fields() -> &'static [&'static str] {
         &["currency"]
     }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
-    }
 }
 
 /// Builder for SupplierPrice entity
@@ -237,7 +228,6 @@ impl backbone_orm::EntityRepoMeta for SupplierPrice {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct SupplierPriceBuilder {
-    company_id: Option<Uuid>,
     supplier_id: Option<Uuid>,
     item_id: Option<Uuid>,
     price: Option<Decimal>,
@@ -247,12 +237,6 @@ pub struct SupplierPriceBuilder {
 }
 
 impl SupplierPriceBuilder {
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
-        self
-    }
-
     /// Set the supplier_id field (required)
     pub fn supplier_id(mut self, value: Uuid) -> Self {
         self.supplier_id = Some(value);
@@ -293,7 +277,6 @@ impl SupplierPriceBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<SupplierPrice, String> {
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let supplier_id = self.supplier_id.ok_or_else(|| "supplier_id is required".to_string())?;
         let item_id = self.item_id.ok_or_else(|| "item_id is required".to_string())?;
         let price = self.price.ok_or_else(|| "price is required".to_string())?;
@@ -302,7 +285,6 @@ impl SupplierPriceBuilder {
 
         Ok(SupplierPrice {
             id: Uuid::new_v4(),
-            company_id,
             supplier_id,
             item_id,
             price,

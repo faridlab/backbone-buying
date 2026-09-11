@@ -14,7 +14,12 @@ use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
+// The multi-row read twin lives only in the legacy `company_scope` module. Its connection
+// discipline is what this repository needs — request-dedicated connection when the composing
+// service bound one, plain pool otherwise. The helper's legacy task-local branch is never
+// taken: this module sets no legacy scope of its own (ADR-0029).
+use backbone_orm::company_scope::fetch_all_rows_scoped;
 
 use crate::domain::entity::PurchaseOrderItem;
 
@@ -49,7 +54,6 @@ impl PurchaseOrderItemRepository {
 pub struct NewPurchaseOrderItemRow<'a> {
     pub id: Uuid,
     pub order_id: Uuid,
-    pub company_id: Uuid,
     pub item_id: Uuid,
     pub warehouse_id: Option<Uuid>,
     pub description: Option<&'a str>,
@@ -170,8 +174,8 @@ impl ReverseWatermark {
 impl PurchaseOrderItemRepository {
     /// Insert one PO line.
     ///
-    /// Takes the CALLER'S connection so it commits with its header. The caller has already bound the
-    /// company on it (`bind_company_on`) — don't re-bind here.
+    /// Takes the CALLER'S connection so it commits with its header. The caller relays the AMBIENT
+    /// org scope onto it (`org_scope::bind_org_scope_on`) — don't re-bind here.
     pub async fn insert_item(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -179,11 +183,11 @@ impl PurchaseOrderItemRepository {
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"INSERT INTO buying.purchase_order_items
-                (id, order_id, company_id, item_id, warehouse_id, description, quantity, rate, line_amount,
+                (id, order_id, item_id, warehouse_id, description, quantity, rate, line_amount,
                  qty_received_method, purchase_method)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::qty_received_method,$11::purchase_method)"#,
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::qty_received_method,$10::purchase_method)"#,
         )
-        .bind(l.id).bind(l.order_id).bind(l.company_id).bind(l.item_id).bind(l.warehouse_id).bind(l.description)
+        .bind(l.id).bind(l.order_id).bind(l.item_id).bind(l.warehouse_id).bind(l.description)
         .bind(l.quantity).bind(l.rate).bind(l.line_amount)
         .bind(l.qty_received_method).bind(l.purchase_method)
         .execute(conn)
@@ -195,14 +199,14 @@ impl PurchaseOrderItemRepository {
     /// receipt seam. `manual` lines are excluded: their received quantity is set by an operator,
     /// so inventory is never asked to expect their delivery.
     ///
-    /// ID-only: no company argument — read-only, rides the request-dedicated connection carrying the
-    /// caller's `app.company_id`.
+    /// ID-only: no tenant argument — rides the request-dedicated connection when the composing
+    /// service bound one, plainly on the pool otherwise (ADR-0029).
     pub async fn fetch_remaining(
         &self,
         pool: &PgPool,
         order_id: Uuid,
     ) -> Result<Vec<RemainingLineRow>, sqlx::Error> {
-        let rows = company_scope::fetch_all_rows_scoped(
+        let rows = fetch_all_rows_scoped(
             pool,
             sqlx::query(
                 r#"SELECT item_id, rate, (quantity - received_qty) AS remaining
@@ -225,8 +229,8 @@ impl PurchaseOrderItemRepository {
     /// `purchase_method` CASE.
     ///
     /// Takes the CALLER'S connection: the lock must be held, and the capacity read must be consistent
-    /// with the [`Self::add_to_watermark`] bumps that follow, for the whole allocation. The caller has
-    /// already bound the company on it — don't re-bind here.
+    /// with the [`Self::add_to_watermark`] bumps that follow, for the whole allocation. The caller
+    /// relays the AMBIENT org scope onto it — don't re-bind here.
     pub async fn lock_lines_for_allocation(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -259,8 +263,8 @@ impl PurchaseOrderItemRepository {
     /// Returns the line's `(item_id, rate)` so the caller can emit the per-receipt event with the
     /// same shape the seam path emits.
     ///
-    /// Pool-based, ID-only: the caller establishes the company scope (`with_company_scope`) around
-    /// it; under HTTP the request-dedicated connection already carries `app.company_id`.
+    /// Pool-based, ID-only: rides the request-dedicated connection when the composing service
+    /// bound one, plainly on the pool otherwise (ADR-0029).
     pub async fn set_manual_line_receipt(
         &self,
         pool: &PgPool,
@@ -268,7 +272,7 @@ impl PurchaseOrderItemRepository {
         line_id: Uuid,
         qty: Decimal,
     ) -> Result<Option<ManualReceiptRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_order_items SET received_qty=$3
@@ -364,15 +368,15 @@ impl PurchaseOrderItemRepository {
     /// service turns that into the typed `NotDeletable`); the `po_item_write_guards` trigger is the
     /// DB backstop for raw writes.
     ///
-    /// Pool-based, ID-only: the caller establishes the company scope; under HTTP the
-    /// request-dedicated connection already carries `app.company_id`.
+    /// Pool-based, ID-only: rides the request-dedicated connection when the composing service
+    /// bound one, plainly on the pool otherwise (ADR-0029).
     pub async fn soft_delete_line(
         &self,
         pool: &PgPool,
         order_id: Uuid,
         line_id: Uuid,
     ) -> Result<Option<Uuid>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"UPDATE buying.purchase_order_items

@@ -39,9 +39,6 @@ pub struct CreateRequestForQuotationDto {
     pub rfq_number: String,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "material_request_id")]
     pub material_request_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "rfq_date")]
@@ -69,9 +66,6 @@ pub struct UpdateRequestForQuotationDto {
     pub rfq_number: String,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "material_request_id")]
     pub material_request_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "rfq_date")]
@@ -99,9 +93,6 @@ pub struct PatchRequestForQuotationDto {
     pub rfq_number: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "material_request_id")]
     pub material_request_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<PurchaseDocStatus>,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
@@ -114,7 +105,7 @@ pub struct PatchRequestForQuotationDto {
 impl PatchRequestForQuotationDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.rfq_number.is_some() || self.material_request_id.is_some() || self.company_id.is_some() || self.status.is_some() || self.rfq_date.is_some() || self.response_due.is_some()
+        self.rfq_number.is_some() || self.material_request_id.is_some() || self.status.is_some() || self.rfq_date.is_some() || self.response_due.is_some()
     }
 }
 
@@ -135,8 +126,6 @@ pub struct RequestForQuotationResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub rfq_number: String,
     pub material_request_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     pub rfq_date: NaiveDate,
@@ -200,7 +189,7 @@ pub struct RequestForQuotationSummaryDto {
     pub id: Uuid,
     pub rfq_number: String,
     pub material_request_id: Option<Uuid>,
-    pub company_id: Uuid,
+    pub status: PurchaseDocStatus,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -214,7 +203,6 @@ impl From<RequestForQuotation> for RequestForQuotationResponseDto {
             id: entity.id,
             rfq_number: entity.rfq_number,
             material_request_id: entity.material_request_id,
-            company_id: entity.company_id,
             status: entity.status,
             rfq_date: entity.rfq_date,
             response_due: entity.response_due,
@@ -230,7 +218,7 @@ impl From<RequestForQuotation> for RequestForQuotationSummaryDto {
             id: entity.id,
             rfq_number: entity.rfq_number,
             material_request_id: entity.material_request_id,
-            company_id: entity.company_id,
+            status: entity.status,
             created_at,
         }
     }
@@ -242,7 +230,6 @@ impl From<CreateRequestForQuotationDto> for RequestForQuotation {
             id: Uuid::new_v4(),
             rfq_number: dto.rfq_number,
             material_request_id: dto.material_request_id,
-            company_id: dto.company_id,
             status: dto.status,
             rfq_date: dto.rfq_date,
             response_due: dto.response_due,
@@ -257,7 +244,6 @@ impl From<&RequestForQuotation> for RequestForQuotationResponseDto {
             id: entity.id.clone(),
             rfq_number: entity.rfq_number.clone(),
             material_request_id: entity.material_request_id.clone(),
-            company_id: entity.company_id.clone(),
             status: entity.status.clone(),
             rfq_date: entity.rfq_date.clone(),
             response_due: entity.response_due.clone(),
@@ -276,7 +262,6 @@ impl backbone_core::ApplyUpdateDto<UpdateRequestForQuotationDto> for RequestForQ
     fn apply_update(mut self, dto: UpdateRequestForQuotationDto) -> backbone_core::ServiceResult<Self> {
         self.rfq_number = dto.rfq_number;
         self.material_request_id = dto.material_request_id;
-        self.company_id = dto.company_id;
         self.status = dto.status;
         self.rfq_date = dto.rfq_date;
         self.response_due = dto.response_due;
