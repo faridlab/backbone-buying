@@ -16,10 +16,7 @@
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
-use backbone_auth::company::CompanyVerifier;
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use rust_decimal::Decimal;
-use serde::Serialize;
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -183,18 +180,6 @@ async fn prj4_project_id_roundtrips_on_create() {
 
 // ---- guarded HTTP surface ----------------------------------------------------
 
-const SECRET: &[u8] = b"buying-prj4-probe-secret";
-
-#[derive(Serialize)]
-struct TestClaims {
-    sub: String,
-    exp: usize,
-    company_id: Option<Uuid>,
-}
-fn token(company_id: Uuid) -> String {
-    let claims = TestClaims { sub: "probe-user".into(), exp: 9_999_999_999, company_id: Some(company_id) };
-    encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(SECRET)).unwrap()
-}
 async fn module(pool: &PgPool) -> BuyingModule {
     BuyingModule::builder().with_database(pool.clone()).build().unwrap()
 }
@@ -205,8 +190,20 @@ async fn module(pool: &PgPool) -> BuyingModule {
 async fn prj4_guarded_create_accepts_project() {
     let pool = pool().await;
     let m = module(&pool).await;
-    let app = create_guarded_buying_routes(&m, pool.clone(), CompanyVerifier::hs256(SECRET));
-    let (company, project, item) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    // The module ships no guard, so the test stands in for the composing service's outer org
+    // guard: it inserts the OrgContext the write handlers extract.
+    let app = create_guarded_buying_routes(&m, pool.clone()).layer(axum::middleware::from_fn(
+        |mut req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| async move {
+            req.extensions_mut().insert(backbone_auth::org::OrgContext {
+                acting_unit_id: Uuid::nil(),
+                entitled_units: vec![],
+                legacy_company_id: None,
+                user_id: "probe".to_string(),
+            });
+            next.run(req).await
+        },
+    ));
+    let (project, item) = (Uuid::new_v4(), Uuid::new_v4());
 
     let body = serde_json::json!({
         "poNumber": uq("PO-HTTP"),
@@ -222,7 +219,6 @@ async fn prj4_guarded_create_accepts_project() {
                 .method("POST")
                 .uri("/purchase-orders")
                 .header(header::CONTENT_TYPE, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {}", token(company)))
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )

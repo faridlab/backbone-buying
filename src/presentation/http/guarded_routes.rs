@@ -7,14 +7,20 @@
 //! prices outside the agreement verbs, or bypass the write path. `BuyingWriteService` is built
 //! from the pool (regen-safe). The receipt seam (`build_receipt_request`) needs a composition
 //! layer, so it is service/job-driven, not an HTTP route.
+//!
+//! The module applies no guard of its own, because an internal one would nest a second
+//! request-dedicated connection inside the composer's and shadow its fence variables.
+//! Authentication is the composing service's duty: its outer org guard verifies the token and
+//! inserts `OrgContext`, which these handlers extract. The module itself is tenant-agnostic
+//! (ADR-0029) — the composing service's tenancy decorator scopes whatever the request touches.
 
 use std::sync::Arc;
 
 use axum::{
-    extract::State, http::StatusCode, middleware::from_fn_with_state, response::IntoResponse,
+    extract::State, http::StatusCode, response::IntoResponse,
     routing::post, Json, Router,
 };
-use backbone_auth::company::{company_auth, CompanyContext, CompanyVerifier};
+use backbone_auth::org::OrgContext;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -93,13 +99,14 @@ struct CreatePoBody {
 }
 async fn create_po(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<CreatePoBody>,
 ) -> axum::response::Response {
     let o = NewPurchaseOrder {
         po_number: b.po_number, supplier_quotation_id: b.supplier_quotation_id, order_kind: b.order_kind,
-        // branch_id is a business column, not the tenancy axis — it still comes off the token.
-        branch_id: tenant.branch_id, supplier_id: b.supplier_id, order_date: b.order_date,
+        // branch_id is a business column, not the tenancy axis; the org session carries no
+        // branch claim, so it starts NULL until an explicit branch verb sets it.
+        branch_id: None, supplier_id: b.supplier_id, order_date: b.order_date,
         schedule_date: b.schedule_date, currency: b.currency, currency_rate: b.currency_rate,
         agreement_id: None, project_id: b.project_id, tax_rate: b.tax_rate, notes: b.notes,
         lines: b.lines.into_iter().map(Into::into).collect(),
@@ -163,7 +170,7 @@ async fn delete_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<Ord
 struct ManualReceiptBody { order_id: Uuid, line_id: Uuid, quantity: Decimal }
 async fn set_manual_receipt(
     State(svc): State<Arc<BuyingWriteService>>,
-    _tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<ManualReceiptBody>,
 ) -> axum::response::Response {
     match svc.set_manual_line_receipt(b.order_id, b.line_id, b.quantity).await {
@@ -201,7 +208,7 @@ struct CreateAgreementBody {
 }
 async fn create_agreement(
     State(svc): State<Arc<BuyingWriteService>>,
-    _tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<CreateAgreementBody>,
 ) -> axum::response::Response {
     let a = NewPurchaseAgreement {
@@ -276,13 +283,14 @@ struct CallOffBody {
 }
 async fn create_call_off(
     State(svc): State<Arc<BuyingWriteService>>,
-    tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<CallOffBody>,
 ) -> axum::response::Response {
     let o = NewCallOffOrder {
         po_number: b.po_number,
-        // branch_id is a business column, not the tenancy axis — it still comes off the token.
-        branch_id: tenant.branch_id,
+        // branch_id is a business column, not the tenancy axis; the org session carries no
+        // branch claim, so it starts NULL until an explicit branch verb sets it.
+        branch_id: None,
         agreement_id: b.agreement_id,
         order_date: b.order_date,
         schedule_date: b.schedule_date,
@@ -312,7 +320,7 @@ struct BillMatchLineBody { bill_line_ref: String, po_item_id: Uuid, quantity: De
 struct MatchBillsBody { order_id: Uuid, matches: Vec<BillMatchLineBody> }
 async fn match_bills(
     State(svc): State<Arc<BuyingWriteService>>,
-    _tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<MatchBillsBody>,
 ) -> axum::response::Response {
     let proposals: Vec<BillLineProposal> = b.matches.into_iter()
@@ -335,7 +343,7 @@ struct CompanySettingsBody {
 fn default_send_reminder() -> bool { true }
 async fn upsert_company_settings(
     State(svc): State<Arc<BuyingWriteService>>,
-    _tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<CompanySettingsBody>,
 ) -> axum::response::Response {
     match svc.upsert_purchase_company_settings(
@@ -357,7 +365,7 @@ struct SupplierSettingsBody {
 fn default_days_before() -> i32 { 1 }
 async fn upsert_supplier_settings(
     State(svc): State<Arc<BuyingWriteService>>,
-    _tenant: CompanyContext,
+    _session: OrgContext,
     Json(b): Json<SupplierSettingsBody>,
 ) -> axum::response::Response {
     match svc.upsert_supplier_reminder_settings(
@@ -368,7 +376,7 @@ async fn upsert_supplier_settings(
     }
 }
 
-fn write_routes(svc: Arc<BuyingWriteService>, verifier: CompanyVerifier) -> Router {
+fn write_routes(svc: Arc<BuyingWriteService>) -> Router {
     Router::new()
         .route("/purchase-orders", post(create_po))
         .route("/purchase-orders/confirm", post(confirm_po))
@@ -392,15 +400,10 @@ fn write_routes(svc: Arc<BuyingWriteService>, verifier: CompanyVerifier) -> Rout
         .route("/agreements/call-off", post(create_call_off))
         .route("/settings/company", post(upsert_company_settings))
         .route("/settings/supplier-reminder", post(upsert_supplier_settings))
-        // Every route above demands a signed token: `company_auth` rejects a request whose token
-        // is absent or invalid, so a handler only ever runs for an authenticated caller. What
-        // that caller may SEE is the composing service's tenancy decorator's decision (ADR-0029).
-        //
-        // `route_layer`, not `layer`: `layer` would also wrap this router's fallback, so once merged
-        // every *unmatched* path (e.g. the generic CRUD paths this surface deliberately does not
-        // mount) would answer 401 instead of 404 — leaking "auth required" for routes that do not
-        // exist, and masking the CRUD-bypass probes.
-        .route_layer(from_fn_with_state(verifier, company_auth))
+        // No guard here: the module ships none of its own, because an internal one would open a
+        // second request-dedicated connection nested inside the composing service's and shadow
+        // its fence variables. The outer org guard verifies the token and inserts OrgContext;
+        // what an authenticated caller may SEE stays the composer's tenancy decision (ADR-0029).
         .with_state(svc)
 }
 
@@ -409,18 +412,15 @@ fn write_routes(svc: Arc<BuyingWriteService>, verifier: CompanyVerifier) -> Rout
 /// particular have NO route: only the agreement verbs write them. **Prefer this over
 /// `BuyingModule::all_crud_routes()` for any real deployment.**
 ///
-/// The composing service builds one [`CompanyVerifier`] from its JWT secret and passes it here; the
-/// module is tenant-agnostic (ADR-0029), so no tenant crosses the wire in a body — what a caller
-/// may see or touch is the composing service's tenancy decorator's decision.
-pub fn create_guarded_buying_routes(
-    m: &BuyingModule,
-    pool: PgPool,
-    verifier: CompanyVerifier,
-) -> Router {
+/// The module ships no guard of its own: authentication is the composing service's duty (its
+/// outer org guard verifies the token and inserts OrgContext), and it is tenant-agnostic
+/// (ADR-0029), so no tenant crosses the wire in a body — what a caller may see or touch is the
+/// composing service's tenancy decorator's decision.
+pub fn create_guarded_buying_routes(m: &BuyingModule, pool: PgPool) -> Router {
     let write = Arc::new(BuyingWriteService::new(pool));
     Router::new()
         .merge(create_material_request_read_routes(m.material_request_service.clone()))
         .merge(create_supplier_quotation_read_routes(m.supplier_quotation_service.clone()))
         .merge(create_purchase_order_read_routes(m.purchase_order_service.clone()))
-        .merge(write_routes(write, verifier))
+        .merge(write_routes(write))
 }
