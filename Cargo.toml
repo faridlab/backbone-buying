@@ -1,6 +1,6 @@
 [package]
 name = "backbone-buying"
-version = "0.6.8"
+version = "0.6.9"
 edition = "2021"
 description = "Buying: Material Request -> RFQ -> Supplier Quotation -> Purchase Order; drives inventory Purchase Receipt via ReceiptExpected (procure-to-pay intent, 3-way-match watermarks)"
 
@@ -96,6 +96,6 @@ rand = "0.8"
 #
 # Dual-mode: committed source is the git tag (prod/standalone/CI); .cargo/config.toml (gitignored)
 # patches them to ../backbone-* for local workspace dev. See .cargo/config.toml.example.
-backbone-inventory = { git = "https://github.com/faridlab/backbone-inventory", tag = "v0.9.9" }
+backbone-inventory = { git = "https://github.com/faridlab/backbone-inventory", tag = "v0.9.10" }
 backbone-accounting = { git = "https://github.com/faridlab/backbone-accounting", tag = "v0.9.6" }
 async-trait = "0.1"
