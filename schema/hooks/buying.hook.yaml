@@ -115,8 +115,7 @@ rules:
     assert: "count(lines) >= 1"
     error_code: empty_document
     enforcement: service
-    # service-only justification: the header and its lines commit in ONE transaction; a SQL
-    # expression would need a deferred cross-table constraint to see the lines at insert time.
+    justification: "The header and its lines commit in ONE transaction; a SQL expression would need a deferred cross-table constraint to see the lines at insert time."
   - id: R2
     name: non_negative
     when: create
@@ -147,14 +146,7 @@ rules:
     assert: "in two_step, total * currency_rate >= double_validation_amount requires the manager leg; the threshold is denominated in the home currency (the settings row's company_currency) and the total is converted INTO home currency with the order-time rate snapshot (never reverse-divided, never a silent rate of 1)"
     error_code: not_approvable
     enforcement: service
-    # service-only justification: the gate is procedural multi-currency math (a settings read
-    # joined with the PO's order-time rate snapshot) — not expressible as a row-level CHECK.
-    # DECLARED SEAM: this module has no role model (consistent with backbone). The service API
-    # takes an `is_manager` claim; the HTTP handler binds an optional `isManager` body field
-    # defaulting false. This is reference wiring only — a real deployment derives the claim from
-    # verified role claims at the composing service and is expected to call confirm/approve from
-    # server-side wiring that established it, not forward an unverified body flag.
-  # -- cancel/delete guards (service pre-check; trigger is the backstop) -------------
+    justification: "The gate is procedural multi-currency math (a settings read joined with the PO's order-time rate snapshot) — not expressible as a row-level CHECK. DECLARED SEAM: this module has no role model (consistent with backbone). The service API takes an `is_manager` claim; the HTTP handler binds an optional `isManager` body field defaulting false. This is reference wiring only — a real deployment derives the claim from verified role claims at the composing service and is expected to call confirm/approve from server-side wiring that established it, not forward an unverified body flag. -- cancel/delete guards (service pre-check; trigger is the backstop) -------------."
   - id: G4
     name: po_cancel_locked
     when: cancel
@@ -173,6 +165,7 @@ rules:
     assert: "an empty proposal list refuses instead of no-op matching"
     error_code: no_lines_selected
     enforcement: service
+    justification: "The rule is about the REQUEST, not about stored rows: it refuses a call that proposes nothing. An empty proposal writes nothing, so there is no row for a constraint to reject, and the point is to answer the caller rather than to leave the books unchanged in silence."
   - id: G8
     name: po_delete_requires_cancelled
     when: delete
@@ -192,24 +185,28 @@ rules:
     assert: "buying.supplier_prices has NO CRUD route and no standalone writer: only the agreement confirm (mint), open re-price (propagate), and close/cancel (unlink) write it"
     error_code: null
     enforcement: service
+    justification: "This restricts WHICH code path may write a table, and a database cannot see code paths. The table has no CRUD route and no standalone writer by composition; a constraint could check the rows a write leaves behind, never who wrote them."
   - id: G-agreement-close
     name: agreement_close_no_draft_calloffs
     when: close, cancel agreement
     assert: "close/cancel refuses while a call-off PO in draft/sent/to_approve hangs off the agreement"
     error_code: agreement_has_draft_orders
     enforcement: service
+    justification: "Cross-table: the guard reads the call-off orders hanging off the agreement, which no CHECK on the agreement row can see. A trigger could, at the cost of re-scanning the orders on every agreement write, and would still have to name the same three states this verb names."
   - id: G-call-off-cap
     name: call_off_within_blanket
     when: create_call_off_po
     assert: "line.qty_ordered + call_off.quantity <= line.quantity (the blanket quantity caps the call-offs)"
     error_code: agreement_exceeded
     enforcement: service
+    justification: "Cross-row aggregate: the cap compares a new call-off against the sum already drawn on the blanket line. A CHECK sees one row, and a trigger enforcing the sum would serialise every call-off on the same line, which is exactly the contention the verb avoids by claiming the line once."
   - id: G7
     name: reminder_settings_gate
     when: send_receipt_reminder
     assert: "no settings row, or send_reminder=false, skips the run silently; a supplier override with receipt_reminder_email=false is excluded from the claim; an absent supplier row is the enabled default (remind, 1 day)"
     error_code: null
     enforcement: service
+    justification: "A skip is not a refusal. The rule decides whether a scheduled run does anything at all, by reading settings and per-supplier overrides before any write exists; there is no row to constrain, and a database guard would turn a deliberate quiet skip into an error."
 
 events:
   PurchaseOrderConfirmed:
