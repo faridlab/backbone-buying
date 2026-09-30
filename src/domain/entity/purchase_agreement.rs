@@ -253,6 +253,8 @@ impl backbone_orm::EntityRepoMeta for PurchaseAgreement {
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("agreement_kind".to_string(), "agreement_kind".to_string());
         m.insert("status".to_string(), "purchase_agreement_status".to_string());
+        m.insert("date_start".to_string(), "date".to_string());
+        m.insert("date_end".to_string(), "date".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {

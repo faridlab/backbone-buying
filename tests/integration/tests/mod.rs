@@ -21,7 +21,6 @@ pub mod supplier_quotation_item_api_test;
 pub mod supplier_reminder_setting_api_test;
 
 // Re-exports for convenience
-pub use crud_test_base::*;
 pub use material_request_api_test::*;
 pub use material_request_item_api_test::*;
 pub use purchase_agreement_api_test::*;

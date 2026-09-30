@@ -47,6 +47,9 @@ pub use application::service::SupplierQuotationService;
 pub use application::service::SupplierQuotationItemService;
 pub use application::service::SupplierReminderSettingService;
 
+// Re-exports - Validation
+pub use application::validator::{ValidationError, ValidationResult};
+
 // Re-exports - Workflows
 pub use application::workflows::*;
 

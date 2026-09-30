@@ -356,6 +356,9 @@ impl backbone_orm::EntityRepoMeta for PurchaseOrder {
         m.insert("status".to_string(), "purchase_order_status".to_string());
         m.insert("receipt_status".to_string(), "purchase_receipt_status".to_string());
         m.insert("invoice_status".to_string(), "purchase_invoice_status".to_string());
+        m.insert("order_date".to_string(), "date".to_string());
+        m.insert("schedule_date".to_string(), "date".to_string());
+        m.insert("date_approve".to_string(), "date".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {

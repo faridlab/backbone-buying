@@ -236,6 +236,8 @@ impl backbone_orm::EntityRepoMeta for MaterialRequest {
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("request_type".to_string(), "material_request_type".to_string());
         m.insert("status".to_string(), "purchase_doc_status".to_string());
+        m.insert("request_date".to_string(), "date".to_string());
+        m.insert("schedule_date".to_string(), "date".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {

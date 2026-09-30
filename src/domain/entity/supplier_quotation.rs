@@ -252,6 +252,8 @@ impl backbone_orm::EntityRepoMeta for SupplierQuotation {
         m.insert("rfq_id".to_string(), "uuid".to_string());
         m.insert("supplier_id".to_string(), "uuid".to_string());
         m.insert("status".to_string(), "purchase_doc_status".to_string());
+        m.insert("quotation_date".to_string(), "date".to_string());
+        m.insert("valid_till".to_string(), "date".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
