@@ -38,7 +38,7 @@ impl BuyingWriteService {
     pub async fn confirm_purchase_order(&self, order_id: Uuid, is_manager: bool) -> Result<(), BuyingError> {
         // ID-only read: cross-tenant isolation is the composing service's tenancy decorator
         // (ADR-0029) — an undecorated deployment is unfenced by design.
-        let gate = self.repos.purchase_orders.fetch_gate_row(&self.db_pool, order_id).await?
+        let gate = self.repos.purchase_orders.fetch_gate_row(&self.rpool(), order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if gate.status != "draft" && gate.status != "sent" {
             return Err(BuyingError::NotConfirmable(order_id.to_string()));
@@ -46,7 +46,7 @@ impl BuyingWriteService {
 
         // The company's gate configuration. An absent settings row = the schema defaults
         // (one_step): every confirm passes the gate.
-        let settings = self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await?;
+        let settings = self.repos.purchase_company_settings.fetch_settings(&self.rpool()).await?;
         let two_step = settings.as_ref().map(|s| s.double_validation == "two_step").unwrap_or(false);
         let threshold = settings.as_ref().map(|s| s.double_validation_amount);
 
@@ -55,7 +55,7 @@ impl BuyingWriteService {
             && gate.total * gate.currency_rate >= threshold.unwrap_or(rust_decimal::Decimal::ZERO);
 
         if needs_manager {
-            self.repos.purchase_orders.park_for_approval(&self.db_pool, order_id).await?
+            self.repos.purchase_orders.park_for_approval(&self.rpool(), order_id).await?
                 .ok_or_else(|| BuyingError::NotConfirmable(order_id.to_string()))?;
             self.sink.publish(BuyingEvent::PurchaseOrderPendingApproval(PurchaseOrderPendingApproval {
                 order_id, company_id: legacy_company_echo(),
@@ -76,13 +76,13 @@ impl BuyingWriteService {
     /// comparison is the same company-currency conversion as confirm — `total * currency_rate`
     /// against the company-currency threshold, never a raw amount compare.
     pub async fn approve_purchase_order(&self, order_id: Uuid, is_manager: bool) -> Result<(), BuyingError> {
-        let gate = self.repos.purchase_orders.fetch_gate_row(&self.db_pool, order_id).await?
+        let gate = self.repos.purchase_orders.fetch_gate_row(&self.rpool(), order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if gate.status != "to_approve" {
             return Err(BuyingError::NotApprovable(order_id.to_string()));
         }
 
-        let settings = self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await?;
+        let settings = self.repos.purchase_company_settings.fetch_settings(&self.rpool()).await?;
         let two_step = settings.as_ref().map(|s| s.double_validation == "two_step").unwrap_or(false);
         let threshold = settings.as_ref().map(|s| s.double_validation_amount);
 
@@ -100,7 +100,7 @@ impl BuyingWriteService {
     /// `date_approve`), then publish `PurchaseOrderConfirmed` with the `order_kind` consumers
     /// (subcontract progress, MTO) key on.
     async fn enter_purchase_and_publish(&self, order_id: Uuid, from: &[&str]) -> Result<(), BuyingError> {
-        let row = self.repos.purchase_orders.enter_purchase(&self.db_pool, order_id, from).await?
+        let row = self.repos.purchase_orders.enter_purchase(&self.rpool(), order_id, from).await?
             .ok_or_else(|| BuyingError::NotConfirmable(order_id.to_string()))?;
         self.sink.publish(BuyingEvent::PurchaseOrderConfirmed(PurchaseOrderConfirmed {
             order_id, company_id: legacy_company_echo(), supplier_id: row.supplier_id,
@@ -112,7 +112,7 @@ impl BuyingWriteService {
     /// Reset a non-draft PO back to `draft` (rework). `date_approve` is kept: it records that an
     /// approval once happened, not the current state.
     pub async fn reset_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_orders.reset_to_draft(&self.db_pool, order_id).await?
+        self.repos.purchase_orders.reset_to_draft(&self.rpool(), order_id).await?
             .ok_or_else(|| BuyingError::NotCancelable(order_id.to_string()))?;
         Ok(())
     }
@@ -121,7 +121,7 @@ impl BuyingWriteService {
     /// backstop): a locked order refuses (`OrderLocked`), any live billed line refuses
     /// (`OrderBilled`), and a state with no cancel edge refuses (`NotCancelable`).
     pub async fn cancel_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        let gate = self.repos.purchase_orders.fetch_gate_row(&self.db_pool, order_id).await?
+        let gate = self.repos.purchase_orders.fetch_gate_row(&self.rpool(), order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if gate.locked {
             return Err(BuyingError::OrderLocked(order_id));
@@ -132,28 +132,28 @@ impl BuyingWriteService {
         if !matches!(gate.status.as_str(), "draft" | "sent" | "to_approve" | "purchase") {
             return Err(BuyingError::NotCancelable(order_id.to_string()));
         }
-        self.repos.purchase_orders.cancel(&self.db_pool, order_id).await?
+        self.repos.purchase_orders.cancel(&self.rpool(), order_id).await?
             .ok_or_else(|| BuyingError::NotCancelable(order_id.to_string()))?;
         Ok(())
     }
 
     /// `draft` → `sent`: the PO was printed/sent to the supplier, so it is no longer editable.
     pub async fn send_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_orders.mark_sent(&self.db_pool, order_id).await?
+        self.repos.purchase_orders.mark_sent(&self.rpool(), order_id).await?
             .ok_or_else(|| BuyingError::NotConfirmable(order_id.to_string()))?;
         Ok(())
     }
 
     /// Lock a PO (freeze it against cancel: G4). Orthogonal to the lifecycle band.
     pub async fn lock_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_orders.set_locked(&self.db_pool, order_id, true).await?
+        self.repos.purchase_orders.set_locked(&self.rpool(), order_id, true).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         Ok(())
     }
 
     /// Unlock a PO (releases the G4 cancel guard).
     pub async fn unlock_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_orders.set_locked(&self.db_pool, order_id, false).await?
+        self.repos.purchase_orders.set_locked(&self.rpool(), order_id, false).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         Ok(())
     }
@@ -161,7 +161,7 @@ impl BuyingWriteService {
     /// Acknowledge a `purchase` PO (an operator confirmed the supplier's delivery promise — this is
     /// what suppresses the receipt reminder while the PO waits).
     pub async fn acknowledge_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_orders.set_acknowledged(&self.db_pool, order_id).await?
+        self.repos.purchase_orders.set_acknowledged(&self.rpool(), order_id).await?
             .ok_or_else(|| BuyingError::NotAcknowledgable(order_id.to_string()))?;
         Ok(())
     }
@@ -169,7 +169,7 @@ impl BuyingWriteService {
     /// Soft-delete a CANCELLED PO (G8 — a live order is never deletable; the trigger is the DB
     /// backstop, the state guard in the repository is the first line).
     pub async fn delete_purchase_order(&self, order_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_orders.soft_delete_cancelled(&self.db_pool, order_id).await?
+        self.repos.purchase_orders.soft_delete_cancelled(&self.rpool(), order_id).await?
             .ok_or_else(|| BuyingError::NotDeletable(order_id.to_string()))?;
         Ok(())
     }
@@ -177,7 +177,7 @@ impl BuyingWriteService {
     /// Soft-delete one PO line (G9: only while the parent order is editable — `draft`/`sent`; the
     /// trigger on the lines table is the DB backstop).
     pub async fn delete_purchase_order_line(&self, order_id: Uuid, line_id: Uuid) -> Result<(), BuyingError> {
-        self.repos.purchase_order_items.soft_delete_line(&self.db_pool, order_id, line_id).await?
+        self.repos.purchase_order_items.soft_delete_line(&self.rpool(), order_id, line_id).await?
             .ok_or_else(|| BuyingError::NotDeletable(line_id.to_string()))?;
         Ok(())
     }
@@ -186,7 +186,7 @@ impl BuyingWriteService {
     pub async fn purchase_order_ref(&self, order_id: Uuid) -> Result<PurchaseOrderRef, BuyingError> {
         // ID-only read: cross-tenant isolation is the composing service's tenancy decorator
         // (ADR-0029) — an undecorated deployment is unfenced by design.
-        let row = self.repos.purchase_orders.fetch_ref(&self.db_pool, order_id).await?
+        let row = self.repos.purchase_orders.fetch_ref(&self.rpool(), order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         Ok(PurchaseOrderRef {
             id: order_id,

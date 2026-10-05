@@ -12,11 +12,11 @@ use rust_decimal::Decimal;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-// The multi-row read twin lives only in the legacy `company_scope` module. Its connection
-// discipline is what this repository needs — request-dedicated connection when the composing
-// service bound one, plain pool otherwise. The helper's legacy task-local branch is never
-// taken: this module sets no legacy scope of its own (ADR-0029).
-use backbone_orm::company_scope::fetch_all_rows_scoped;
+// The multi-row read twin rides the org-scope module: the request-dedicated connection
+// when the composing service bound one, plain pool otherwise, no scope invented. The
+// legacy `company_scope` twin would open a transaction and bind a company this module
+// no longer sets (ADR-0029 stripped it), so the org-scope twin is the honest read lane.
+use backbone_orm::org_scope::fetch_all_rows_scoped;
 
 use crate::domain::entity::RfqItem;
 

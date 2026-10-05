@@ -59,13 +59,13 @@ impl BuyingWriteService {
 
         // ID-only read: cross-tenant isolation is the composing service's tenancy decorator
         // (ADR-0029) — an undecorated deployment is unfenced by design.
-        let hdr = self.repos.purchase_orders.fetch_header(&self.db_pool, order_id).await?
+        let hdr = self.repos.purchase_orders.fetch_header(&self.rpool(), order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if hdr.status != "purchase" {
             return Err(BuyingError::NotConfirmable(order_id.to_string()));
         }
 
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
         // service's decorator set it task-locally; the fresh transaction carries none of it.
         relay_ambient_scope(&mut tx).await?;

@@ -71,7 +71,7 @@ impl BuyingWriteService {
         // The create gate: resolve the home currency (settings row, schema default IDR), then the
         // rate snapshot. The read is id-only (there is at most one live settings row per scope);
         // the composed decorator owns visibility.
-        let settings = self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await?;
+        let settings = self.repos.purchase_company_settings.fetch_settings(&self.rpool()).await?;
         let company_currency = settings
             .map(|s| s.company_currency)
             .unwrap_or_else(|| "IDR".into());
@@ -79,7 +79,7 @@ impl BuyingWriteService {
         let currency = o.currency.clone().unwrap_or(company_currency);
 
         let kind = o.order_kind.clone().unwrap_or_else(|| "standard".into());
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
         // service's decorator set it task-locally; the fresh transaction carries none of it.
         relay_ambient_scope(&mut tx).await?;

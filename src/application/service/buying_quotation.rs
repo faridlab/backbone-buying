@@ -31,7 +31,7 @@ impl BuyingWriteService {
         let (priced, _sub, _tax, _tot) = price_document(&q.lines, Decimal::ZERO)?;
         let id = Uuid::new_v4();
         let currency = q.currency.unwrap_or_else(|| "IDR".into());
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
         // service's decorator set it task-locally; the fresh transaction carries none of it.
         relay_ambient_scope(&mut tx).await?;
@@ -65,16 +65,16 @@ impl BuyingWriteService {
         &self, rfq_id: Uuid, quotation_number: String, supplier_id: Uuid,
         quoted_rates: &[(Uuid, Decimal)], // (item_id, rate)
     ) -> Result<Uuid, BuyingError> {
-        let rfq = self.repos.rfqs.fetch_source(&self.db_pool, rfq_id).await?
+        let rfq = self.repos.rfqs.fetch_source(&self.rpool(), rfq_id).await?
             .ok_or(BuyingError::SourceNotFound(rfq_id))?;
         if rfq.status == "cancelled" {
             return Err(BuyingError::SourceNotConvertible(rfq_id.to_string()));
         }
-        let items = self.repos.rfq_items.fetch_lines(&self.db_pool, rfq_id).await?;
+        let items = self.repos.rfq_items.fetch_lines(&self.rpool(), rfq_id).await?;
         let rate_of = |item: Uuid| quoted_rates.iter().find(|(i, _)| *i == item).map(|(_, r)| *r).unwrap_or(Decimal::ZERO);
 
         let id = Uuid::new_v4();
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         let r = self.repos.supplier_quotations.insert_quotation_from_rfq(&mut tx, &NewQuotationFromRfqRow {
@@ -105,12 +105,12 @@ impl BuyingWriteService {
         &self, quotation_id: Uuid, po_number: String, tax_rate: Decimal,
     ) -> Result<Uuid, BuyingError> {
         // Id-only read — see `convert_rfq_to_supplier_quotation`.
-        let sq = self.repos.supplier_quotations.fetch_source(&self.db_pool, quotation_id).await?
+        let sq = self.repos.supplier_quotations.fetch_source(&self.rpool(), quotation_id).await?
             .ok_or(BuyingError::SourceNotFound(quotation_id))?;
         if sq.status != "submitted" {
             return Err(BuyingError::SourceNotConvertible(quotation_id.to_string()));
         }
-        let items = self.repos.supplier_quotation_items.fetch_lines(&self.db_pool, quotation_id).await?;
+        let items = self.repos.supplier_quotation_items.fetch_lines(&self.rpool(), quotation_id).await?;
         if items.is_empty() {
             return Err(BuyingError::EmptyDocument);
         }
@@ -141,7 +141,7 @@ impl BuyingWriteService {
             lines,
         }).await?;
 
-        self.repos.supplier_quotations.mark_ordered(&self.db_pool, quotation_id).await?;
+        self.repos.supplier_quotations.mark_ordered(&self.rpool(), quotation_id).await?;
         Ok(order_id)
     }
 }

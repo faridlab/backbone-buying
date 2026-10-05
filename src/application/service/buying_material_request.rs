@@ -31,7 +31,7 @@ impl BuyingWriteService {
         for l in &m.lines { if l.quantity < Decimal::ZERO { return Err(BuyingError::NegativeQuantity); } }
         let id = Uuid::new_v4();
         let rt = m.request_type.unwrap_or_else(|| "purchase".into());
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
         // service's decorator set it task-locally; the fresh transaction carries none of it.
         relay_ambient_scope(&mut tx).await?;
@@ -66,15 +66,15 @@ impl BuyingWriteService {
         &self, request_id: Uuid, rfq_number: String, response_due: Option<chrono::NaiveDate>,
         supplier_ids: &[Uuid],
     ) -> Result<Uuid, BuyingError> {
-        let mr = self.repos.material_requests.fetch_source(&self.db_pool, request_id).await?
+        let mr = self.repos.material_requests.fetch_source(&self.rpool(), request_id).await?
             .ok_or(BuyingError::SourceNotFound(request_id))?;
         if mr.status == "cancelled" {
             return Err(BuyingError::SourceNotConvertible(request_id.to_string()));
         }
-        let items = self.repos.material_request_items.fetch_lines(&self.db_pool, request_id).await?;
+        let items = self.repos.material_request_items.fetch_lines(&self.rpool(), request_id).await?;
 
         let id = Uuid::new_v4();
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         let r = self.repos.rfqs.insert_rfq(&mut tx, &NewRfqRow {

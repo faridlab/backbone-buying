@@ -25,7 +25,7 @@ impl BuyingWriteService {
     pub async fn company_purchase_settings(
         &self,
     ) -> Result<Option<crate::infrastructure::persistence::CompanyPurchaseSettingsRow>, sqlx::Error> {
-        self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await
+        self.repos.purchase_company_settings.fetch_settings(&self.rpool()).await
     }
 
     /// Upsert the purchase settings. `double_validation` is `one_step`/`two_step`;
@@ -48,7 +48,7 @@ impl BuyingWriteService {
             return Err(BuyingError::InvalidLineMethod(company_currency));
         }
         self.repos.purchase_company_settings.upsert_settings(
-            &self.db_pool,
+            &self.rpool(),
             &SettingsUpsert {
                 double_validation: &double_validation,
                 double_validation_amount,
@@ -73,7 +73,7 @@ impl BuyingWriteService {
             return Err(BuyingError::NegativeQuantity);
         }
         self.repos.supplier_reminder_settings.upsert_for_supplier(
-            &self.db_pool,
+            &self.rpool(),
             &SupplierReminderUpsert {
                 supplier_id,
                 receipt_reminder_email,

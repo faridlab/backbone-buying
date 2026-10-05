@@ -78,7 +78,7 @@ impl BuyingWriteService {
         }
         let id = Uuid::new_v4();
         let currency = a.currency.clone().unwrap_or_else(|| "IDR".into());
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
         // service's decorator set it task-locally; the fresh transaction carries none of it.
         relay_ambient_scope(&mut tx).await?;
@@ -109,19 +109,19 @@ impl BuyingWriteService {
     /// open re-price below) is the ONLY writer of supplier prices (PXB-1: no CRUD route, no other
     /// path). Refuses from any other state (`AgreementNotConvertible`).
     pub async fn confirm_purchase_agreement(&self, agreement_id: Uuid) -> Result<(), BuyingError> {
-        let state = self.repos.purchase_agreements.fetch_state(&self.db_pool, agreement_id).await?
+        let state = self.repos.purchase_agreements.fetch_state(&self.rpool(), agreement_id).await?
             .ok_or(BuyingError::AgreementNotFound(agreement_id))?;
         if state.status != "draft" {
             return Err(BuyingError::AgreementNotConvertible(agreement_id.to_string()));
         }
-        let lines = self.repos.purchase_agreement_lines.fetch_lines(&self.db_pool, agreement_id).await?;
+        let lines = self.repos.purchase_agreement_lines.fetch_lines(&self.rpool(), agreement_id).await?;
         if lines.is_empty() {
             return Err(BuyingError::EmptyDocument);
         }
 
         let supplier_id = state.supplier_id;
         let currency = state.currency;
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         self.repos.purchase_agreements
@@ -148,17 +148,17 @@ impl BuyingWriteService {
         if rate <= Decimal::ZERO {
             return Err(BuyingError::NegativeQuantity);
         }
-        let (agreement_id, status) = self.repos.purchase_agreement_lines.fetch_parent_status(&self.db_pool, line_id).await?
+        let (agreement_id, status) = self.repos.purchase_agreement_lines.fetch_parent_status(&self.rpool(), line_id).await?
             .ok_or(BuyingError::AgreementNotFound(line_id))?;
         if status != "open" {
             return Err(BuyingError::AgreementNotConvertible(status));
         }
-        let line = self.repos.purchase_agreement_lines.fetch_line(&self.db_pool, line_id).await?
+        let line = self.repos.purchase_agreement_lines.fetch_line(&self.rpool(), line_id).await?
             .ok_or(BuyingError::AgreementNotFound(line_id))?;
-        let state = self.repos.purchase_agreements.fetch_state(&self.db_pool, agreement_id).await?
+        let state = self.repos.purchase_agreements.fetch_state(&self.rpool(), agreement_id).await?
             .ok_or(BuyingError::AgreementNotFound(agreement_id))?;
 
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         self.repos.purchase_agreement_lines.set_line_rate(&mut tx, line_id, rate).await?;
@@ -186,12 +186,12 @@ impl BuyingWriteService {
                 return Err(BuyingError::NegativeQuantity);
             }
         }
-        let state = self.repos.purchase_agreements.fetch_state(&self.db_pool, agreement_id).await?
+        let state = self.repos.purchase_agreements.fetch_state(&self.rpool(), agreement_id).await?
             .ok_or(BuyingError::AgreementNotFound(agreement_id))?;
         if state.status != "draft" {
             return Err(BuyingError::AgreementNotConvertible(agreement_id.to_string()));
         }
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         self.repos.purchase_agreement_lines.soft_delete_all_for_agreement(&mut tx, agreement_id).await?;
@@ -210,7 +210,7 @@ impl BuyingWriteService {
     /// supplier-price rows (a closed blanket no longer prices new call-offs) — status flip and
     /// unlink in one transaction.
     async fn retire_agreement(&self, agreement_id: Uuid, to: &str, from: &[&str]) -> Result<(), BuyingError> {
-        let state = self.repos.purchase_agreements.fetch_state(&self.db_pool, agreement_id).await?
+        let state = self.repos.purchase_agreements.fetch_state(&self.rpool(), agreement_id).await?
             .ok_or(BuyingError::AgreementNotFound(agreement_id))?;
         if state.draft_order_count > 0 {
             return Err(BuyingError::AgreementHasDraftOrders(agreement_id));
@@ -218,7 +218,7 @@ impl BuyingWriteService {
         if !from.contains(&state.status.as_str()) {
             return Err(BuyingError::AgreementNotConvertible(agreement_id.to_string()));
         }
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         self.repos.purchase_agreements.transition(&mut tx, agreement_id, to, from).await?
@@ -248,12 +248,12 @@ impl BuyingWriteService {
         if o.lines.is_empty() {
             return Err(BuyingError::NoLinesSelected);
         }
-        let state = self.repos.purchase_agreements.fetch_state(&self.db_pool, o.agreement_id).await?
+        let state = self.repos.purchase_agreements.fetch_state(&self.rpool(), o.agreement_id).await?
             .ok_or(BuyingError::AgreementNotFound(o.agreement_id))?;
         if state.status != "open" {
             return Err(BuyingError::AgreementNotConvertible(o.agreement_id.to_string()));
         }
-        let agreement_lines = self.repos.purchase_agreement_lines.fetch_lines(&self.db_pool, o.agreement_id).await?;
+        let agreement_lines = self.repos.purchase_agreement_lines.fetch_lines(&self.rpool(), o.agreement_id).await?;
         let by_id: std::collections::HashMap<Uuid, _> =
             agreement_lines.into_iter().map(|l| (l.id, l)).collect();
 
@@ -308,13 +308,13 @@ impl BuyingWriteService {
 
         // The same currency gate create_purchase_order applies: the agreement's currency against
         // the home currency, with a loud refusal when a rate snapshot is missing.
-        let settings = self.repos.purchase_company_settings.fetch_settings(&self.db_pool).await?;
+        let settings = self.repos.purchase_company_settings.fetch_settings(&self.rpool()).await?;
         let company_currency = settings.map(|s| s.company_currency).unwrap_or_else(|| "IDR".into());
         let rate = super::buying_order_create::resolve_rate(&new_order, &company_currency)?;
         let currency = new_order.currency.clone().unwrap_or(company_currency);
         let kind = new_order.order_kind.clone().unwrap_or_else(|| "standard".into());
 
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         let r = self.repos.purchase_orders.insert_purchase_order(&mut tx, &crate::infrastructure::persistence::NewPurchaseOrderRow {

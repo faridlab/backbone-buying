@@ -86,7 +86,7 @@ impl BuyingWriteService {
         let row = self.repos
             .purchase_orders
             .find_open_po_for_demand(
-                &self.db_pool,
+                &self.rpool(),
                 demand.supplier_id,
                 demand.project_id,
             )

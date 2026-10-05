@@ -50,12 +50,12 @@ impl BuyingWriteService {
     /// not-yet-received quantity per `stock_moves` line. Emits `ReceiptRequested`.
     pub async fn build_receipt_request(&self, order_id: Uuid) -> Result<ReceiptRequestEnvelope, BuyingError> {
         // Id-only read — the composed decorator owns visibility.
-        let hdr = self.repos.purchase_orders.fetch_header(&self.db_pool, order_id).await?
+        let hdr = self.repos.purchase_orders.fetch_header(&self.rpool(), order_id).await?
             .ok_or(BuyingError::OrderNotFound(order_id))?;
         if hdr.status != "purchase" {
             return Err(BuyingError::NotConfirmable(order_id.to_string()));
         }
-        let rows = self.repos.purchase_order_items.fetch_remaining(&self.db_pool, order_id).await?;
+        let rows = self.repos.purchase_order_items.fetch_remaining(&self.rpool(), order_id).await?;
         let lines: Vec<ReceiptRequestLine> = rows.iter().map(|r| ReceiptRequestLine {
             item_id: r.item_id, quantity: r.remaining, rate: r.rate,
         }).collect();
@@ -77,7 +77,7 @@ impl BuyingWriteService {
         order_id: Uuid,
         receipts: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029): the composing
         // service's decorator set it task-locally; the fresh transaction carries none of it.
         relay_ambient_scope(&mut tx).await?;
@@ -99,7 +99,7 @@ impl BuyingWriteService {
         tx.commit().await?;
 
         // Goods landed: the supplier needs no further chaser for this PO.
-        let _ = self.repos.purchase_orders.set_acknowledged(&self.db_pool, order_id).await?;
+        let _ = self.repos.purchase_orders.set_acknowledged(&self.rpool(), order_id).await?;
 
         let maturity = self.recompute_order_maturity(order_id).await?;
         self.sink.publish(BuyingEvent::PurchaseReceiptRecorded(PurchaseReceiptRecorded {
@@ -119,7 +119,7 @@ impl BuyingWriteService {
         order_id: Uuid,
         billed: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         for (item_id, qty) in billed {
@@ -151,7 +151,7 @@ impl BuyingWriteService {
         order_id: Uuid,
         returns: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         for (item_id, qty) in returns {
@@ -185,7 +185,7 @@ impl BuyingWriteService {
         order_id: Uuid,
         credits: &[(Uuid, Decimal)],
     ) -> Result<(), BuyingError> {
-        let mut tx = self.db_pool.begin().await?;
+        let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
         for (item_id, qty) in credits {
@@ -219,7 +219,7 @@ impl BuyingWriteService {
         qty: Decimal,
     ) -> Result<(), BuyingError> {
         let row = self.repos.purchase_order_items
-            .set_manual_line_receipt(&self.db_pool, order_id, line_id, qty).await?
+            .set_manual_line_receipt(&self.rpool(), order_id, line_id, qty).await?
             .ok_or_else(|| BuyingError::InvalidLineMethod(line_id.to_string()))?;
 
         let maturity = self.recompute_order_maturity(order_id).await?;
@@ -308,7 +308,7 @@ impl BuyingWriteService {
     pub(super) async fn recompute_order_maturity(&self, order_id: Uuid) -> Result<MaturityRow, BuyingError> {
         // Id-only read + write — this runs under whatever ambient scope its caller relayed onto
         // their transaction; the composed decorator owns isolation.
-        let row = self.repos.purchase_orders.fetch_maturity(&self.db_pool, order_id).await?;
+        let row = self.repos.purchase_orders.fetch_maturity(&self.rpool(), order_id).await?;
         let received_all = row.received_all.unwrap_or(false);
         let any_received = row.any_received.unwrap_or(false);
         let any_to_invoice = row.any_to_invoice.unwrap_or(false);
@@ -320,7 +320,7 @@ impl BuyingWriteService {
         let invoice_status = if any_to_invoice { "to_invoice" } else if any_billed { "invoiced" } else { "no" };
 
         self.repos.purchase_orders
-            .update_maturity(&self.db_pool, order_id, receipt_status, invoice_status).await?;
+            .update_maturity(&self.rpool(), order_id, receipt_status, invoice_status).await?;
 
         // Milestone events on the FIRST transition into full receipt / invoiced.
         let was_full = row.prior_receipt == "full";
