@@ -36,7 +36,7 @@ impl Seeder for SeedRfqSupplierSeeder {
     }
 
     fn order(&self) -> i32 {
-        10
+        8
     }
 
     async fn should_run(&self, pool: &PgPool) -> Result<bool> {

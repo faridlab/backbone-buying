@@ -36,7 +36,7 @@ impl Seeder for SeedRequestForQuotationSeeder {
     }
 
     fn order(&self) -> i32 {
-        8
+        6
     }
 
     async fn should_run(&self, pool: &PgPool) -> Result<bool> {
