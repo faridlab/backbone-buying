@@ -86,6 +86,7 @@ pub struct BuyingModule {
     pub(crate) request_for_quotation_service: Arc<RequestForQuotationService>,
     pub(crate) rfq_item_service: Arc<RfqItemService>,
     pub(crate) rfq_supplier_service: Arc<RfqSupplierService>,
+    #[allow(dead_code)]
     pub(crate) supplier_price_service: Arc<SupplierPriceService>,
     pub(crate) supplier_quotation_service: Arc<SupplierQuotationService>,
     pub(crate) supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
