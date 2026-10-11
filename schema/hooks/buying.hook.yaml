@@ -112,6 +112,7 @@ rules:
   - id: R1
     name: non_empty_document
     when: create
+    enforced_by: "src/application/service/buying_write_service.rs::price_document"
     assert: "count(lines) >= 1"
     error_code: empty_document
     enforcement: service
