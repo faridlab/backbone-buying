@@ -187,3 +187,4 @@ pub fn create_protected_supplier_quotation_routes<A: AuthMiddleware + Send + Syn
             }
         }))
 }
+

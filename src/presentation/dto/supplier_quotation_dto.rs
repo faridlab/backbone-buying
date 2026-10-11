@@ -318,7 +318,7 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierQuotationDto> for SupplierQuota
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to SupplierQuotation here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

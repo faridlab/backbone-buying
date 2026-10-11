@@ -18,5 +18,3 @@ use crate::domain::entity::RfqItem;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type RfqItemDomainPolicy = PermitAllPolicy<RfqItem>;
 
-// <<< CUSTOM
-// END CUSTOM

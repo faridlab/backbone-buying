@@ -17,9 +17,5 @@ pub fn material_request_validator() -> MaterialRequestValidator {
     EntityValidator::new()
         .rule(RequiredString::new("request_number", |e: &MaterialRequest| &e.request_number))
         .rule(OptionalNotBlank::new("notes", |e: &MaterialRequest| e.notes.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

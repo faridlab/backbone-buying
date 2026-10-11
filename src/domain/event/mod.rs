@@ -60,5 +60,3 @@ pub use supplier_quotation_item_event_handlers::SupplierQuotationItemEventHandle
 pub use supplier_reminder_setting_events::{SupplierReminderSettingEvent, SupplierReminderSettingEventPublisher, NoopSupplierReminderSettingEventPublisher};
 pub use supplier_reminder_setting_event_handlers::SupplierReminderSettingEventHandler;
 
-// <<< CUSTOM
-// END CUSTOM

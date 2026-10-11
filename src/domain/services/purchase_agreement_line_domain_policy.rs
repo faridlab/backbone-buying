@@ -18,5 +18,3 @@ use crate::domain::entity::PurchaseAgreementLine;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type PurchaseAgreementLineDomainPolicy = PermitAllPolicy<PurchaseAgreementLine>;
 
-// <<< CUSTOM
-// END CUSTOM

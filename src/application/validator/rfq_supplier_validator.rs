@@ -14,10 +14,6 @@ pub type RfqSupplierValidator = EntityValidator<RfqSupplier>;
 /// Build a validator for RfqSupplier with all schema-defined field rules.
 pub fn rfq_supplier_validator() -> RfqSupplierValidator {
     EntityValidator::new()
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
         // No schema-derived rules — add custom rules above.
 }
 
-// <<< CUSTOM
-// END CUSTOM

@@ -35,5 +35,3 @@ pub use supplier_quotation_validator::{SupplierQuotationValidator, supplier_quot
 pub use supplier_quotation_item_validator::{SupplierQuotationItemValidator, supplier_quotation_item_validator};
 pub use supplier_reminder_setting_validator::{SupplierReminderSettingValidator, supplier_reminder_setting_validator};
 
-// <<< CUSTOM
-// END CUSTOM

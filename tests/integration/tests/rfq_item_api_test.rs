@@ -110,6 +110,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add RfqItem specific tests here
-// <<< CUSTOM TESTS END >>>

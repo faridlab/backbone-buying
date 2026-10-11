@@ -21,5 +21,3 @@ pub mod supplier_quotation_specification;
 pub mod supplier_quotation_item_specification;
 pub mod supplier_reminder_setting_specification;
 
-// <<< CUSTOM
-// END CUSTOM

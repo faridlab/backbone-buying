@@ -11,8 +11,6 @@ use crate::domain::entity::RfqItem;
 /// enum containing a `Crud(CrudEvent<RfqItem>)` variant.
 pub type RfqItemEvent = CrudEvent<RfqItem>;
 
-// <<< CUSTOM
-// END CUSTOM
 
 use backbone_messaging::{CrudEventPublisher, NoOpCrudEventPublisher};
 use std::sync::Arc;

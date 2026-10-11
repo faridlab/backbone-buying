@@ -24,8 +24,6 @@ pub mod application;
 pub mod presentation;
 pub mod seeders;
 pub mod exports;
-// <<< CUSTOM MODULES
-// END CUSTOM
 
 // Re-exports for convenience - Domain entities
 pub use domain::entity::*;
@@ -87,8 +85,6 @@ pub struct BuyingModule {
     pub(crate) supplier_quotation_service: Arc<SupplierQuotationService>,
     pub(crate) supplier_quotation_item_service: Arc<SupplierQuotationItemService>,
     pub(crate) supplier_reminder_setting_service: Arc<SupplierReminderSettingService>,
-    // <<< CUSTOM FIELDS
-    // END CUSTOM
 }
 
 impl BuyingModule {
@@ -183,15 +179,11 @@ impl BuyingModule {
             .merge(create_supplier_reminder_setting_read_routes(self.supplier_reminder_setting_service.clone()))
     }
 
-    // <<< CUSTOM METHODS
-    // END CUSTOM
 }
 
 /// Builder for BuyingModule
 pub struct BuyingModuleBuilder {
     db_pool: Option<PgPool>,
-    // <<< CUSTOM BUILDER FIELDS
-    // END CUSTOM
 }
 
 impl BuyingModuleBuilder {
@@ -199,8 +191,6 @@ impl BuyingModuleBuilder {
     pub fn new() -> Self {
         Self {
             db_pool: None,
-            // <<< CUSTOM BUILDER DEFAULTS
-            // END CUSTOM
         }
     }
 
@@ -210,8 +200,6 @@ impl BuyingModuleBuilder {
         self
     }
 
-    // <<< CUSTOM - custom builder methods
-    // END CUSTOM
 
     /// Build the module with configured dependencies
     pub fn build(self) -> anyhow::Result<BuyingModule> {
@@ -274,8 +262,6 @@ impl BuyingModuleBuilder {
         let supplier_reminder_setting_repository = Arc::new(SupplierReminderSettingRepository::new(db_pool.clone()));
         let supplier_reminder_setting_service = Arc::new(SupplierReminderSettingService::with_repository(supplier_reminder_setting_repository.clone()));
 
-        // <<< CUSTOM
-        // END CUSTOM
 
         Ok(BuyingModule {
             material_request_service,
@@ -292,8 +278,6 @@ impl BuyingModuleBuilder {
             supplier_quotation_service,
             supplier_quotation_item_service,
             supplier_reminder_setting_service,
-            // <<< CUSTOM
-            // END CUSTOM
         })
     }
 }

@@ -187,3 +187,4 @@ pub fn create_protected_purchase_order_item_routes<A: AuthMiddleware + Send + Sy
             }
         }))
 }
+

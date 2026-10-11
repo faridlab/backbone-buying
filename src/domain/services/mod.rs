@@ -32,5 +32,3 @@ pub use supplier_quotation_domain_policy::SupplierQuotationDomainPolicy;
 pub use supplier_quotation_item_domain_policy::SupplierQuotationItemDomainPolicy;
 pub use supplier_reminder_setting_domain_policy::SupplierReminderSettingDomainPolicy;
 
-// <<< CUSTOM
-// END CUSTOM

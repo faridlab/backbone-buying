@@ -108,6 +108,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add MaterialRequest specific tests here
-// <<< CUSTOM TESTS END >>>

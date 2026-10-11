@@ -187,3 +187,4 @@ pub fn create_protected_material_request_routes<A: AuthMiddleware + Send + Sync 
             }
         }))
 }
+

@@ -11,8 +11,6 @@ use crate::domain::entity::MaterialRequestItem;
 /// enum containing a `Crud(CrudEvent<MaterialRequestItem>)` variant.
 pub type MaterialRequestItemEvent = CrudEvent<MaterialRequestItem>;
 
-// <<< CUSTOM
-// END CUSTOM
 
 use backbone_messaging::{CrudEventPublisher, NoOpCrudEventPublisher};
 use std::sync::Arc;

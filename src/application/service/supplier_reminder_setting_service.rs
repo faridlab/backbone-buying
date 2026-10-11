@@ -32,5 +32,3 @@ pub type SupplierReminderSettingService = GenericCrudService<
     SupplierReminderSettingRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

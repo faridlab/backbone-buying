@@ -32,5 +32,3 @@ pub type PurchaseOrderService = GenericCrudService<
     PurchaseOrderRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

@@ -32,5 +32,3 @@ pub type RfqSupplierService = GenericCrudService<
     RfqSupplierRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

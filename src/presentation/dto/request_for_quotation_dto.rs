@@ -273,7 +273,7 @@ impl backbone_core::ApplyUpdateDto<UpdateRequestForQuotationDto> for RequestForQ
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to RequestForQuotation here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

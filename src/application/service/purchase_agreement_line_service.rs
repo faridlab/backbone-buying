@@ -32,5 +32,3 @@ pub type PurchaseAgreementLineService = GenericCrudService<
     PurchaseAgreementLineRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

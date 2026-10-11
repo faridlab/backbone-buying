@@ -32,5 +32,3 @@ pub type SupplierPriceService = GenericCrudService<
     SupplierPriceRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

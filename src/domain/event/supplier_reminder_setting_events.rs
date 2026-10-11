@@ -11,8 +11,6 @@ use crate::domain::entity::SupplierReminderSetting;
 /// enum containing a `Crud(CrudEvent<SupplierReminderSetting>)` variant.
 pub type SupplierReminderSettingEvent = CrudEvent<SupplierReminderSetting>;
 
-// <<< CUSTOM
-// END CUSTOM
 
 use backbone_messaging::{CrudEventPublisher, NoOpCrudEventPublisher};
 use std::sync::Arc;

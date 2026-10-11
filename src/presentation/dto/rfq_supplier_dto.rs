@@ -236,7 +236,7 @@ impl backbone_core::ApplyUpdateDto<UpdateRfqSupplierDto> for RfqSupplier {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to RfqSupplier here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

@@ -294,7 +294,7 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierPriceDto> for SupplierPrice {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to SupplierPrice here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

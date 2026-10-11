@@ -32,5 +32,3 @@ pub type PurchaseCompanySettingService = GenericCrudService<
     PurchaseCompanySettingRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

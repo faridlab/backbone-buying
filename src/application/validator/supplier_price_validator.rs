@@ -16,9 +16,5 @@ pub type SupplierPriceValidator = EntityValidator<SupplierPrice>;
 pub fn supplier_price_validator() -> SupplierPriceValidator {
     EntityValidator::new()
         .rule(RequiredString::new("currency", |e: &SupplierPrice| &e.currency))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

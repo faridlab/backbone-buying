@@ -11,8 +11,6 @@ use crate::domain::entity::PurchaseOrder;
 /// enum containing a `Crud(CrudEvent<PurchaseOrder>)` variant.
 pub type PurchaseOrderEvent = CrudEvent<PurchaseOrder>;
 
-// <<< CUSTOM
-// END CUSTOM
 
 use backbone_messaging::{CrudEventPublisher, NoOpCrudEventPublisher};
 use std::sync::Arc;

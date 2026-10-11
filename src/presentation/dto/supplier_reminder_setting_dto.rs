@@ -253,7 +253,7 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierReminderSettingDto> for Supplie
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to SupplierReminderSetting here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

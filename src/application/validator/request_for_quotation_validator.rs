@@ -16,9 +16,5 @@ pub type RequestForQuotationValidator = EntityValidator<RequestForQuotation>;
 pub fn request_for_quotation_validator() -> RequestForQuotationValidator {
     EntityValidator::new()
         .rule(RequiredString::new("rfq_number", |e: &RequestForQuotation| &e.rfq_number))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

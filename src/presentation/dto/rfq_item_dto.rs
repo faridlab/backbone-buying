@@ -248,7 +248,7 @@ impl backbone_core::ApplyUpdateDto<UpdateRfqItemDto> for RfqItem {
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to RfqItem here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

@@ -16,9 +16,5 @@ pub type PurchaseCompanySettingValidator = EntityValidator<PurchaseCompanySettin
 pub fn purchase_company_setting_validator() -> PurchaseCompanySettingValidator {
     EntityValidator::new()
         .rule(RequiredString::new("company_currency", |e: &PurchaseCompanySetting| &e.company_currency))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

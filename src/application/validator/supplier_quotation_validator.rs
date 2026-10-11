@@ -18,9 +18,5 @@ pub fn supplier_quotation_validator() -> SupplierQuotationValidator {
         .rule(RequiredString::new("quotation_number", |e: &SupplierQuotation| &e.quotation_number))
         .rule(RequiredString::new("currency", |e: &SupplierQuotation| &e.currency))
         .rule(OptionalNotBlank::new("notes", |e: &SupplierQuotation| e.notes.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

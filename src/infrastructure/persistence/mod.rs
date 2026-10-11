@@ -20,8 +20,6 @@ mod supplier_quotation_item_repository;
 mod supplier_reminder_setting_repository;
 
 // Custom persistence modules
-// <<< CUSTOM
-// END CUSTOM
 
 // Re-exports
 pub use material_request_repository::MaterialRequestRepository;
@@ -47,8 +45,6 @@ pub use backbone_orm::repository::{
 };
 
 // Re-export custom persistence types
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

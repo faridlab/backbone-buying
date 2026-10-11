@@ -18,5 +18,3 @@ use crate::domain::entity::MaterialRequest;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type MaterialRequestDomainPolicy = PermitAllPolicy<MaterialRequest>;
 
-// <<< CUSTOM
-// END CUSTOM

@@ -22,8 +22,6 @@ pub mod supplier_quotation_service;
 pub mod supplier_quotation_item_service;
 pub mod supplier_reminder_setting_service;
 
-// <<< CUSTOM
-// END CUSTOM
 
 pub use material_request_service::MaterialRequestService;
 pub use material_request_item_service::MaterialRequestItemService;
@@ -39,8 +37,6 @@ pub use supplier_price_service::SupplierPriceService;
 pub use supplier_quotation_service::SupplierQuotationService;
 pub use supplier_quotation_item_service::SupplierQuotationItemService;
 pub use supplier_reminder_setting_service::SupplierReminderSettingService;
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

@@ -187,3 +187,4 @@ pub fn create_protected_request_for_quotation_routes<A: AuthMiddleware + Send + 
             }
         }))
 }
+

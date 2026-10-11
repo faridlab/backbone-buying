@@ -186,3 +186,4 @@ pub fn create_protected_supplier_reminder_setting_routes<A: AuthMiddleware + Sen
             }
         }))
 }
+

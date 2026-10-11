@@ -16,9 +16,5 @@ pub type PurchaseOrderItemValidator = EntityValidator<PurchaseOrderItem>;
 pub fn purchase_order_item_validator() -> PurchaseOrderItemValidator {
     EntityValidator::new()
         .rule(OptionalNotBlank::new("description", |e: &PurchaseOrderItem| e.description.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

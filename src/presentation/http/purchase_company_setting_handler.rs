@@ -187,3 +187,4 @@ pub fn create_protected_purchase_company_setting_routes<A: AuthMiddleware + Send
             }
         }))
 }
+

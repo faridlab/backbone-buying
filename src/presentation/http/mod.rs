@@ -19,8 +19,6 @@ pub mod supplier_quotation_handler;
 pub mod supplier_quotation_item_handler;
 pub mod supplier_reminder_setting_handler;
 
-// <<< CUSTOM
-// END CUSTOM
 
 // Re-exports
 pub use material_request_handler::{create_material_request_routes, create_material_request_read_routes, create_material_request_write_routes};
@@ -36,8 +34,6 @@ pub use rfq_supplier_handler::{create_rfq_supplier_routes, create_rfq_supplier_r
 pub use supplier_quotation_handler::{create_supplier_quotation_routes, create_supplier_quotation_read_routes, create_supplier_quotation_write_routes};
 pub use supplier_quotation_item_handler::{create_supplier_quotation_item_routes, create_supplier_quotation_item_read_routes, create_supplier_quotation_item_write_routes};
 pub use supplier_reminder_setting_handler::{create_supplier_reminder_setting_routes, create_supplier_reminder_setting_read_routes, create_supplier_reminder_setting_write_routes};
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

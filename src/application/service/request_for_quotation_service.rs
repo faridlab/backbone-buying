@@ -32,5 +32,3 @@ pub type RequestForQuotationService = GenericCrudService<
     RequestForQuotationRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

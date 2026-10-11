@@ -15,10 +15,6 @@ pub type SupplierQuotationItemValidator = EntityValidator<SupplierQuotationItem>
 /// Build a validator for SupplierQuotationItem with all schema-defined field rules.
 pub fn supplier_quotation_item_validator() -> SupplierQuotationItemValidator {
     EntityValidator::new()
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
         // No schema-derived rules — add custom rules above.
 }
 
-// <<< CUSTOM
-// END CUSTOM

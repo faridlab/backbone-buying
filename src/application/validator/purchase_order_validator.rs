@@ -18,9 +18,5 @@ pub fn purchase_order_validator() -> PurchaseOrderValidator {
         .rule(RequiredString::new("po_number", |e: &PurchaseOrder| &e.po_number))
         .rule(RequiredString::new("currency", |e: &PurchaseOrder| &e.currency))
         .rule(OptionalNotBlank::new("notes", |e: &PurchaseOrder| e.notes.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

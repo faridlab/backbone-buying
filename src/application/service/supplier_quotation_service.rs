@@ -32,5 +32,3 @@ pub type SupplierQuotationService = GenericCrudService<
     SupplierQuotationRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

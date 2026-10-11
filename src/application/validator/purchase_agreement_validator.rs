@@ -18,9 +18,5 @@ pub fn purchase_agreement_validator() -> PurchaseAgreementValidator {
         .rule(RequiredString::new("agreement_number", |e: &PurchaseAgreement| &e.agreement_number))
         .rule(RequiredString::new("currency", |e: &PurchaseAgreement| &e.currency))
         .rule(OptionalNotBlank::new("notes", |e: &PurchaseAgreement| e.notes.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

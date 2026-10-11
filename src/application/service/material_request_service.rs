@@ -32,5 +32,3 @@ pub type MaterialRequestService = GenericCrudService<
     MaterialRequestRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

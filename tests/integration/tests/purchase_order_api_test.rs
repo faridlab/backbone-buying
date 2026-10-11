@@ -140,6 +140,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add PurchaseOrder specific tests here
-// <<< CUSTOM TESTS END >>>
