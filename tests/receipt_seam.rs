@@ -63,8 +63,7 @@ async fn pool() -> PgPool {
         .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5433/backbone_buying".to_string());
     PgPool::connect(&url).await.expect("connect DB")
 }
-async fn seed_coa(pool: &PgPool) -> (Uuid, HashMap<&'static str, Uuid>) {
-    let company = Uuid::new_v4();
+async fn seed_coa(pool: &PgPool) -> HashMap<&'static str, Uuid> {
     let coa: &[(&str, &str, &str, &str, &str)] = &[
         ("1300", "Persediaan", "asset", "inventory", "debit"),
         ("2150", "GR/IR", "liability", "current_liability", "credit"),
@@ -73,22 +72,21 @@ async fn seed_coa(pool: &PgPool) -> (Uuid, HashMap<&'static str, Uuid>) {
     for (code, name, at, st, nb) in coa {
         let id = Uuid::new_v4();
         // Accounting is tenant-agnostic in this tree (ADR-0029): its accounts carry no
-        // tenant column module-side, so the seed row is just a row. The `company` value
-        // this helper returns still scopes the unstripped inventory leg below.
+        // tenant column module-side, so the seed row is just a row.
         sqlx::query(r#"INSERT INTO accounting.accounts (id, account_number, account_code, name, account_type, account_subtype, normal_balance, is_header, is_detail, status)
             VALUES ($1,$2,$3,$4,$5::account_type,$6::account_subtype,$7::normal_balance,false,true,'active'::account_status)"#)
             .bind(id).bind(code).bind(code).bind(name).bind(at).bind(st).bind(nb)
             .execute(pool).await.expect("seed acct");
         m.insert(*code, id);
     }
-    (company, m)
+    m
 }
 
 /// RSEAM-1: procure-to-pay + goods receipt across buying, inventory, and the real ledger.
 #[tokio::test]
 async fn procure_to_pay_receipt_across_three_modules() {
     let pool = pool().await;
-    let (company, coa) = seed_coa(&pool).await;
+    let coa = seed_coa(&pool).await;
     let item = Uuid::new_v4();
     let supplier = Uuid::new_v4();
 
@@ -98,7 +96,7 @@ async fn procure_to_pay_receipt_across_three_modules() {
     let intake = DeliveryIntake::new(pool.clone());
     let gl = GlAdapter { svc: PostingService::new(Arc::new(backbone_accounting::infrastructure::persistence::SqlxPostingRepository::new(pool.clone()))) };
 
-    let wh = inventory.create_warehouse(NewWarehouse { company_id: company, code: uq("WH"), name: "Main".into(), warehouse_type: None, parent_warehouse_id: None, is_group: false }).await.unwrap();
+    let wh = inventory.create_warehouse(NewWarehouse { code: uq("WH"), name: "Main".into(), warehouse_type: None, parent_warehouse_id: None, is_group: false }).await.unwrap();
 
     // 1) buying: PO for 10 @ 100,000, confirm — the band enters `purchase`, both maturity computes
     // at their floors (nothing received, nothing billed).
@@ -112,13 +110,12 @@ async fn procure_to_pay_receipt_across_three_modules() {
     assert_eq!(po_status(&pool, po).await, "purchase");
     assert_eq!(po_maturity(&pool, po).await, ("pending".into(), "no".into()));
 
-    // 2) buying emits a receipt request; ACL maps it into inventory's ReceiptExpected. Buying is
-    // tenant-agnostic (ADR-0029): its envelope carries only the legacy company twin (nil
-    // undecorated), so the ACL supplies the company the inventory leg still scopes by.
+    // 2) buying emits a receipt request; ACL maps it into inventory's ReceiptExpected. Both
+    // sides are tenant-agnostic (ADR-0029): neither envelope carries a company.
     let req = buying.build_receipt_request(po).await.unwrap();
     assert_eq!(req.lines.len(), 1);
     let pr = intake.on_receipt_expected(ReceiptExpected {
-        receipt_number: uq("PR"), company_id: company, branch_id: None, supplier_id: req.supplier_id,
+        receipt_number: uq("PR"), branch_id: None, supplier_id: req.supplier_id,
         source_po_id: Some(req.order_id), warehouse_id: wh, posting_date: day(), currency: "IDR".into(),
         inventory_account_id: coa["1300"], grir_account_id: coa["2150"],
         lines: req.lines.iter().map(|l| InvReceiptLine { item_id: l.item_id, quantity: l.quantity, rate: l.rate }).collect(),
@@ -146,7 +143,7 @@ async fn procure_to_pay_receipt_across_three_modules() {
     assert_eq!(po_maturity(&pool, po).await, ("full".into(), "invoiced".into()));
 
     // inventory Bin holds the received stock at the PO rate.
-    let (bin_qty, bin_val): (Decimal, Decimal) = sqlx::query_as("SELECT actual_qty, stock_value FROM inventory.bins WHERE company_id=$1 AND item_id=$2 AND warehouse_id=$3").bind(company).bind(item).bind(wh).fetch_one(&pool).await.unwrap();
+    let (bin_qty, bin_val): (Decimal, Decimal) = sqlx::query_as("SELECT actual_qty, stock_value FROM inventory.bins WHERE item_id=$1 AND warehouse_id=$2").bind(item).bind(wh).fetch_one(&pool).await.unwrap();
     assert_eq!(bin_qty, d("10.0000"));
     assert_eq!(bin_val, d("1000000.00"));
     // buying watermark
