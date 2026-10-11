@@ -23,21 +23,6 @@ pub mod supplier_quotation_item_service;
 pub mod supplier_reminder_setting_service;
 
 // <<< CUSTOM
-// Hand-authored (user-owned): domain events + the validated write path + receipt seam.
-pub mod buying_events;
-pub mod buying_write_service;
-// The write surface, chunked: each is an `impl BuyingWriteService` block over the vocabulary that
-// stays in `buying_write_service` (so the `buying_write_service::{NewLine, ...}` import paths are
-// unchanged).
-pub mod buying_material_request;
-pub mod buying_quotation;
-pub mod buying_order_create;
-pub mod buying_order_lifecycle;
-pub mod buying_receipt;
-pub mod buying_agreement;
-pub mod buying_bill_matching;
-pub mod buying_settings;
-pub mod buying_po_grouping;
 // END CUSTOM
 
 pub use material_request_service::MaterialRequestService;
@@ -55,13 +40,7 @@ pub use supplier_quotation_service::SupplierQuotationService;
 pub use supplier_quotation_item_service::SupplierQuotationItemService;
 pub use supplier_reminder_setting_service::SupplierReminderSettingService;
 // <<< CUSTOM
-pub use buying_events::{
-    BuyingEvent, BuyingEventSink, DocumentRaised, PurchaseOrderConfirmed, PurchaseOrderMilestone,
-    PurchaseOrderRef, ReceiptRequestEnvelope, ReceiptRequestLine, ThreeWayMatchFailed,
-};
-pub use buying_write_service::{
-    BuyingError, BuyingWriteService, NewLine, NewMaterialRequest, NewPurchaseOrder,
-    NewSupplierQuotation, SimpleLine,
-};
-pub use buying_po_grouping::{PoDemand, PoMergeCandidate};
 // END CUSTOM
+
+// This directory's extension (hand-written; ADR-0031).
+include!("mod.ext.rs");
