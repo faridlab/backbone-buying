@@ -32,3 +32,43 @@ pub type PurchaseOrderService = GenericCrudService<
     PurchaseOrderRepository,
 >;
 
+/// The row rules the schema declares for PurchaseOrder, checked against the row a create or
+/// update would store. The generated build attaches it to [`PurchaseOrderService`]. Every rule
+/// runs in shadow: a break is logged under `backbone::write_guard` and the write goes ahead.
+pub struct PurchaseOrderRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<PurchaseOrder> for PurchaseOrderRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, PurchaseOrder>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        // `invoice_status` belongs to a state machine: only its verbs move it
+        if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["invoice_status"]) {
+            shadow.push(Violation::new("invoice_status", "state_field_verbs_only", "the state field moves only through its verbs"));
+        }
+        // `receipt_status` belongs to a state machine: only its verbs move it
+        if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["receipt_status"]) {
+            shadow.push(Violation::new("receipt_status", "state_field_verbs_only", "the state field moves only through its verbs"));
+        }
+        // `status` belongs to a state machine: only its verbs move it
+        if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["status"]) {
+            shadow.push(Violation::new("status", "state_field_verbs_only", "the state field moves only through its verbs"));
+        }
+        GuardOutcome { refuse: Vec::new(), shadow }
+    }
+}
+

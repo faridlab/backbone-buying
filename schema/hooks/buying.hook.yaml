@@ -14,6 +14,7 @@ version: 2
 state_machines:
   - entity: MaterialRequest
     field: status
+    verbs: hand
     lifecycle: hand_set
     initial: draft
     states: [draft, submitted, ordered, cancelled]
@@ -21,6 +22,7 @@ state_machines:
       - { from: draft, to: submitted, on: submit }
   - entity: SupplierQuotation
     field: status
+    verbs: hand
     lifecycle: hand_set
     initial: draft
     states: [draft, submitted, ordered, cancelled]
@@ -32,6 +34,7 @@ state_machines:
   # receipt_status / invoice_status projections below.
   - entity: PurchaseOrder
     field: status
+    verbs: hand
     lifecycle: hand_set
     description: >
       Hand-set per ADR-0016: transitions are writes by the lifecycle verbs,
@@ -65,6 +68,7 @@ state_machines:
   # guarded to status='purchase').
   - entity: PurchaseOrder
     field: receipt_status
+    verbs: hand
     lifecycle: projection
     description: >
       Projection of the line received watermarks: full iff every live line
@@ -75,6 +79,7 @@ state_machines:
     transitions: []  # no hand-set transitions — allocation-driven recompute only
   - entity: PurchaseOrder
     field: invoice_status
+    verbs: hand
     lifecycle: projection
     description: >
       Projection of the line billing watermarks under the two-formula capacity
@@ -94,6 +99,7 @@ state_machines:
 
   - entity: PurchaseAgreement
     field: status
+    verbs: hand
     lifecycle: hand_set
     description: >
       Hand-set per ADR-0016. Confirming a draft blanket mints its supplier

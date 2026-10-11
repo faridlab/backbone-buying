@@ -37,6 +37,10 @@ pub use supplier_price_service::SupplierPriceService;
 pub use supplier_quotation_service::SupplierQuotationService;
 pub use supplier_quotation_item_service::SupplierQuotationItemService;
 pub use supplier_reminder_setting_service::SupplierReminderSettingService;
+pub use material_request_service::MaterialRequestRowRules;
+pub use purchase_agreement_service::PurchaseAgreementRowRules;
+pub use purchase_order_service::PurchaseOrderRowRules;
+pub use supplier_quotation_service::SupplierQuotationRowRules;
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

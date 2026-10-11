@@ -208,7 +208,7 @@ impl BuyingModuleBuilder {
 
         // MaterialRequest service
         let material_request_repository = Arc::new(MaterialRequestRepository::new(db_pool.clone()));
-        let material_request_service = Arc::new(MaterialRequestService::with_repository(material_request_repository.clone()));
+        let material_request_service = Arc::new(MaterialRequestService::with_repository(material_request_repository.clone()).with_guard(Arc::new(crate::application::service::MaterialRequestRowRules)));
 
         // MaterialRequestItem service
         let material_request_item_repository = Arc::new(MaterialRequestItemRepository::new(db_pool.clone()));
@@ -216,7 +216,7 @@ impl BuyingModuleBuilder {
 
         // PurchaseAgreement service
         let purchase_agreement_repository = Arc::new(PurchaseAgreementRepository::new(db_pool.clone()));
-        let purchase_agreement_service = Arc::new(PurchaseAgreementService::with_repository(purchase_agreement_repository.clone()));
+        let purchase_agreement_service = Arc::new(PurchaseAgreementService::with_repository(purchase_agreement_repository.clone()).with_guard(Arc::new(crate::application::service::PurchaseAgreementRowRules)));
 
         // PurchaseAgreementLine service
         let purchase_agreement_line_repository = Arc::new(PurchaseAgreementLineRepository::new(db_pool.clone()));
@@ -228,7 +228,7 @@ impl BuyingModuleBuilder {
 
         // PurchaseOrder service
         let purchase_order_repository = Arc::new(PurchaseOrderRepository::new(db_pool.clone()));
-        let purchase_order_service = Arc::new(PurchaseOrderService::with_repository(purchase_order_repository.clone()));
+        let purchase_order_service = Arc::new(PurchaseOrderService::with_repository(purchase_order_repository.clone()).with_guard(Arc::new(crate::application::service::PurchaseOrderRowRules)));
 
         // PurchaseOrderItem service
         let purchase_order_item_repository = Arc::new(PurchaseOrderItemRepository::new(db_pool.clone()));
@@ -252,7 +252,7 @@ impl BuyingModuleBuilder {
 
         // SupplierQuotation service
         let supplier_quotation_repository = Arc::new(SupplierQuotationRepository::new(db_pool.clone()));
-        let supplier_quotation_service = Arc::new(SupplierQuotationService::with_repository(supplier_quotation_repository.clone()));
+        let supplier_quotation_service = Arc::new(SupplierQuotationService::with_repository(supplier_quotation_repository.clone()).with_guard(Arc::new(crate::application::service::SupplierQuotationRowRules)));
 
         // SupplierQuotationItem service
         let supplier_quotation_item_repository = Arc::new(SupplierQuotationItemRepository::new(db_pool.clone()));
