@@ -117,6 +117,7 @@ state_machines:
 rules:
   - id: R1
     name: non_empty_document
+    entity: PurchaseOrder
     when: create
     enforced_by: "src/application/service/buying_write_service.rs::price_document"
     assert: "count(lines) >= 1"
@@ -125,95 +126,121 @@ rules:
     justification: "The header and its lines commit in ONE transaction; a SQL expression would need a deferred cross-table constraint to see the lines at insert time."
   - id: R2
     name: non_negative
+    entity: PurchaseOrderItem
     when: create
     assert: "line.quantity >= 0 AND line.rate >= 0"
     error_code: negative_quantity
     enforcement: db
+    enforced_by: "src/application/service/buying_write_service.rs::price_document"
+    justification: "The priced create paths refuse with negative_quantity. Every other writer, the RFQ-to-quotation conversion among them, meets only the unnamed column CHECKs (quantity >= 0, rate >= 0) on the order and supplier-quotation lines, which refuse without the typed code."
   - id: R3
     name: unique_number
+    entity: PurchaseOrder
     when: create
     assert: "document number is unique (partial unique index where deleted_at is null)"
     error_code: duplicate_number
     enforcement: db
+    enforced_by: "migrations/20260426220003_create_purchase_order_table.up.sql::idx_purchase_orders_po_number, migrations/20260426220001_create_material_request_table.up.sql::idx_material_requests_request_number, migrations/20260426220005_create_request_for_quotation_table.up.sql::idx_request_for_quotations_rfq_number, migrations/20260426220008_create_supplier_quotation_table.up.sql::idx_supplier_quotations_quotation_number, migrations/20260722000001_create_purchase_agreement_table.up.sql::idx_purchase_agreements_agreement_number"
   - id: R4
     name: confirmable
+    entity: PurchaseOrder
     when: confirm
     assert: "purchase order is draft or sent"
     error_code: not_confirmable
     enforcement: both
+    enforced_by: "src/application/service/buying_order_lifecycle.rs::confirm_purchase_order, src/infrastructure/persistence/purchase_order_repository.rs::enter_purchase, src/infrastructure/persistence/purchase_order_repository.rs::park_for_approval"
   - id: R5
     name: three_way_match
+    entity: PurchaseOrderItem
     when: allocate
     assert: "received_qty <= quantity AND billed_qty <= CASE WHEN purchase_method='purchase' THEN quantity ELSE received_qty END (one formula, three surfaces: DB CHECK, allocation cap, maturity recompute)"
     error_code: over_receipt / over_billing
     enforcement: both
+    enforced_by: "migrations/20260827100000_po_five_state_band.up.sql::po_items_three_way_match, src/application/service/buying_receipt.rs::allocate, src/application/service/buying_bill_matching.rs::match_bill_lines"
   - id: R5-gate
     name: double_validation_threshold
+    entity: PurchaseOrder
     when: confirm
     assert: "in two_step, total * currency_rate >= double_validation_amount requires the manager leg; the threshold is denominated in the home currency (the settings row's company_currency) and the total is converted INTO home currency with the order-time rate snapshot (never reverse-divided, never a silent rate of 1)"
     error_code: not_approvable
     enforcement: service
-    justification: "The gate is procedural multi-currency math (a settings read joined with the PO's order-time rate snapshot) — not expressible as a row-level CHECK. DECLARED SEAM: this module has no role model (consistent with backbone). The service API takes an `is_manager` claim; the HTTP handler binds an optional `isManager` body field defaulting false. This is reference wiring only — a real deployment derives the claim from verified role claims at the composing service and is expected to call confirm/approve from server-side wiring that established it, not forward an unverified body flag. -- cancel/delete guards (service pre-check; trigger is the backstop) -------------."
+    justification: "NOT ENFORCED as composed: approve_purchase_order and confirm_purchase_order compute the gate correctly, but take `is_manager` as a claim, and the guarded HTTP routes bind it from an optional request body field, so any caller allowed to confirm can claim the manager leg. The gate is procedural multi-currency math (a settings read joined with the PO's order-time rate snapshot), not a row-level CHECK; it holds once the claim comes from verified roles. The column default currency_rate = 1 also lets a write that skips the validated create carry a silent rate of 1."
+  # -- cancel/delete guards (service pre-check; trigger is the backstop) -------------
   - id: G4
     name: po_cancel_locked
+    entity: PurchaseOrder
     when: cancel
     assert: "a locked purchase order refuses cancel"
     error_code: order_locked
     enforcement: both
+    enforced_by: "src/application/service/buying_order_lifecycle.rs::cancel_purchase_order"
+    justification: "The cancel verb refuses. The po_write_guards trigger is no backstop yet: it tests NEW.locked, so one UPDATE that unlocks and cancels together passes it."
   - id: G5
     name: po_cancel_billed
+    entity: PurchaseOrder
     when: cancel
     assert: "cancel refuses while any live line has billed_qty > 0"
     error_code: order_billed
     enforcement: both
+    enforced_by: "src/application/service/buying_order_lifecycle.rs::cancel_purchase_order, migrations/20260827100000_po_five_state_band.up.sql::po_write_guards"
   - id: G6
     name: match_requires_lines
+    entity: PurchaseOrder
     when: match_bill_lines
     assert: "an empty proposal list refuses instead of no-op matching"
     error_code: no_lines_selected
     enforcement: service
+    enforced_by: "src/application/service/buying_bill_matching.rs::match_bill_lines"
     justification: "The rule is about the REQUEST, not about stored rows: it refuses a call that proposes nothing. An empty proposal writes nothing, so there is no row for a constraint to reject, and the point is to answer the caller rather than to leave the books unchanged in silence."
   - id: G8
     name: po_delete_requires_cancelled
+    entity: PurchaseOrder
     when: delete
     assert: "a live purchase order is never deletable — soft-delete only from cancelled"
     error_code: not_deletable
     enforcement: both
+    enforced_by: "src/application/service/buying_order_lifecycle.rs::delete_purchase_order, src/infrastructure/persistence/purchase_order_repository.rs::soft_delete_cancelled, migrations/20260827100000_po_five_state_band.up.sql::po_write_guards, migrations/20260827100000_po_five_state_band.up.sql::po_hard_delete_guard"
   - id: G9
     name: po_item_delete_requires_editable_order
+    entity: PurchaseOrderItem
     when: delete line
     assert: "a line is deletable only while its parent order is draft/sent"
     error_code: not_deletable
     enforcement: both
+    enforced_by: "src/application/service/buying_order_lifecycle.rs::delete_purchase_order_line, src/infrastructure/persistence/purchase_order_item_repository.rs::soft_delete_line, migrations/20260827100000_po_five_state_band.up.sql::po_item_write_guards"
   # -- agreement guards ---------------------------------------------------------------
   - id: PXB-1
     name: supplier_prices_agreement_owned
+    entity: SupplierPrice
     when: write supplier_prices
     assert: "buying.supplier_prices has NO CRUD route and no standalone writer: only the agreement confirm (mint), open re-price (propagate), and close/cancel (unlink) write it"
     error_code: null
     enforcement: service
-    justification: "This restricts WHICH code path may write a table, and a database cannot see code paths. The table has no CRUD route and no standalone writer by composition; a constraint could check the rows a write leaves behind, never who wrote them."
+    justification: "PARTLY: no CRUD route is mounted, but the module still builds and exports a full generic SupplierPriceService and SupplierPriceRepository, so a composing service can write the table outside the agreement verbs. This restricts WHICH code path may write a table, and a database cannot see code paths; a constraint could check the rows a write leaves behind, never who wrote them."
   - id: G-agreement-close
     name: agreement_close_no_draft_calloffs
+    entity: PurchaseAgreement
     when: close, cancel agreement
     assert: "close/cancel refuses while a call-off PO in draft/sent/to_approve hangs off the agreement"
     error_code: agreement_has_draft_orders
     enforcement: service
-    justification: "Cross-table: the guard reads the call-off orders hanging off the agreement, which no CHECK on the agreement row can see. A trigger could, at the cost of re-scanning the orders on every agreement write, and would still have to name the same three states this verb names."
+    justification: "PARTLY: retire_agreement counts the open call-offs on the pool before its transaction opens, without a lock, so a call-off created between that count and the transition slips past. Cross-table: the guard reads the call-off orders hanging off the agreement, which no CHECK on the agreement row can see."
   - id: G-call-off-cap
     name: call_off_within_blanket
+    entity: PurchaseAgreementLine
     when: create_call_off_po
     assert: "line.qty_ordered + call_off.quantity <= line.quantity (the blanket quantity caps the call-offs)"
     error_code: agreement_exceeded
     enforcement: service
-    justification: "Cross-row aggregate: the cap compares a new call-off against the sum already drawn on the blanket line. A CHECK sees one row, and a trigger enforcing the sum would serialise every call-off on the same line, which is exactly the contention the verb avoids by claiming the line once."
+    justification: "PARTLY: create_call_off_po checks each draw against qty_ordered read outside its transaction and unlocked, and increment_qty_ordered adds without a condition, so two concurrent call-offs, or one call-off naming the same line twice, can draw past the blanket quantity. Cross-row aggregate: the cap compares a new call-off against the sum already drawn on the blanket line, which a CHECK on one row cannot see."
   - id: G7
     name: reminder_settings_gate
+    entity: PurchaseCompanySetting
     when: send_receipt_reminder
     assert: "no settings row, or send_reminder=false, skips the run silently; a supplier override with receipt_reminder_email=false is excluded from the claim; an absent supplier row is the enabled default (remind, 1 day)"
     error_code: null
     enforcement: service
-    justification: "A skip is not a refusal. The rule decides whether a scheduled run does anything at all, by reading settings and per-supplier overrides before any write exists; there is no row to constrain, and a database guard would turn a deliberate quiet skip into an error."
+    justification: "PARTLY: send_reminder=false, the supplier override and the absent-supplier default hold in send_receipt_reminder, but a missing settings row does not skip the run: it falls through to the schema defaults, as company_purchase_settings documents. A skip is not a refusal: there is no row to constrain, and a database guard would turn a deliberate quiet skip into an error."
 
 events:
   PurchaseOrderConfirmed:
