@@ -1,12 +1,10 @@
 # The rule ratchet (schema doctor): these counts may only go down. Regenerate with
 # `metaphor schema rules . --update-baseline` after enforcing a rule.
-unenforced: 5
+unenforced: 3
 warnings: 0
 machines_without_verbs: 0
-untested_rule_ids: 11
+untested_rule_ids: 9
 unenforced_rules:
 - 'buying.hook.yaml: agreement_close_no_draft_calloffs'
 - 'buying.hook.yaml: call_off_within_blanket'
-- 'buying.hook.yaml: double_validation_threshold'
-- 'buying.hook.yaml: reminder_settings_gate'
 - 'buying.hook.yaml: supplier_prices_agreement_owned'

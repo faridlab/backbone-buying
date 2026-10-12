@@ -164,7 +164,8 @@ rules:
     assert: "in two_step, total * currency_rate >= double_validation_amount requires the manager leg; the threshold is denominated in the home currency (the settings row's company_currency) and the total is converted INTO home currency with the order-time rate snapshot (never reverse-divided, never a silent rate of 1)"
     error_code: not_approvable
     enforcement: service
-    justification: "NOT ENFORCED as composed: approve_purchase_order and confirm_purchase_order compute the gate correctly, but take `is_manager` as a claim, and the guarded HTTP routes bind it from an optional request body field, so any caller allowed to confirm can claim the manager leg. The gate is procedural multi-currency math (a settings read joined with the PO's order-time rate snapshot), not a row-level CHECK; it holds once the claim comes from verified roles. The column default currency_rate = 1 also lets a write that skips the validated create carry a silent rate of 1."
+    enforced_by: "src/application/service/buying_order_lifecycle.rs::confirm_purchase_order, src/application/service/buying_order_lifecycle.rs::approve_purchase_order, src/presentation/http/guarded_routes.rs::confirm_po, src/presentation/http/guarded_routes.rs::approve_po"
+    justification: "The gate is procedural multi-currency math (a settings read joined with the PO's order-time rate snapshot), not a row-level CHECK. This module has no role model: who holds the manager leg is the composing service's decision, which it states by inserting the PurchaseManager extension on the confirm and approve requests; nothing in the request body can claim it. The column default currency_rate = 1 still lets a write that skips the validated create carry a silent rate of 1."
   # -- cancel/delete guards (service pre-check; trigger is the backstop) -------------
   - id: G4
     name: po_cancel_locked
@@ -240,7 +241,8 @@ rules:
     assert: "no settings row, or send_reminder=false, skips the run silently; a supplier override with receipt_reminder_email=false is excluded from the claim; an absent supplier row is the enabled default (remind, 1 day)"
     error_code: null
     enforcement: service
-    justification: "PARTLY: send_reminder=false, the supplier override and the absent-supplier default hold in send_receipt_reminder, but a missing settings row does not skip the run: it falls through to the schema defaults, as company_purchase_settings documents. A skip is not a refusal: there is no row to constrain, and a database guard would turn a deliberate quiet skip into an error."
+    enforced_by: "src/infrastructure/jobs/send_receipt_reminder.rs::send_receipt_reminder, src/infrastructure/jobs/send_receipt_reminder.rs::reminders_enabled"
+    justification: "A skip is not a refusal. The rule decides whether a scheduled run does anything at all, by reading settings and per-supplier overrides before any write exists; there is no row to constrain, and a database guard would turn a deliberate quiet skip into an error."
 
 events:
   PurchaseOrderConfirmed:
