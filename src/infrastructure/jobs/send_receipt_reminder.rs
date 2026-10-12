@@ -58,6 +58,13 @@ pub struct ReminderReport {
     pub stamp_failures: usize,
 }
 
+/// G7: whether the settings gate lets a run go ahead. A deployment with no settings row never
+/// configured reminders, so it is skipped exactly as `send_reminder=false` is: reminders reach
+/// suppliers only once someone has turned them on.
+fn reminders_enabled(send_reminder: Option<bool>) -> bool {
+    send_reminder == Some(true)
+}
+
 /// One due PO, as claimed.
 struct DueOrder {
     order_id: Uuid,
@@ -77,12 +84,9 @@ pub async fn send_receipt_reminder(
 
     // G7: the settings gate. No settings row, or reminders off → silent skip (Ok, zero emitted).
     let settings = service.company_purchase_settings().await?;
-    match settings {
-        Some(s) if !s.send_reminder => {
-            report.gate_skipped = true;
-            return Ok(report);
-        }
-        _ => {}
+    if !reminders_enabled(settings.map(|s| s.send_reminder)) {
+        report.gate_skipped = true;
+        return Ok(report);
     }
 
     // The claim + stamp: ONE transaction. SKIP LOCKED keeps concurrent replicas disjoint; the
@@ -161,4 +165,16 @@ pub async fn send_receipt_reminder(
         }));
     }
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reminders_enabled;
+
+    #[test]
+    fn g7_a_run_goes_ahead_only_when_reminders_are_turned_on() {
+        assert!(reminders_enabled(Some(true)));
+        assert!(!reminders_enabled(Some(false)), "send_reminder=false skips the run");
+        assert!(!reminders_enabled(None), "no settings row skips the run");
+    }
 }

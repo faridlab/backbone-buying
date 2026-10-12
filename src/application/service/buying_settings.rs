@@ -20,8 +20,8 @@ use super::buying_write_service::{BuyingError, BuyingWriteService};
 
 impl BuyingWriteService {
     /// Read the purchase settings (the reminder job's G7 gate; hosts may also use
-    /// it to render the current configuration). `Ok(None)` = not configured — the schema defaults
-    /// (one_step, reminders on) apply.
+    /// it to render the current configuration). `Ok(None)` = not configured: the approval gate
+    /// reads the schema default (one_step), and the reminder job skips its run.
     pub async fn company_purchase_settings(
         &self,
     ) -> Result<Option<crate::infrastructure::persistence::CompanyPurchaseSettingsRow>, sqlx::Error> {
