@@ -2,4 +2,4 @@
 // src/) pulls it in with include!, so its lines resolve against this directory.
 
 pub mod guarded_routes;
-pub use guarded_routes::create_guarded_buying_routes;
+pub use guarded_routes::{create_guarded_buying_routes, PurchaseManager};

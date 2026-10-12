@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::State, http::StatusCode, response::IntoResponse,
-    routing::post, Json, Router,
+    routing::post, Extension, Json, Router,
 };
 use backbone_auth::org::OrgContext;
 use rust_decimal::Decimal;
@@ -119,28 +119,35 @@ async fn create_po(
 
 // ---- PO lifecycle verbs ------------------------------------------------------
 
-/// The confirm/approve body. `isManager` claims the manager leg of the double-validation gate: a
-/// non-manager confirm of an over-threshold PO is parked in `to_approve`, and a non-manager
-/// approve of one refuses with `not_approvable`. Reference wiring only — a real deployment derives
-/// the claim from verified role claims at the composing service (this module has no role model).
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ConfirmBody {
-    order_id: Uuid,
-    #[serde(default)] is_manager: bool,
-}
-async fn confirm_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<ConfirmBody>) -> axum::response::Response {
-    match svc.confirm_purchase_order(b.order_id, b.is_manager).await {
-        Ok(()) => ok_id(b.order_id),
-        Err(e) => err(e),
-    }
-}
+/// Marks a request whose caller holds the manager leg of the double-validation gate.
+///
+/// This module has no role model, so the composing service decides who is a manager: it verifies
+/// the caller and inserts this extension on the confirm and approve requests of those who are.
+/// Without it the caller is not a manager: an over-threshold confirm is parked in `to_approve`,
+/// and an over-threshold approve refuses with `not_approvable`. Nothing in the request body can
+/// claim the leg.
+#[derive(Debug, Clone, Copy)]
+pub struct PurchaseManager;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OrderBody { order_id: Uuid }
-async fn approve_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<ConfirmBody>) -> axum::response::Response {
-    match svc.approve_purchase_order(b.order_id, b.is_manager).await { Ok(()) => ok_id(b.order_id), Err(e) => err(e) }
+async fn confirm_po(
+    State(svc): State<Arc<BuyingWriteService>>,
+    manager: Option<Extension<PurchaseManager>>,
+    Json(b): Json<OrderBody>,
+) -> axum::response::Response {
+    match svc.confirm_purchase_order(b.order_id, manager.is_some()).await {
+        Ok(()) => ok_id(b.order_id),
+        Err(e) => err(e),
+    }
+}
+async fn approve_po(
+    State(svc): State<Arc<BuyingWriteService>>,
+    manager: Option<Extension<PurchaseManager>>,
+    Json(b): Json<OrderBody>,
+) -> axum::response::Response {
+    match svc.approve_purchase_order(b.order_id, manager.is_some()).await { Ok(()) => ok_id(b.order_id), Err(e) => err(e) }
 }
 async fn reset_po(State(svc): State<Arc<BuyingWriteService>>, Json(b): Json<OrderBody>) -> axum::response::Response {
     match svc.reset_purchase_order(b.order_id).await { Ok(()) => ok_id(b.order_id), Err(e) => err(e) }

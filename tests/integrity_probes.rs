@@ -4,6 +4,8 @@
 //! (:5433/backbone_buying).
 //!
 //! BIP-1..BIP-4  the CRUD-bypass and validated-write invariants.
+//! R5-gate       the manager leg of the double-validation gate comes from the composing
+//!               service's PurchaseManager extension, never from the request body.
 //! BIT           the tenancy posture: the surface mounts no guard of its own (the composing
 //!               service authenticates), so the leg proves a smuggled tenant field in the body
 //!               is tolerated and cannot name a tenant.
@@ -15,7 +17,8 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use backbone_buying::presentation::http::create_guarded_buying_routes;
+use backbone_buying::application::service::BuyingWriteService;
+use backbone_buying::presentation::http::{create_guarded_buying_routes, PurchaseManager};
 use backbone_buying::BuyingModule;
 
 async fn pool() -> PgPool {
@@ -140,4 +143,45 @@ async fn body_company_id_is_ignored() {
          WHERE table_schema = 'buying' AND table_name = 'purchase_orders' AND column_name = 'company_id'",
     ).fetch_one(&pool).await.unwrap();
     assert_eq!(tenant_columns, 0, "the module's schema carries no tenant column the body could reach");
+}
+
+async fn po_status(pool: &PgPool, id: Uuid) -> String {
+    sqlx::query_scalar("SELECT status::text FROM buying.purchase_orders WHERE id = $1")
+        .bind(id).fetch_one(pool).await.unwrap()
+}
+
+// R5-gate: a caller cannot claim the manager leg from the request body. An over-threshold PO
+// confirmed with `isManager: true` is still parked, and approving it the same way refuses; only
+// the composing service's PurchaseManager extension walks it into purchase.
+#[tokio::test]
+async fn manager_leg_is_never_read_from_the_body() {
+    let pool = pool().await;
+    let m = module(&pool).await;
+    // The same high threshold the golden cases seed, so the one live settings row agrees with them.
+    BuyingWriteService::new(pool.clone())
+        .upsert_purchase_company_settings("two_step".into(), "1000000000".parse().unwrap(), "IDR".into(), true)
+        .await
+        .expect("seed two-step purchase settings");
+    let body = format!(
+        r#"{{"poNumber":"{}","supplierId":"{}","orderDate":"2026-07-05",
+             "lines":[{{"itemId":"{}","quantity":"10","rate":"200000000"}}]}}"#,
+        uq("PO"), Uuid::new_v4(), Uuid::new_v4());
+    let (s, b) = req(app(&pool, &m), "POST", "/purchase-orders", Some(body)).await;
+    assert_eq!(s, StatusCode::CREATED, "got: {b}");
+    let id: Uuid = serde_json::from_str::<serde_json::Value>(&b).unwrap()["id"].as_str().unwrap().parse().unwrap();
+    let claim = format!(r#"{{"orderId":"{id}","isManager":true}}"#);
+
+    let (s, _) = req(app(&pool, &m), "POST", "/purchase-orders/confirm", Some(claim.clone())).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(po_status(&pool, id).await, "to_approve", "a body claim does not pass the gate on confirm");
+
+    let (s, b) = req(app(&pool, &m), "POST", "/purchase-orders/approve", Some(claim.clone())).await;
+    assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(b.contains("not_approvable"), "got: {b}");
+    assert_eq!(po_status(&pool, id).await, "to_approve");
+
+    let manager = app(&pool, &m).layer(axum::Extension(PurchaseManager));
+    let (s, b) = req(manager, "POST", "/purchase-orders/approve", Some(claim)).await;
+    assert_eq!(s, StatusCode::OK, "got: {b}");
+    assert_eq!(po_status(&pool, id).await, "purchase", "the host's manager extension approves");
 }
