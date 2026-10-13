@@ -56,16 +56,17 @@ impl backbone_core::write_guard::WriteGuard<PurchaseCompanySetting> for Purchase
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
+        let mut refuse = Vec::new();
         // `double_validation_amount_non_negative` (@non_negative on PurchaseCompanySetting.double_validation_amount)
         if (create || (update && r::changed(old.as_ref(), row, &["double_validation_amount"]))) && !r::holds(&r::ge(r::field(row, "double_validation_amount"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("double_validation_amount", "non_negative", "double_validation_amount must not be negative"));
+            refuse.push(Violation::new("double_validation_amount", "non_negative", "double_validation_amount must not be negative"));
         }
         // `company_currency_max_length` (@max(3) on PurchaseCompanySetting.company_currency)
         if (create || (update && r::changed(old.as_ref(), row, &["company_currency"]))) && !r::holds(&r::le(r::length(r::field(row, "company_currency")), r::Val::Num(3.0_f64))) {
-            shadow.push(Violation::new("company_currency", "max_length", "company_currency must be at most 3 characters").with_param("max", 3_i64));
+            refuse.push(Violation::new("company_currency", "max_length", "company_currency must be at most 3 characters").with_param("max", 3_i64));
         }
-        GuardOutcome { refuse: Vec::new(), shadow }
+        GuardOutcome { refuse, shadow }
     }
 }
 

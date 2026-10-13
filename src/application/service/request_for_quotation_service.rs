@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<RequestForQuotation> for RequestForQ
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `rfq_number_required` (@required on RequestForQuotation.rfq_number)
         if (create || (update && r::changed(old.as_ref(), row, &["rfq_number"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "rfq_number")), r::not(r::is_empty(r::trim(r::field(row, "rfq_number")))))) {
@@ -64,7 +64,7 @@ impl backbone_core::write_guard::WriteGuard<RequestForQuotation> for RequestForQ
         }
         // `rfq_number_max_length` (@max(40) on RequestForQuotation.rfq_number)
         if (create || (update && r::changed(old.as_ref(), row, &["rfq_number"]))) && !r::holds(&r::le(r::length(r::field(row, "rfq_number")), r::Val::Num(40.0_f64))) {
-            shadow.push(Violation::new("rfq_number", "max_length", "rfq_number must be at most 40 characters").with_param("max", 40_i64));
+            refuse.push(Violation::new("rfq_number", "max_length", "rfq_number must be at most 40 characters").with_param("max", 40_i64));
         }
         GuardOutcome { refuse, shadow }
     }

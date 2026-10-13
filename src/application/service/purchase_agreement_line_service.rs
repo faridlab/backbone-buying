@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<PurchaseAgreementLine> for PurchaseA
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `agreement_id_required` (@required on PurchaseAgreementLine.agreement_id)
         if (create || (update && r::changed(old.as_ref(), row, &["agreement_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "agreement_id")), r::not(r::is_empty(r::trim(r::field(row, "agreement_id")))))) {
@@ -68,15 +68,15 @@ impl backbone_core::write_guard::WriteGuard<PurchaseAgreementLine> for PurchaseA
         }
         // `quantity_positive` (@positive on PurchaseAgreementLine.quantity)
         if (create || (update && r::changed(old.as_ref(), row, &["quantity"]))) && !r::holds(&r::gt(r::field(row, "quantity"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("quantity", "positive", "quantity must be positive"));
+            refuse.push(Violation::new("quantity", "positive", "quantity must be positive"));
         }
         // `rate_positive` (@positive on PurchaseAgreementLine.rate)
         if (create || (update && r::changed(old.as_ref(), row, &["rate"]))) && !r::holds(&r::gt(r::field(row, "rate"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("rate", "positive", "rate must be positive"));
+            refuse.push(Violation::new("rate", "positive", "rate must be positive"));
         }
         // `qty_ordered_non_negative` (@non_negative on PurchaseAgreementLine.qty_ordered)
         if (create || (update && r::changed(old.as_ref(), row, &["qty_ordered"]))) && !r::holds(&r::ge(r::field(row, "qty_ordered"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("qty_ordered", "non_negative", "qty_ordered must not be negative"));
+            refuse.push(Violation::new("qty_ordered", "non_negative", "qty_ordered must not be negative"));
         }
         GuardOutcome { refuse, shadow }
     }

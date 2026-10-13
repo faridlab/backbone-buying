@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<SupplierPrice> for SupplierPriceRowR
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `supplier_id_required` (@required on SupplierPrice.supplier_id)
         if (create || (update && r::changed(old.as_ref(), row, &["supplier_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "supplier_id")), r::not(r::is_empty(r::trim(r::field(row, "supplier_id")))))) {
@@ -68,11 +68,11 @@ impl backbone_core::write_guard::WriteGuard<SupplierPrice> for SupplierPriceRowR
         }
         // `price_positive` (@positive on SupplierPrice.price)
         if (create || (update && r::changed(old.as_ref(), row, &["price"]))) && !r::holds(&r::gt(r::field(row, "price"), r::Val::Num(0.0_f64))) {
-            shadow.push(Violation::new("price", "positive", "price must be positive"));
+            refuse.push(Violation::new("price", "positive", "price must be positive"));
         }
         // `currency_max_length` (@max(3) on SupplierPrice.currency)
         if (create || (update && r::changed(old.as_ref(), row, &["currency"]))) && !r::holds(&r::le(r::length(r::field(row, "currency")), r::Val::Num(3.0_f64))) {
-            shadow.push(Violation::new("currency", "max_length", "currency must be at most 3 characters").with_param("max", 3_i64));
+            refuse.push(Violation::new("currency", "max_length", "currency must be at most 3 characters").with_param("max", 3_i64));
         }
         // `agreement_id_required` (@required on SupplierPrice.agreement_id)
         if (create || (update && r::changed(old.as_ref(), row, &["agreement_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "agreement_id")), r::not(r::is_empty(r::trim(r::field(row, "agreement_id")))))) {

@@ -68,7 +68,7 @@ impl backbone_core::write_guard::WriteGuard<SupplierQuotation> for SupplierQuota
         }
         // `quotation_number_max_length` (@max(40) on SupplierQuotation.quotation_number)
         if (create || (update && r::changed(old.as_ref(), row, &["quotation_number"]))) && !r::holds(&r::le(r::length(r::field(row, "quotation_number")), r::Val::Num(40.0_f64))) {
-            shadow.push(Violation::new("quotation_number", "max_length", "quotation_number must be at most 40 characters").with_param("max", 40_i64));
+            refuse.push(Violation::new("quotation_number", "max_length", "quotation_number must be at most 40 characters").with_param("max", 40_i64));
         }
         // `supplier_id_required` (@required on SupplierQuotation.supplier_id)
         if (create || (update && r::changed(old.as_ref(), row, &["supplier_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "supplier_id")), r::not(r::is_empty(r::trim(r::field(row, "supplier_id")))))) {
@@ -76,11 +76,11 @@ impl backbone_core::write_guard::WriteGuard<SupplierQuotation> for SupplierQuota
         }
         // `currency_max_length` (@max(3) on SupplierQuotation.currency)
         if (create || (update && r::changed(old.as_ref(), row, &["currency"]))) && !r::holds(&r::le(r::length(r::field(row, "currency")), r::Val::Num(3.0_f64))) {
-            shadow.push(Violation::new("currency", "max_length", "currency must be at most 3 characters").with_param("max", 3_i64));
+            refuse.push(Violation::new("currency", "max_length", "currency must be at most 3 characters").with_param("max", 3_i64));
         }
         // `notes_max_length` (@max(1000) on SupplierQuotation.notes)
         if (create || (update && r::changed(old.as_ref(), row, &["notes"]))) && !r::holds(&r::le(r::length(r::field(row, "notes")), r::Val::Num(1000.0_f64))) {
-            shadow.push(Violation::new("notes", "max_length", "notes must be at most 1000 characters").with_param("max", 1000_i64));
+            refuse.push(Violation::new("notes", "max_length", "notes must be at most 1000 characters").with_param("max", 1000_i64));
         }
         GuardOutcome { refuse, shadow }
     }

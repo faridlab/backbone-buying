@@ -68,11 +68,11 @@ impl backbone_core::write_guard::WriteGuard<MaterialRequest> for MaterialRequest
         }
         // `request_number_max_length` (@max(40) on MaterialRequest.request_number)
         if (create || (update && r::changed(old.as_ref(), row, &["request_number"]))) && !r::holds(&r::le(r::length(r::field(row, "request_number")), r::Val::Num(40.0_f64))) {
-            shadow.push(Violation::new("request_number", "max_length", "request_number must be at most 40 characters").with_param("max", 40_i64));
+            refuse.push(Violation::new("request_number", "max_length", "request_number must be at most 40 characters").with_param("max", 40_i64));
         }
         // `notes_max_length` (@max(1000) on MaterialRequest.notes)
         if (create || (update && r::changed(old.as_ref(), row, &["notes"]))) && !r::holds(&r::le(r::length(r::field(row, "notes")), r::Val::Num(1000.0_f64))) {
-            shadow.push(Violation::new("notes", "max_length", "notes must be at most 1000 characters").with_param("max", 1000_i64));
+            refuse.push(Violation::new("notes", "max_length", "notes must be at most 1000 characters").with_param("max", 1000_i64));
         }
         GuardOutcome { refuse, shadow }
     }
