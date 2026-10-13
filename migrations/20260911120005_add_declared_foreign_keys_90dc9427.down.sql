@@ -1,0 +1,10 @@
+-- Down: drop the declared foreign keys for buying module
+ALTER TABLE IF EXISTS buying.supplier_quotation_items DROP CONSTRAINT IF EXISTS fk_supplier_quotation_items_quotation_id;
+ALTER TABLE IF EXISTS buying.supplier_quotations DROP CONSTRAINT IF EXISTS fk_supplier_quotations_rfq_id;
+ALTER TABLE IF EXISTS buying.rfq_suppliers DROP CONSTRAINT IF EXISTS fk_rfq_suppliers_rfq_id;
+ALTER TABLE IF EXISTS buying.rfq_items DROP CONSTRAINT IF EXISTS fk_rfq_items_rfq_id;
+ALTER TABLE IF EXISTS buying.request_for_quotations DROP CONSTRAINT IF EXISTS fk_request_for_quotations_material_request_id;
+ALTER TABLE IF EXISTS buying.purchase_order_items DROP CONSTRAINT IF EXISTS fk_purchase_order_items_order_id;
+ALTER TABLE IF EXISTS buying.purchase_orders DROP CONSTRAINT IF EXISTS fk_purchase_orders_supplier_quotation_id;
+ALTER TABLE IF EXISTS buying.purchase_agreement_lines DROP CONSTRAINT IF EXISTS fk_purchase_agreement_lines_agreement_id;
+ALTER TABLE IF EXISTS buying.material_request_items DROP CONSTRAINT IF EXISTS fk_material_request_items_request_id;
