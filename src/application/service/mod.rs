@@ -38,9 +38,19 @@ pub use supplier_quotation_service::SupplierQuotationService;
 pub use supplier_quotation_item_service::SupplierQuotationItemService;
 pub use supplier_reminder_setting_service::SupplierReminderSettingService;
 pub use material_request_service::MaterialRequestRowRules;
+pub use material_request_item_service::MaterialRequestItemRowRules;
 pub use purchase_agreement_service::PurchaseAgreementRowRules;
+pub use purchase_agreement_line_service::PurchaseAgreementLineRowRules;
+pub use purchase_company_setting_service::PurchaseCompanySettingRowRules;
 pub use purchase_order_service::PurchaseOrderRowRules;
+pub use purchase_order_item_service::PurchaseOrderItemRowRules;
+pub use request_for_quotation_service::RequestForQuotationRowRules;
+pub use rfq_item_service::RfqItemRowRules;
+pub use rfq_supplier_service::RfqSupplierRowRules;
+pub use supplier_price_service::SupplierPriceRowRules;
 pub use supplier_quotation_service::SupplierQuotationRowRules;
+pub use supplier_quotation_item_service::SupplierQuotationItemRowRules;
+pub use supplier_reminder_setting_service::SupplierReminderSettingRowRules;
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

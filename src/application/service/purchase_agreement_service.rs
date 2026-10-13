@@ -32,9 +32,10 @@ pub type PurchaseAgreementService = GenericCrudService<
     PurchaseAgreementRepository,
 >;
 
-/// The row rules the schema declares for PurchaseAgreement, checked against the row a create or
-/// update would store. The generated build attaches it to [`PurchaseAgreementService`]. Every rule
-/// runs in shadow: a break is logged under `backbone::write_guard` and the write goes ahead.
+/// The rules the schema declares for PurchaseAgreement, checked against the row a create or update
+/// would store. The generated build attaches it to [`PurchaseAgreementService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
 pub struct PurchaseAgreementRowRules;
 
 #[async_trait::async_trait]
@@ -56,11 +57,32 @@ impl backbone_core::write_guard::WriteGuard<PurchaseAgreement> for PurchaseAgree
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
         let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
         // `status` belongs to a state machine: only its verbs move it
         if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["status"]) {
             shadow.push(Violation::new("status", "state_field_verbs_only", "the state field moves only through its verbs"));
         }
-        GuardOutcome { refuse: Vec::new(), shadow }
+        // `agreement_number_required` (@required on PurchaseAgreement.agreement_number)
+        if (create || (update && r::changed(old.as_ref(), row, &["agreement_number"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "agreement_number")), r::not(r::is_empty(r::trim(r::field(row, "agreement_number")))))) {
+            refuse.push(Violation::new("agreement_number", "required", "agreement_number is required"));
+        }
+        // `agreement_number_max_length` (@max(40) on PurchaseAgreement.agreement_number)
+        if (create || (update && r::changed(old.as_ref(), row, &["agreement_number"]))) && !r::holds(&r::le(r::length(r::field(row, "agreement_number")), r::Val::Num(40.0_f64))) {
+            shadow.push(Violation::new("agreement_number", "max_length", "agreement_number must be at most 40 characters").with_param("max", 40_i64));
+        }
+        // `supplier_id_required` (@required on PurchaseAgreement.supplier_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["supplier_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "supplier_id")), r::not(r::is_empty(r::trim(r::field(row, "supplier_id")))))) {
+            refuse.push(Violation::new("supplier_id", "required", "supplier_id is required"));
+        }
+        // `currency_max_length` (@max(3) on PurchaseAgreement.currency)
+        if (create || (update && r::changed(old.as_ref(), row, &["currency"]))) && !r::holds(&r::le(r::length(r::field(row, "currency")), r::Val::Num(3.0_f64))) {
+            shadow.push(Violation::new("currency", "max_length", "currency must be at most 3 characters").with_param("max", 3_i64));
+        }
+        // `notes_max_length` (@max(1000) on PurchaseAgreement.notes)
+        if (create || (update && r::changed(old.as_ref(), row, &["notes"]))) && !r::holds(&r::le(r::length(r::field(row, "notes")), r::Val::Num(1000.0_f64))) {
+            shadow.push(Violation::new("notes", "max_length", "notes must be at most 1000 characters").with_param("max", 1000_i64));
+        }
+        GuardOutcome { refuse, shadow }
     }
 }
 

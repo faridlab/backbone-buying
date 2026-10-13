@@ -32,3 +32,57 @@ pub type SupplierPriceService = GenericCrudService<
     SupplierPriceRepository,
 >;
 
+/// The rules the schema declares for SupplierPrice, checked against the row a create or update
+/// would store. The generated build attaches it to [`SupplierPriceService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct SupplierPriceRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<SupplierPrice> for SupplierPriceRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, SupplierPrice>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
+        // `supplier_id_required` (@required on SupplierPrice.supplier_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["supplier_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "supplier_id")), r::not(r::is_empty(r::trim(r::field(row, "supplier_id")))))) {
+            refuse.push(Violation::new("supplier_id", "required", "supplier_id is required"));
+        }
+        // `item_id_required` (@required on SupplierPrice.item_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["item_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "item_id")), r::not(r::is_empty(r::trim(r::field(row, "item_id")))))) {
+            refuse.push(Violation::new("item_id", "required", "item_id is required"));
+        }
+        // `price_positive` (@positive on SupplierPrice.price)
+        if (create || (update && r::changed(old.as_ref(), row, &["price"]))) && !r::holds(&r::gt(r::field(row, "price"), r::Val::Num(0.0_f64))) {
+            shadow.push(Violation::new("price", "positive", "price must be positive"));
+        }
+        // `currency_max_length` (@max(3) on SupplierPrice.currency)
+        if (create || (update && r::changed(old.as_ref(), row, &["currency"]))) && !r::holds(&r::le(r::length(r::field(row, "currency")), r::Val::Num(3.0_f64))) {
+            shadow.push(Violation::new("currency", "max_length", "currency must be at most 3 characters").with_param("max", 3_i64));
+        }
+        // `agreement_id_required` (@required on SupplierPrice.agreement_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["agreement_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "agreement_id")), r::not(r::is_empty(r::trim(r::field(row, "agreement_id")))))) {
+            refuse.push(Violation::new("agreement_id", "required", "agreement_id is required"));
+        }
+        // `agreement_line_id_required` (@required on SupplierPrice.agreement_line_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["agreement_line_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "agreement_line_id")), r::not(r::is_empty(r::trim(r::field(row, "agreement_line_id")))))) {
+            refuse.push(Violation::new("agreement_line_id", "required", "agreement_line_id is required"));
+        }
+        GuardOutcome { refuse, shadow }
+    }
+}
+

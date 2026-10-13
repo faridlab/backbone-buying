@@ -47,9 +47,6 @@ pub use application::service::SupplierQuotationService;
 pub use application::service::SupplierQuotationItemService;
 pub use application::service::SupplierReminderSettingService;
 
-// Re-exports - Validation
-pub use application::validator::{ValidationError, ValidationResult};
-
 // Re-exports - Workflows
 pub use application::workflows::*;
 
@@ -212,7 +209,7 @@ impl BuyingModuleBuilder {
 
         // MaterialRequestItem service
         let material_request_item_repository = Arc::new(MaterialRequestItemRepository::new(db_pool.clone()));
-        let material_request_item_service = Arc::new(MaterialRequestItemService::with_repository(material_request_item_repository.clone()));
+        let material_request_item_service = Arc::new(MaterialRequestItemService::with_repository(material_request_item_repository.clone()).with_guard(Arc::new(crate::application::service::MaterialRequestItemRowRules)));
 
         // PurchaseAgreement service
         let purchase_agreement_repository = Arc::new(PurchaseAgreementRepository::new(db_pool.clone()));
@@ -220,11 +217,11 @@ impl BuyingModuleBuilder {
 
         // PurchaseAgreementLine service
         let purchase_agreement_line_repository = Arc::new(PurchaseAgreementLineRepository::new(db_pool.clone()));
-        let purchase_agreement_line_service = Arc::new(PurchaseAgreementLineService::with_repository(purchase_agreement_line_repository.clone()));
+        let purchase_agreement_line_service = Arc::new(PurchaseAgreementLineService::with_repository(purchase_agreement_line_repository.clone()).with_guard(Arc::new(crate::application::service::PurchaseAgreementLineRowRules)));
 
         // PurchaseCompanySetting service
         let purchase_company_setting_repository = Arc::new(PurchaseCompanySettingRepository::new(db_pool.clone()));
-        let purchase_company_setting_service = Arc::new(PurchaseCompanySettingService::with_repository(purchase_company_setting_repository.clone()));
+        let purchase_company_setting_service = Arc::new(PurchaseCompanySettingService::with_repository(purchase_company_setting_repository.clone()).with_guard(Arc::new(crate::application::service::PurchaseCompanySettingRowRules)));
 
         // PurchaseOrder service
         let purchase_order_repository = Arc::new(PurchaseOrderRepository::new(db_pool.clone()));
@@ -232,23 +229,23 @@ impl BuyingModuleBuilder {
 
         // PurchaseOrderItem service
         let purchase_order_item_repository = Arc::new(PurchaseOrderItemRepository::new(db_pool.clone()));
-        let purchase_order_item_service = Arc::new(PurchaseOrderItemService::with_repository(purchase_order_item_repository.clone()));
+        let purchase_order_item_service = Arc::new(PurchaseOrderItemService::with_repository(purchase_order_item_repository.clone()).with_guard(Arc::new(crate::application::service::PurchaseOrderItemRowRules)));
 
         // RequestForQuotation service
         let request_for_quotation_repository = Arc::new(RequestForQuotationRepository::new(db_pool.clone()));
-        let request_for_quotation_service = Arc::new(RequestForQuotationService::with_repository(request_for_quotation_repository.clone()));
+        let request_for_quotation_service = Arc::new(RequestForQuotationService::with_repository(request_for_quotation_repository.clone()).with_guard(Arc::new(crate::application::service::RequestForQuotationRowRules)));
 
         // RfqItem service
         let rfq_item_repository = Arc::new(RfqItemRepository::new(db_pool.clone()));
-        let rfq_item_service = Arc::new(RfqItemService::with_repository(rfq_item_repository.clone()));
+        let rfq_item_service = Arc::new(RfqItemService::with_repository(rfq_item_repository.clone()).with_guard(Arc::new(crate::application::service::RfqItemRowRules)));
 
         // RfqSupplier service
         let rfq_supplier_repository = Arc::new(RfqSupplierRepository::new(db_pool.clone()));
-        let rfq_supplier_service = Arc::new(RfqSupplierService::with_repository(rfq_supplier_repository.clone()));
+        let rfq_supplier_service = Arc::new(RfqSupplierService::with_repository(rfq_supplier_repository.clone()).with_guard(Arc::new(crate::application::service::RfqSupplierRowRules)));
 
         // SupplierPrice service
         let supplier_price_repository = Arc::new(SupplierPriceRepository::new(db_pool.clone()));
-        let supplier_price_service = Arc::new(SupplierPriceService::with_repository(supplier_price_repository.clone()));
+        let supplier_price_service = Arc::new(SupplierPriceService::with_repository(supplier_price_repository.clone()).with_guard(Arc::new(crate::application::service::SupplierPriceRowRules)));
 
         // SupplierQuotation service
         let supplier_quotation_repository = Arc::new(SupplierQuotationRepository::new(db_pool.clone()));
@@ -256,11 +253,11 @@ impl BuyingModuleBuilder {
 
         // SupplierQuotationItem service
         let supplier_quotation_item_repository = Arc::new(SupplierQuotationItemRepository::new(db_pool.clone()));
-        let supplier_quotation_item_service = Arc::new(SupplierQuotationItemService::with_repository(supplier_quotation_item_repository.clone()));
+        let supplier_quotation_item_service = Arc::new(SupplierQuotationItemService::with_repository(supplier_quotation_item_repository.clone()).with_guard(Arc::new(crate::application::service::SupplierQuotationItemRowRules)));
 
         // SupplierReminderSetting service
         let supplier_reminder_setting_repository = Arc::new(SupplierReminderSettingRepository::new(db_pool.clone()));
-        let supplier_reminder_setting_service = Arc::new(SupplierReminderSettingService::with_repository(supplier_reminder_setting_repository.clone()));
+        let supplier_reminder_setting_service = Arc::new(SupplierReminderSettingService::with_repository(supplier_reminder_setting_repository.clone()).with_guard(Arc::new(crate::application::service::SupplierReminderSettingRowRules)));
 
 
         Ok(BuyingModule {

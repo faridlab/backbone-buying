@@ -32,3 +32,40 @@ pub type PurchaseCompanySettingService = GenericCrudService<
     PurchaseCompanySettingRepository,
 >;
 
+/// The rules the schema declares for PurchaseCompanySetting, checked against the row a create or update
+/// would store. The generated build attaches it to [`PurchaseCompanySettingService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct PurchaseCompanySettingRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<PurchaseCompanySetting> for PurchaseCompanySettingRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, PurchaseCompanySetting>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        // `double_validation_amount_non_negative` (@non_negative on PurchaseCompanySetting.double_validation_amount)
+        if (create || (update && r::changed(old.as_ref(), row, &["double_validation_amount"]))) && !r::holds(&r::ge(r::field(row, "double_validation_amount"), r::Val::Num(0.0_f64))) {
+            shadow.push(Violation::new("double_validation_amount", "non_negative", "double_validation_amount must not be negative"));
+        }
+        // `company_currency_max_length` (@max(3) on PurchaseCompanySetting.company_currency)
+        if (create || (update && r::changed(old.as_ref(), row, &["company_currency"]))) && !r::holds(&r::le(r::length(r::field(row, "company_currency")), r::Val::Num(3.0_f64))) {
+            shadow.push(Violation::new("company_currency", "max_length", "company_currency must be at most 3 characters").with_param("max", 3_i64));
+        }
+        GuardOutcome { refuse: Vec::new(), shadow }
+    }
+}
+

@@ -32,9 +32,10 @@ pub type MaterialRequestService = GenericCrudService<
     MaterialRequestRepository,
 >;
 
-/// The row rules the schema declares for MaterialRequest, checked against the row a create or
-/// update would store. The generated build attaches it to [`MaterialRequestService`]. Every rule
-/// runs in shadow: a break is logged under `backbone::write_guard` and the write goes ahead.
+/// The rules the schema declares for MaterialRequest, checked against the row a create or update
+/// would store. The generated build attaches it to [`MaterialRequestService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
 pub struct MaterialRequestRowRules;
 
 #[async_trait::async_trait]
@@ -56,11 +57,24 @@ impl backbone_core::write_guard::WriteGuard<MaterialRequest> for MaterialRequest
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
         let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
         // `status` belongs to a state machine: only its verbs move it
         if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["status"]) {
             shadow.push(Violation::new("status", "state_field_verbs_only", "the state field moves only through its verbs"));
         }
-        GuardOutcome { refuse: Vec::new(), shadow }
+        // `request_number_required` (@required on MaterialRequest.request_number)
+        if (create || (update && r::changed(old.as_ref(), row, &["request_number"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "request_number")), r::not(r::is_empty(r::trim(r::field(row, "request_number")))))) {
+            refuse.push(Violation::new("request_number", "required", "request_number is required"));
+        }
+        // `request_number_max_length` (@max(40) on MaterialRequest.request_number)
+        if (create || (update && r::changed(old.as_ref(), row, &["request_number"]))) && !r::holds(&r::le(r::length(r::field(row, "request_number")), r::Val::Num(40.0_f64))) {
+            shadow.push(Violation::new("request_number", "max_length", "request_number must be at most 40 characters").with_param("max", 40_i64));
+        }
+        // `notes_max_length` (@max(1000) on MaterialRequest.notes)
+        if (create || (update && r::changed(old.as_ref(), row, &["notes"]))) && !r::holds(&r::le(r::length(r::field(row, "notes")), r::Val::Num(1000.0_f64))) {
+            shadow.push(Violation::new("notes", "max_length", "notes must be at most 1000 characters").with_param("max", 1000_i64));
+        }
+        GuardOutcome { refuse, shadow }
     }
 }
 
