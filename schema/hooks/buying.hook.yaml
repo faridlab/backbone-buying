@@ -20,6 +20,9 @@ state_machines:
     states: [draft, submitted, ordered, cancelled]
     transitions:
       - { from: draft, to: submitted, on: submit }
+      # issuing an RFQ from the request marks it ordered, submitted or not
+      - { from: draft,     to: ordered, on: issue_rfq }
+      - { from: submitted, to: ordered, on: issue_rfq }
   - entity: SupplierQuotation
     field: status
     verbs: hand
@@ -76,7 +79,15 @@ state_machines:
       anything; else pending. Recomputed after every receipt/return.
     initial: pending
     states: [pending, partial, full]
-    transitions: []  # no hand-set transitions — allocation-driven recompute only
+    # no hand-set transitions: recompute_order_maturity rewrites the projection
+    # after every receipt or return, so it can land on any value from any other
+    transitions:
+      - { from: pending, to: partial, on: recompute }
+      - { from: pending, to: full,    on: recompute }
+      - { from: partial, to: full,    on: recompute }
+      - { from: partial, to: pending, on: recompute }   # a return takes back every receipt
+      - { from: full,    to: partial, on: recompute }   # a return reopens a line
+      - { from: full,    to: pending, on: recompute }
   - entity: PurchaseOrder
     field: invoice_status
     verbs: hand
@@ -89,7 +100,15 @@ state_machines:
       anything was billed; else no.
     initial: "no"
     states: [no, to_invoice, invoiced]
-    transitions: []  # no hand-set transitions — allocation-driven recompute only
+    # no hand-set transitions: recompute_order_maturity rewrites the projection
+    # after every receipt, return, bill or credit, so it can land on any value from any other
+    transitions:
+      - { from: "no",       to: to_invoice, on: recompute }
+      - { from: "no",       to: invoiced,   on: recompute }   # one bill covers every billable line
+      - { from: to_invoice, to: invoiced,   on: recompute }
+      - { from: to_invoice, to: "no",       on: recompute }   # a return removes the only billable receipt
+      - { from: invoiced,   to: to_invoice, on: recompute }   # a credit or a new receipt reopens billing
+      - { from: invoiced,   to: "no",       on: recompute }   # a credit reverses the only bill
 
   # Inert flags: no machine, no transition — written once by their verb.
   # locked: set/cleared by lock/unlock; its only effect is the G4 cancel guard.

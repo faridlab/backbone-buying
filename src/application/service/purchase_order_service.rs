@@ -56,19 +56,19 @@ impl backbone_core::write_guard::WriteGuard<PurchaseOrder> for PurchaseOrderRowR
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `invoice_status` belongs to a state machine: only its verbs move it
         if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["invoice_status"]) {
-            shadow.push(Violation::new("invoice_status", "state_field_verbs_only", "the state field moves only through its verbs"));
+            refuse.push(Violation::new("invoice_status", "state_field_verbs_only", "the state field moves only through its verbs"));
         }
         // `receipt_status` belongs to a state machine: only its verbs move it
         if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["receipt_status"]) {
-            shadow.push(Violation::new("receipt_status", "state_field_verbs_only", "the state field moves only through its verbs"));
+            refuse.push(Violation::new("receipt_status", "state_field_verbs_only", "the state field moves only through its verbs"));
         }
         // `status` belongs to a state machine: only its verbs move it
         if update && ctx.transition.is_none() && r::changed(old.as_ref(), row, &["status"]) {
-            shadow.push(Violation::new("status", "state_field_verbs_only", "the state field moves only through its verbs"));
+            refuse.push(Violation::new("status", "state_field_verbs_only", "the state field moves only through its verbs"));
         }
         // `po_number_required` (@required on PurchaseOrder.po_number)
         if (create || (update && r::changed(old.as_ref(), row, &["po_number"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "po_number")), r::not(r::is_empty(r::trim(r::field(row, "po_number")))))) {
