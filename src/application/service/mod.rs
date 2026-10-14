@@ -52,5 +52,117 @@ pub use supplier_quotation_service::SupplierQuotationRowRules;
 pub use supplier_quotation_item_service::SupplierQuotationItemRowRules;
 pub use supplier_reminder_setting_service::SupplierReminderSettingRowRules;
 
+/// A `MaterialRequestService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_material_request_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::MaterialRequestRepository>,
+) -> MaterialRequestService {
+    MaterialRequestService::with_repository(repository).with_guard(std::sync::Arc::new(MaterialRequestRowRules))
+}
+
+/// A `MaterialRequestItemService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_material_request_item_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::MaterialRequestItemRepository>,
+) -> MaterialRequestItemService {
+    MaterialRequestItemService::with_repository(repository).with_guard(std::sync::Arc::new(MaterialRequestItemRowRules))
+}
+
+/// A `PurchaseAgreementService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_purchase_agreement_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::PurchaseAgreementRepository>,
+) -> PurchaseAgreementService {
+    PurchaseAgreementService::with_repository(repository).with_guard(std::sync::Arc::new(PurchaseAgreementRowRules))
+}
+
+/// A `PurchaseAgreementLineService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_purchase_agreement_line_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::PurchaseAgreementLineRepository>,
+) -> PurchaseAgreementLineService {
+    PurchaseAgreementLineService::with_repository(repository).with_guard(std::sync::Arc::new(PurchaseAgreementLineRowRules))
+}
+
+/// A `PurchaseCompanySettingService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_purchase_company_setting_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::PurchaseCompanySettingRepository>,
+) -> PurchaseCompanySettingService {
+    PurchaseCompanySettingService::with_repository(repository).with_guard(std::sync::Arc::new(PurchaseCompanySettingRowRules))
+}
+
+/// A `PurchaseOrderService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_purchase_order_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::PurchaseOrderRepository>,
+) -> PurchaseOrderService {
+    PurchaseOrderService::with_repository(repository).with_guard(std::sync::Arc::new(PurchaseOrderRowRules))
+}
+
+/// A `PurchaseOrderItemService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_purchase_order_item_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::PurchaseOrderItemRepository>,
+) -> PurchaseOrderItemService {
+    PurchaseOrderItemService::with_repository(repository).with_guard(std::sync::Arc::new(PurchaseOrderItemRowRules))
+}
+
+/// A `RequestForQuotationService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_request_for_quotation_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::RequestForQuotationRepository>,
+) -> RequestForQuotationService {
+    RequestForQuotationService::with_repository(repository).with_guard(std::sync::Arc::new(RequestForQuotationRowRules))
+}
+
+/// A `RfqItemService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_rfq_item_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::RfqItemRepository>,
+) -> RfqItemService {
+    RfqItemService::with_repository(repository).with_guard(std::sync::Arc::new(RfqItemRowRules))
+}
+
+/// A `RfqSupplierService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_rfq_supplier_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::RfqSupplierRepository>,
+) -> RfqSupplierService {
+    RfqSupplierService::with_repository(repository).with_guard(std::sync::Arc::new(RfqSupplierRowRules))
+}
+
+/// A `SupplierPriceService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_supplier_price_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::SupplierPriceRepository>,
+) -> SupplierPriceService {
+    SupplierPriceService::with_repository(repository).with_guard(std::sync::Arc::new(SupplierPriceRowRules))
+}
+
+/// A `SupplierQuotationService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_supplier_quotation_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::SupplierQuotationRepository>,
+) -> SupplierQuotationService {
+    SupplierQuotationService::with_repository(repository).with_guard(std::sync::Arc::new(SupplierQuotationRowRules))
+}
+
+/// A `SupplierQuotationItemService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_supplier_quotation_item_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::SupplierQuotationItemRepository>,
+) -> SupplierQuotationItemService {
+    SupplierQuotationItemService::with_repository(repository).with_guard(std::sync::Arc::new(SupplierQuotationItemRowRules))
+}
+
+/// A `SupplierReminderSettingService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_supplier_reminder_setting_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::SupplierReminderSettingRepository>,
+) -> SupplierReminderSettingService {
+    SupplierReminderSettingService::with_repository(repository).with_guard(std::sync::Arc::new(SupplierReminderSettingRowRules))
+}
+
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");
