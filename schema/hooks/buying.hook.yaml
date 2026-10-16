@@ -252,7 +252,8 @@ rules:
     assert: "line.qty_ordered + call_off.quantity <= line.quantity (the blanket quantity caps the call-offs)"
     error_code: agreement_exceeded
     enforcement: service
-    justification: "PARTLY: create_call_off_po checks each draw against qty_ordered read outside its transaction and unlocked, and increment_qty_ordered adds without a condition, so two concurrent call-offs, or one call-off naming the same line twice, can draw past the blanket quantity. Cross-row aggregate: the cap compares a new call-off against the sum already drawn on the blanket line, which a CHECK on one row cannot see."
+    enforced_by: "src/infrastructure/persistence/purchase_agreement_line_repository.rs::increment_qty_ordered"
+    justification: "increment_qty_ordered advances qty_ordered only WHERE qty_ordered + the draw <= quantity, in the call-off's transaction, and create_call_off_po refuses with agreement_exceeded when no row advanced; the condition is read and written in one statement, so concurrent call-offs and a call-off naming a line twice cannot pass the cap (tests/call_off_cap.rs). The earlier check in create_call_off_po only answers early. Cross-row aggregate: a CHECK on one row cannot see the sum the call-offs draw."
   - id: G7
     name: reminder_settings_gate
     entity: PurchaseCompanySetting

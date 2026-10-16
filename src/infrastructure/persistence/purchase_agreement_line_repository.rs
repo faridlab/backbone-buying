@@ -195,20 +195,26 @@ impl PurchaseAgreementLineRepository {
         Ok(())
     }
 
-    /// Advance one line's `qty_ordered` by the called-off quantity. The service checks the
-    /// blanket cap first; the `qty_ordered >= 0` CHECK is the DB floor. Takes the caller's
-    /// connection so the call-off PO and its blanket consumption commit as one unit.
+    /// Advance one line's `qty_ordered` by the called-off quantity, only while the draw stays
+    /// within the blanket quantity. `false` when it would pass the cap: the condition is read
+    /// and written in one statement, so two concurrent call-offs, or one naming the line twice,
+    /// cannot draw past it between a check and the write. Takes the caller's connection so the
+    /// call-off PO and its blanket consumption commit as one unit.
     pub async fn increment_qty_ordered(
         &self,
         conn: &mut sqlx::PgConnection,
         line_id: Uuid,
         qty: Decimal,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE buying.purchase_agreement_lines SET qty_ordered = qty_ordered + $2 WHERE id=$1")
-            .bind(line_id).bind(qty)
-            .execute(conn)
-            .await?;
-        Ok(())
+    ) -> Result<bool, sqlx::Error> {
+        let done = sqlx::query(
+            "UPDATE buying.purchase_agreement_lines SET qty_ordered = qty_ordered + $2 \
+             WHERE id = $1 AND qty_ordered + $2 <= quantity",
+        )
+        .bind(line_id)
+        .bind(qty)
+        .execute(conn)
+        .await?;
+        Ok(done.rows_affected() == 1)
     }
 }
 

@@ -350,8 +350,12 @@ impl BuyingWriteService {
         // The blanket consumption rides the SAME transaction — this is the call-off's
         // defining atomicity: no PO without its counted draw, no counted draw without a PO.
         for (_, c) in &draws {
-            self.repos.purchase_agreement_lines
+            // The cap is held here, in the write: the check above read the line unlocked.
+            let drawn = self.repos.purchase_agreement_lines
                 .increment_qty_ordered(&mut tx, c.agreement_line_id, c.quantity).await?;
+            if !drawn {
+                return Err(BuyingError::AgreementExceeded(c.agreement_line_id));
+            }
         }
         tx.commit().await?;
         Ok(po_id)
