@@ -45,7 +45,6 @@ pub struct CreatePurchaseOrderDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
-    pub status: PurchaseOrderStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "order_date")]
     pub order_date: NaiveDate,
@@ -358,9 +357,9 @@ impl From<CreatePurchaseOrderDto> for PurchaseOrder {
             order_kind: dto.order_kind,
             branch_id: dto.branch_id,
             supplier_id: dto.supplier_id,
-            status: dto.status,
-            receipt_status: Default::default(),
-            invoice_status: Default::default(),
+            status: PurchaseOrderStatus::Draft,
+            receipt_status: PurchaseReceiptStatus::Pending,
+            invoice_status: PurchaseInvoiceStatus::No,
             order_date: dto.order_date,
             schedule_date: dto.schedule_date,
             currency: dto.currency,

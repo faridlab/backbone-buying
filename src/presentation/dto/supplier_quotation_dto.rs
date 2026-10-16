@@ -37,7 +37,6 @@ pub struct CreateSupplierQuotationDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
-    pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "quotation_date")]
     pub quotation_date: NaiveDate,
@@ -252,7 +251,7 @@ impl From<CreateSupplierQuotationDto> for SupplierQuotation {
             quotation_number: dto.quotation_number,
             rfq_id: dto.rfq_id,
             supplier_id: dto.supplier_id,
-            status: dto.status,
+            status: PurchaseDocStatus::Draft,
             quotation_date: dto.quotation_date,
             valid_till: dto.valid_till,
             currency: dto.currency,

@@ -35,7 +35,6 @@ pub struct CreatePurchaseAgreementDto {
     pub agreement_number: String,
     #[serde(alias = "agreement_kind")]
     pub agreement_kind: AgreementKind,
-    pub status: PurchaseAgreementStatus,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
@@ -248,7 +247,7 @@ impl From<CreatePurchaseAgreementDto> for PurchaseAgreement {
             id: Uuid::new_v4(),
             agreement_number: dto.agreement_number,
             agreement_kind: dto.agreement_kind,
-            status: dto.status,
+            status: PurchaseAgreementStatus::Draft,
             supplier_id: dto.supplier_id,
             currency: dto.currency,
             date_start: dto.date_start,

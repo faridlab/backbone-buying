@@ -35,7 +35,6 @@ pub struct CreateMaterialRequestDto {
     pub request_number: String,
     #[serde(alias = "request_type")]
     pub request_type: MaterialRequestType,
-    pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "request_date")]
     pub request_date: NaiveDate,
@@ -230,7 +229,7 @@ impl From<CreateMaterialRequestDto> for MaterialRequest {
             id: Uuid::new_v4(),
             request_number: dto.request_number,
             request_type: dto.request_type,
-            status: dto.status,
+            status: PurchaseDocStatus::Draft,
             request_date: dto.request_date,
             schedule_date: dto.schedule_date,
             notes: dto.notes,
