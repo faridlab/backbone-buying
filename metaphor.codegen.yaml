@@ -67,6 +67,8 @@ user_owned:
   # Probes for the PO grouping domain's project partition (the never-merge-across-projects rule)
   # and the project anchor's round-trip through the validated create path and guarded HTTP.
   - "tests/prj4_merge_domain.rs"
+  # The blanket cap held by the call-off write itself.
+  - "tests/call_off_cap.rs"
   - "migrations/20260426220020_po_three_way_match_check.*"
   - "migrations/20260722000000_child_tables_company_rls.*"
   # Hand-written migrations for the 5-state band, the settings/reminder fence, the agreements
