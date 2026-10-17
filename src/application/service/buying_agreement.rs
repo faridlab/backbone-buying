@@ -221,6 +221,17 @@ impl BuyingWriteService {
         let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
+        // Lock the agreement, then count its open call-offs again: a call-off holds a share lock
+        // on the agreement while it commits, so this count sees every one that got in first, and
+        // any later one waits and then finds the agreement retired.
+        let locked = self.repos.purchase_agreements.lock_status_on(&mut tx, agreement_id, true).await?
+            .ok_or(BuyingError::AgreementNotFound(agreement_id))?;
+        if self.repos.purchase_agreements.open_call_off_count_on(&mut tx, agreement_id).await? > 0 {
+            return Err(BuyingError::AgreementHasDraftOrders(agreement_id));
+        }
+        if !from.contains(&locked.as_str()) {
+            return Err(BuyingError::AgreementNotConvertible(agreement_id.to_string()));
+        }
         self.repos.purchase_agreements.transition(&mut tx, agreement_id, to, from).await?
             .ok_or_else(|| BuyingError::AgreementNotConvertible(agreement_id.to_string()))?;
         self.repos.supplier_prices.soft_delete_for_agreement(&mut tx, agreement_id).await?;
@@ -317,6 +328,13 @@ impl BuyingWriteService {
         let mut tx = self.rpool().begin().await?;
         // Relay the caller's ambient org scope onto this transaction (ADR-0029).
         relay_ambient_scope(&mut tx).await?;
+        // Hold the agreement open while the call-off commits: a close waits on this share lock,
+        // and a close that got in first leaves the agreement no longer open here.
+        let locked = self.repos.purchase_agreements.lock_status_on(&mut tx, o.agreement_id, false).await?
+            .ok_or(BuyingError::AgreementNotFound(o.agreement_id))?;
+        if locked != "open" {
+            return Err(BuyingError::AgreementNotConvertible(o.agreement_id.to_string()));
+        }
         let r = self.repos.purchase_orders.insert_purchase_order(&mut tx, &crate::infrastructure::persistence::NewPurchaseOrderRow {
             id: po_id,
             po_number: &new_order.po_number,

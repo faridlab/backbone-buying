@@ -244,8 +244,9 @@ rules:
     when: close, cancel agreement
     assert: "close/cancel refuses while a call-off PO in draft/sent/to_approve hangs off the agreement"
     error_code: agreement_has_draft_orders
-    enforcement: service
-    justification: "PARTLY: retire_agreement counts the open call-offs on the pool before its transaction opens, without a lock, so a call-off created between that count and the transition slips past. Cross-table: the guard reads the call-off orders hanging off the agreement, which no CHECK on the agreement row can see."
+    enforcement: both
+    enforced_by: "src/application/service/buying_agreement.rs::retire_agreement, migrations/20261017140000_agreement_close_no_open_call_offs.up.sql::purchase_agreements_close_no_open_call_offs"
+    justification: "The trigger purchase_agreements_close_no_open_call_offs refuses a move to done or cancelled while a call-off is open, for any writer. retire_agreement locks the agreement row FOR UPDATE and counts its open call-offs on the same transaction; create_call_off_po holds a FOR SHARE lock on the agreement while it commits and refuses unless it is still open, so a close and a call-off take turns (tests/call_off_cap.rs a_close_racing_a_call_off_never_retires_an_agreement_with_an_open_call_off). Cross-table: the rule reads the call-off orders hanging off the agreement, which no CHECK on the agreement row can see."
   - id: G-call-off-cap
     name: call_off_within_blanket
     entity: PurchaseAgreementLine

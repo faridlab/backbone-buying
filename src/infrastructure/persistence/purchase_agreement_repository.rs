@@ -116,6 +116,42 @@ impl PurchaseAgreementRepository {
         }))
     }
 
+    /// Lock the agreement row on the caller's transaction and read its status: `FOR UPDATE` for
+    /// a verb that moves it, `FOR SHARE` for one that draws on it. A close and a call-off then
+    /// take turns on the row, so a call-off cannot land on an agreement a close is retiring.
+    pub async fn lock_status_on(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        agreement_id: Uuid,
+        exclusive: bool,
+    ) -> Result<Option<String>, sqlx::Error> {
+        let sql = format!(
+            "SELECT status::text AS st FROM buying.purchase_agreements
+              WHERE id=$1 AND (metadata->>'deleted_at') IS NULL FOR {}",
+            if exclusive { "UPDATE" } else { "SHARE" },
+        );
+        let row = sqlx::query(&sql).bind(agreement_id).fetch_optional(conn).await?;
+        Ok(row.map(|r| r.get("st")))
+    }
+
+    /// Count the call-off orders still open (draft, sent, to approve) on an agreement, read on
+    /// the caller's transaction after it locked the agreement, so it sees every call-off that
+    /// committed before the lock was granted.
+    pub async fn open_call_off_count_on(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        agreement_id: Uuid,
+    ) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM buying.purchase_orders
+              WHERE agreement_id=$1 AND status IN ('draft','sent','to_approve')
+                AND (metadata->>'deleted_at') IS NULL",
+        )
+        .bind(agreement_id)
+        .fetch_one(conn)
+        .await
+    }
+
     /// Flip the agreement's status, guarded on the allowed source states. `Ok(None)` = refused
     /// (wrong source state or absent). Takes the CALLER'S connection so the flip commits atomically
     /// with the verb's other writes (the confirm's price mint, the retire's price unlink); the
