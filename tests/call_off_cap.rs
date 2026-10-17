@@ -75,3 +75,34 @@ async fn a_call_off_naming_a_line_twice_cannot_draw_past_the_blanket() {
         .unwrap();
     assert_eq!(orders, 0, "and leaves no order behind");
 }
+
+/// Supplier prices change only through their agreement: confirming mints them through the
+/// agreement's own write, and a write from anywhere else is refused with the rule's code.
+#[tokio::test]
+async fn supplier_prices_change_only_through_their_agreement() {
+    let pool = pool().await;
+    let w = BuyingWriteService::new(pool.clone());
+    let agreement = w
+        .create_purchase_agreement(NewPurchaseAgreement {
+            agreement_number: uq("BPA"),
+            supplier_id: Uuid::new_v4(),
+            currency: None,
+            date_start: None,
+            date_end: None,
+            notes: None,
+            lines: vec![NewAgreementLine { item_id: Uuid::new_v4(), quantity: d("10"), rate: d("5") }],
+        })
+        .await
+        .unwrap();
+    w.confirm_purchase_agreement(agreement).await.expect("the agreement mints its prices");
+    let minted: Uuid = sqlx::query_scalar("SELECT id FROM buying.supplier_prices WHERE agreement_id = $1")
+        .bind(agreement).fetch_one(&pool).await.expect("one minted price");
+
+    let refused = sqlx::query("UPDATE buying.supplier_prices SET price = 1 WHERE id = $1")
+        .bind(minted).execute(&pool).await.expect_err("a write outside the agreement is refused");
+    let db = refused.as_database_error().expect("a database refusal");
+    assert_eq!(db.constraint(), Some("ck_supplier_prices_agreement_owned__supplier_price_agreement_owned"), "{db:?}");
+
+    let refused = sqlx::query("DELETE FROM buying.supplier_prices WHERE id = $1").bind(minted).execute(&pool).await;
+    assert!(refused.is_err(), "a delete outside the agreement is refused");
+}

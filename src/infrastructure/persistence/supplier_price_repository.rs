@@ -63,6 +63,7 @@ impl SupplierPriceRepository {
         agreement_id: Uuid,
         agreement_line_id: Uuid,
     ) -> Result<(), sqlx::Error> {
+        mark_agreement_write(conn).await?;
         sqlx::query(
             r#"WITH live AS (
                    SELECT id FROM buying.supplier_prices
@@ -97,6 +98,7 @@ impl SupplierPriceRepository {
         conn: &mut sqlx::PgConnection,
         agreement_id: Uuid,
     ) -> Result<(), sqlx::Error> {
+        mark_agreement_write(conn).await?;
         sqlx::query(
             r#"UPDATE buying.supplier_prices
                   SET metadata = jsonb_set(metadata, '{deleted_at}', to_jsonb(NOW()))
@@ -107,6 +109,16 @@ impl SupplierPriceRepository {
         .await?;
         Ok(())
     }
+}
+
+/// Mark the caller's transaction as an agreement verb's: the `supplier_prices_agreement_owned`
+/// trigger refuses any write to the table in a transaction without this mark. Transaction-local,
+/// so it ends with the caller's commit or rollback and never leaks onto a pooled connection.
+async fn mark_agreement_write(conn: &mut sqlx::PgConnection) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT set_config('app.buying_agreement_write', '1', true)")
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 backbone_core::impl_crud_repository!(SupplierPriceRepository, SupplierPrice, soft_delete);

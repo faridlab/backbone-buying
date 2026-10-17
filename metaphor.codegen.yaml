@@ -70,6 +70,8 @@ user_owned:
   # The blanket cap held by the call-off write itself.
   - "tests/call_off_cap.rs"
   - "migrations/20260426220020_po_three_way_match_check.*"
+  # Hand-written: supplier prices change only through their agreement.
+  - "migrations/20261017130000_supplier_prices_agreement_owned.*"
   - "migrations/20260722000000_child_tables_company_rls.*"
   # Hand-written migrations for the 5-state band, the settings/reminder fence, the agreements
   # fence, and the swapped two-formula CHECK.

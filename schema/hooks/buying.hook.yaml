@@ -234,9 +234,10 @@ rules:
     entity: SupplierPrice
     when: write supplier_prices
     assert: "buying.supplier_prices has NO CRUD route and no standalone writer: only the agreement confirm (mint), open re-price (propagate), and close/cancel (unlink) write it"
-    error_code: null
-    enforcement: service
-    justification: "PARTLY: no CRUD route is mounted, but the module still builds and exports a full generic SupplierPriceService and SupplierPriceRepository, so a composing service can write the table outside the agreement verbs. This restricts WHICH code path may write a table, and a database cannot see code paths; a constraint could check the rows a write leaves behind, never who wrote them."
+    error_code: supplier_price_agreement_owned
+    enforcement: both
+    enforced_by: "migrations/20261017130000_supplier_prices_agreement_owned.up.sql::supplier_prices_agreement_owned"
+    justification: "The agreement verbs mark their transaction (supplier_price_repository.rs mark_agreement_write) before they mint, re-price or unlink a price, and the trigger supplier_prices_agreement_owned refuses any insert, update or delete in a transaction without the mark, so a generic service, another module or raw SQL cannot write the table (tests/call_off_cap.rs supplier_prices_change_only_through_their_agreement). An update that changes only org_unit_id, the composing service's tenancy backfill, passes."
   - id: G-agreement-close
     name: agreement_close_no_draft_calloffs
     entity: PurchaseAgreement
