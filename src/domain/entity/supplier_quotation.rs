@@ -215,6 +215,15 @@ impl super::Entity for SupplierQuotation {
 }
 
 impl backbone_core::PersistentEntity for SupplierQuotation {
+    fn state_fields() -> &'static [&'static str] {
+        &["status"]
+    }
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("rfq_id", "buying.request_for_quotations", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

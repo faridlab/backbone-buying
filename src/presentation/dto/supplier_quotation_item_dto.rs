@@ -87,8 +87,8 @@ pub struct PatchSupplierQuotationItemDto {
     pub quantity: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rate: Option<Decimal>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "lead_time_days")]
-    pub lead_time_days: Option<i32>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "lead_time_days")]
+    pub lead_time_days: Option<Option<i32>>,
 }
 
 impl PatchSupplierQuotationItemDto {
@@ -257,12 +257,4 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierQuotationItemDto> for SupplierQ
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to SupplierQuotationItem here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

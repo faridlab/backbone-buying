@@ -43,9 +43,14 @@ pub struct CreateSupplierQuotationDto {
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "valid_till")]
     pub valid_till: Option<NaiveDate>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
+    #[serde(default = "default_create_supplier_quotation_currency")]
     pub currency: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+fn default_create_supplier_quotation_currency() -> String {
+    "IDR".to_string()
 }
 
 // =============================================================================
@@ -95,8 +100,8 @@ pub struct PatchSupplierQuotationDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "quotation_number")]
     pub quotation_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "rfq_id")]
-    pub rfq_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "rfq_id")]
+    pub rfq_id: Option<Option<Uuid>>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_id")]
     pub supplier_id: Option<Uuid>,
@@ -105,13 +110,13 @@ pub struct PatchSupplierQuotationDto {
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "quotation_date")]
     pub quotation_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "valid_till")]
-    pub valid_till: Option<NaiveDate>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "valid_till")]
+    pub valid_till: Option<Option<NaiveDate>>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 impl PatchSupplierQuotationDto {
@@ -297,12 +302,4 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierQuotationDto> for SupplierQuota
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to SupplierQuotation here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

@@ -194,6 +194,12 @@ impl super::Entity for RequestForQuotation {
 }
 
 impl backbone_core::PersistentEntity for RequestForQuotation {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("material_request_id", "buying.material_requests", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

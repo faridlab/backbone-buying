@@ -81,6 +81,13 @@ impl axum::response::IntoResponse for RequestForQuotationError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `request_for_quotation:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn request_for_quotation_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("request_for_quotation")
+        .in_module("buying")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for RequestForQuotation.
 ///
 /// # Routes
@@ -110,21 +117,23 @@ impl axum::response::IntoResponse for RequestForQuotationError {
 /// let router = create_request_for_quotation_routes(service);
 /// ```
 pub fn create_request_for_quotation_routes(service: Arc<RequestForQuotationService>) -> Router {
-    BackboneCrudHandler::<RequestForQuotationService, RequestForQuotation, CreateRequestForQuotationDto, UpdateRequestForQuotationDto, RequestForQuotationResponseDto>::routes(
+    BackboneCrudHandler::<RequestForQuotationService, RequestForQuotation, CreateRequestForQuotationDto, UpdateRequestForQuotationDto, RequestForQuotationResponseDto>::routes_guarded(
         service,
         "/request_for_quotations",
+        request_for_quotation_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for RequestForQuotation.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_request_for_quotation_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_request_for_quotation_read_routes(service: Arc<RequestForQuotationService>) -> Router {
-    BackboneCrudHandler::<RequestForQuotationService, RequestForQuotation, CreateRequestForQuotationDto, UpdateRequestForQuotationDto, RequestForQuotationResponseDto>::read_routes(
+    BackboneCrudHandler::<RequestForQuotationService, RequestForQuotation, CreateRequestForQuotationDto, UpdateRequestForQuotationDto, RequestForQuotationResponseDto>::read_routes_guarded(
         service,
         "/request_for_quotations",
+        request_for_quotation_permissions(),
     )
 }
 
@@ -140,9 +149,10 @@ pub fn create_request_for_quotation_read_routes(service: Arc<RequestForQuotation
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_request_for_quotation_write_routes(service: Arc<RequestForQuotationService>) -> Router {
-    BackboneCrudHandler::<RequestForQuotationService, RequestForQuotation, CreateRequestForQuotationDto, UpdateRequestForQuotationDto, RequestForQuotationResponseDto>::write_routes(
+    BackboneCrudHandler::<RequestForQuotationService, RequestForQuotation, CreateRequestForQuotationDto, UpdateRequestForQuotationDto, RequestForQuotationResponseDto>::write_routes_guarded(
         service,
         "/request_for_quotations",
+        request_for_quotation_permissions(),
     )
 }
 

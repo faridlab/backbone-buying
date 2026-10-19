@@ -313,6 +313,18 @@ impl super::Entity for PurchaseOrder {
 }
 
 impl backbone_core::PersistentEntity for PurchaseOrder {
+    fn write_protected_fields() -> &'static [&'static str] {
+        &["receipt_status", "invoice_status"]
+    }
+    fn state_fields() -> &'static [&'static str] {
+        &["invoice_status", "receipt_status", "status"]
+    }
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("supplier_quotation_id", "buying.supplier_quotations", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

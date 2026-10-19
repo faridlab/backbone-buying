@@ -38,7 +38,7 @@ pub struct CreatePurchaseOrderDto {
     pub po_number: String,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "supplier_quotation_id")]
     pub supplier_quotation_id: Option<Uuid>,
-    #[serde(alias = "order_kind")]
+    #[serde(default = "default_create_purchase_order_order_kind", alias = "order_kind")]
     pub order_kind: OrderKind,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "branch_id")]
     pub branch_id: Option<Uuid>,
@@ -51,12 +51,15 @@ pub struct CreatePurchaseOrderDto {
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "schedule_date")]
     pub schedule_date: Option<NaiveDate>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
+    #[serde(default = "default_create_purchase_order_currency")]
     pub currency: String,
-    #[serde(alias = "currency_rate")]
+    #[serde(default = "default_create_purchase_order_currency_rate", alias = "currency_rate")]
     pub currency_rate: Decimal,
     #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(default)]
     pub acknowledged: bool,
     #[cfg_attr(feature = "openapi", schema(example = true))]
+    #[serde(default)]
     pub locked: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "date_approve")]
     pub date_approve: Option<NaiveDate>,
@@ -64,14 +67,28 @@ pub struct CreatePurchaseOrderDto {
     pub agreement_id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "project_id")]
     pub project_id: Option<Uuid>,
+    #[serde(default)]
     pub subtotal: Decimal,
-    #[serde(alias = "tax_rate")]
+    #[serde(default, alias = "tax_rate")]
     pub tax_rate: Decimal,
-    #[serde(alias = "tax_amount")]
+    #[serde(default, alias = "tax_amount")]
     pub tax_amount: Decimal,
+    #[serde(default)]
     pub total: Decimal,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+fn default_create_purchase_order_order_kind() -> OrderKind {
+    OrderKind::Standard
+}
+
+fn default_create_purchase_order_currency() -> String {
+    "IDR".to_string()
+}
+
+fn default_create_purchase_order_currency_rate() -> Decimal {
+    Decimal::from(1_i64)
 }
 
 // =============================================================================
@@ -143,12 +160,12 @@ pub struct PatchPurchaseOrderDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "po_number")]
     pub po_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_quotation_id")]
-    pub supplier_quotation_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "supplier_quotation_id")]
+    pub supplier_quotation_id: Option<Option<Uuid>>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "order_kind")]
     pub order_kind: Option<OrderKind>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "branch_id")]
-    pub branch_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "branch_id")]
+    pub branch_id: Option<Option<Uuid>>,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "supplier_id")]
     pub supplier_id: Option<Uuid>,
@@ -157,8 +174,8 @@ pub struct PatchPurchaseOrderDto {
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "order_date")]
     pub order_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "schedule_date")]
-    pub schedule_date: Option<NaiveDate>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "schedule_date")]
+    pub schedule_date: Option<Option<NaiveDate>>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
@@ -170,12 +187,12 @@ pub struct PatchPurchaseOrderDto {
     #[cfg_attr(feature = "openapi", schema(example = true))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locked: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "date_approve")]
-    pub date_approve: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "agreement_id")]
-    pub agreement_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "project_id")]
-    pub project_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "date_approve")]
+    pub date_approve: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "agreement_id")]
+    pub agreement_id: Option<Option<Uuid>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "project_id")]
+    pub project_id: Option<Option<Uuid>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subtotal: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none", alias = "tax_rate")]
@@ -184,8 +201,8 @@ pub struct PatchPurchaseOrderDto {
     pub tax_amount: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<Decimal>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 impl PatchPurchaseOrderDto {
@@ -441,12 +458,4 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseOrderDto> for PurchaseOrder {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to PurchaseOrder here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

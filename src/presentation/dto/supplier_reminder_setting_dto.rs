@@ -32,11 +32,19 @@ pub struct CreateSupplierReminderSettingDto {
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "receipt_reminder_email")]
+    #[serde(default = "default_create_supplier_reminder_setting_receipt_reminder_email", alias = "receipt_reminder_email")]
     pub receipt_reminder_email: bool,
     #[cfg_attr(feature = "openapi", schema(example = 42))]
-    #[serde(alias = "reminder_days_before")]
+    #[serde(default = "default_create_supplier_reminder_setting_reminder_days_before", alias = "reminder_days_before")]
     pub reminder_days_before: i32,
+}
+
+fn default_create_supplier_reminder_setting_receipt_reminder_email() -> bool {
+    true
+}
+
+fn default_create_supplier_reminder_setting_reminder_days_before() -> i32 {
+    1
 }
 
 // =============================================================================
@@ -242,12 +250,4 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierReminderSettingDto> for Supplie
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to SupplierReminderSetting here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

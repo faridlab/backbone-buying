@@ -33,12 +33,13 @@ pub struct CreatePurchaseAgreementDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "agreement_number")]
     pub agreement_number: String,
-    #[serde(alias = "agreement_kind")]
+    #[serde(default = "default_create_purchase_agreement_agreement_kind", alias = "agreement_kind")]
     pub agreement_kind: AgreementKind,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "supplier_id")]
     pub supplier_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
+    #[serde(default = "default_create_purchase_agreement_currency")]
     pub currency: String,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "date_start")]
     pub date_start: Option<NaiveDate>,
@@ -46,6 +47,14 @@ pub struct CreatePurchaseAgreementDto {
     pub date_end: Option<NaiveDate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+fn default_create_purchase_agreement_agreement_kind() -> AgreementKind {
+    AgreementKind::Blanket
+}
+
+fn default_create_purchase_agreement_currency() -> String {
+    "IDR".to_string()
 }
 
 // =============================================================================
@@ -104,12 +113,12 @@ pub struct PatchPurchaseAgreementDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "date_start")]
-    pub date_start: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "date_end")]
-    pub date_end: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "date_start")]
+    pub date_start: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "date_end")]
+    pub date_end: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 impl PatchPurchaseAgreementDto {
@@ -294,12 +303,4 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseAgreementDto> for PurchaseAgree
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to PurchaseAgreement here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

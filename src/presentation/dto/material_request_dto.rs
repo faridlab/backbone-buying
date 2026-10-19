@@ -33,7 +33,7 @@ pub struct CreateMaterialRequestDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "request_number")]
     pub request_number: String,
-    #[serde(alias = "request_type")]
+    #[serde(default = "default_create_material_request_request_type", alias = "request_type")]
     pub request_type: MaterialRequestType,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "request_date")]
@@ -42,6 +42,10 @@ pub struct CreateMaterialRequestDto {
     pub schedule_date: Option<NaiveDate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+fn default_create_material_request_request_type() -> MaterialRequestType {
+    MaterialRequestType::Purchase
 }
 
 // =============================================================================
@@ -93,10 +97,10 @@ pub struct PatchMaterialRequestDto {
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "request_date")]
     pub request_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "schedule_date")]
-    pub schedule_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "schedule_date")]
+    pub schedule_date: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 impl PatchMaterialRequestDto {
@@ -270,12 +274,4 @@ impl backbone_core::ApplyUpdateDto<UpdateMaterialRequestDto> for MaterialRequest
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to MaterialRequest here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

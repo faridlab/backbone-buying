@@ -34,12 +34,17 @@ pub struct CreateRequestForQuotationDto {
     pub rfq_number: String,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "material_request_id")]
     pub material_request_id: Option<Uuid>,
+    #[serde(default = "default_create_request_for_quotation_status")]
     pub status: PurchaseDocStatus,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(alias = "rfq_date")]
     pub rfq_date: NaiveDate,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "response_due")]
     pub response_due: Option<NaiveDate>,
+}
+
+fn default_create_request_for_quotation_status() -> PurchaseDocStatus {
+    PurchaseDocStatus::Draft
 }
 
 // =============================================================================
@@ -82,15 +87,15 @@ pub struct PatchRequestForQuotationDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "rfq_number")]
     pub rfq_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "material_request_id")]
-    pub material_request_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "material_request_id")]
+    pub material_request_id: Option<Option<Uuid>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<PurchaseDocStatus>,
     #[cfg_attr(feature = "openapi", schema(example = "2024-01-01"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "rfq_date")]
     pub rfq_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "response_due")]
-    pub response_due: Option<NaiveDate>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "response_due")]
+    pub response_due: Option<Option<NaiveDate>>,
 }
 
 impl PatchRequestForQuotationDto {
@@ -259,12 +264,4 @@ impl backbone_core::ApplyUpdateDto<UpdateRequestForQuotationDto> for RequestForQ
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to RequestForQuotation here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

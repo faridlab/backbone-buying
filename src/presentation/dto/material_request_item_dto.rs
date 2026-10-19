@@ -238,11 +238,3 @@ impl backbone_core::ApplyUpdateDto<UpdateMaterialRequestItemDto> for MaterialReq
     }
 }
 
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to MaterialRequestItem here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
-

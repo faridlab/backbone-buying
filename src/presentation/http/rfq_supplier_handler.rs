@@ -80,6 +80,13 @@ impl axum::response::IntoResponse for RfqSupplierError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `rfq_supplier:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn rfq_supplier_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("rfq_supplier")
+        .in_module("buying")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for RfqSupplier.
 ///
 /// # Routes
@@ -109,21 +116,23 @@ impl axum::response::IntoResponse for RfqSupplierError {
 /// let router = create_rfq_supplier_routes(service);
 /// ```
 pub fn create_rfq_supplier_routes(service: Arc<RfqSupplierService>) -> Router {
-    BackboneCrudHandler::<RfqSupplierService, RfqSupplier, CreateRfqSupplierDto, UpdateRfqSupplierDto, RfqSupplierResponseDto>::routes(
+    BackboneCrudHandler::<RfqSupplierService, RfqSupplier, CreateRfqSupplierDto, UpdateRfqSupplierDto, RfqSupplierResponseDto>::routes_guarded(
         service,
         "/rfq_suppliers",
+        rfq_supplier_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for RfqSupplier.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_rfq_supplier_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_rfq_supplier_read_routes(service: Arc<RfqSupplierService>) -> Router {
-    BackboneCrudHandler::<RfqSupplierService, RfqSupplier, CreateRfqSupplierDto, UpdateRfqSupplierDto, RfqSupplierResponseDto>::read_routes(
+    BackboneCrudHandler::<RfqSupplierService, RfqSupplier, CreateRfqSupplierDto, UpdateRfqSupplierDto, RfqSupplierResponseDto>::read_routes_guarded(
         service,
         "/rfq_suppliers",
+        rfq_supplier_permissions(),
     )
 }
 
@@ -139,9 +148,10 @@ pub fn create_rfq_supplier_read_routes(service: Arc<RfqSupplierService>) -> Rout
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_rfq_supplier_write_routes(service: Arc<RfqSupplierService>) -> Router {
-    BackboneCrudHandler::<RfqSupplierService, RfqSupplier, CreateRfqSupplierDto, UpdateRfqSupplierDto, RfqSupplierResponseDto>::write_routes(
+    BackboneCrudHandler::<RfqSupplierService, RfqSupplier, CreateRfqSupplierDto, UpdateRfqSupplierDto, RfqSupplierResponseDto>::write_routes_guarded(
         service,
         "/rfq_suppliers",
+        rfq_supplier_permissions(),
     )
 }
 

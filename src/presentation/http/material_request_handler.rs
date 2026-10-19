@@ -81,6 +81,13 @@ impl axum::response::IntoResponse for MaterialRequestError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `material_request:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn material_request_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("material_request")
+        .in_module("buying")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for MaterialRequest.
 ///
 /// # Routes
@@ -110,21 +117,23 @@ impl axum::response::IntoResponse for MaterialRequestError {
 /// let router = create_material_request_routes(service);
 /// ```
 pub fn create_material_request_routes(service: Arc<MaterialRequestService>) -> Router {
-    BackboneCrudHandler::<MaterialRequestService, MaterialRequest, CreateMaterialRequestDto, UpdateMaterialRequestDto, MaterialRequestResponseDto>::routes(
+    BackboneCrudHandler::<MaterialRequestService, MaterialRequest, CreateMaterialRequestDto, UpdateMaterialRequestDto, MaterialRequestResponseDto>::routes_guarded(
         service,
         "/material_requests",
+        material_request_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for MaterialRequest.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_material_request_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_material_request_read_routes(service: Arc<MaterialRequestService>) -> Router {
-    BackboneCrudHandler::<MaterialRequestService, MaterialRequest, CreateMaterialRequestDto, UpdateMaterialRequestDto, MaterialRequestResponseDto>::read_routes(
+    BackboneCrudHandler::<MaterialRequestService, MaterialRequest, CreateMaterialRequestDto, UpdateMaterialRequestDto, MaterialRequestResponseDto>::read_routes_guarded(
         service,
         "/material_requests",
+        material_request_permissions(),
     )
 }
 
@@ -140,9 +149,10 @@ pub fn create_material_request_read_routes(service: Arc<MaterialRequestService>)
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_material_request_write_routes(service: Arc<MaterialRequestService>) -> Router {
-    BackboneCrudHandler::<MaterialRequestService, MaterialRequest, CreateMaterialRequestDto, UpdateMaterialRequestDto, MaterialRequestResponseDto>::write_routes(
+    BackboneCrudHandler::<MaterialRequestService, MaterialRequest, CreateMaterialRequestDto, UpdateMaterialRequestDto, MaterialRequestResponseDto>::write_routes_guarded(
         service,
         "/material_requests",
+        material_request_permissions(),
     )
 }
 

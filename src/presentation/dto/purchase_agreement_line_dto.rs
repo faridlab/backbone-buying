@@ -37,7 +37,7 @@ pub struct CreatePurchaseAgreementLineDto {
     pub item_id: Uuid,
     pub quantity: Decimal,
     pub rate: Decimal,
-    #[serde(alias = "qty_ordered")]
+    #[serde(default, alias = "qty_ordered")]
     pub qty_ordered: Decimal,
 }
 
@@ -257,12 +257,4 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseAgreementLineDto> for PurchaseA
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to PurchaseAgreementLine here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

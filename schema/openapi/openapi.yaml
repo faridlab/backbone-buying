@@ -4850,17 +4850,12 @@ components:
       type: object
       required:
         - request_number
-        - request_type
-        - status
         - request_date
-        - metadata
       properties:
         request_number:
           type: string
           maxLength: 40
         request_type:
-          type: string
-        status:
           type: string
         request_date:
           type: string
@@ -4873,8 +4868,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     UpdateMaterialRequestRequest:
       type: object
@@ -4883,7 +4876,6 @@ components:
         - request_type
         - status
         - request_date
-        - metadata
       properties:
         request_number:
           type: string
@@ -4903,8 +4895,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     PatchMaterialRequestRequest:
       type: object
@@ -4927,8 +4917,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     MaterialRequestList:
       type: object
@@ -4982,7 +4970,6 @@ components:
         - request_id
         - item_id
         - quantity
-        - metadata
       properties:
         request_id:
           type: string
@@ -4992,8 +4979,6 @@ components:
           format: uuid
         quantity:
           type: string
-        metadata:
-          type: object
 
     UpdateMaterialRequestItemRequest:
       type: object
@@ -5001,7 +4986,6 @@ components:
         - request_id
         - item_id
         - quantity
-        - metadata
       properties:
         request_id:
           type: string
@@ -5011,8 +4995,6 @@ components:
           format: uuid
         quantity:
           type: string
-        metadata:
-          type: object
 
     PatchMaterialRequestItemRequest:
       type: object
@@ -5025,8 +5007,6 @@ components:
           format: uuid
         quantity:
           type: string
-        metadata:
-          type: object
 
     MaterialRequestItemList:
       type: object
@@ -5097,18 +5077,12 @@ components:
       type: object
       required:
         - agreement_number
-        - agreement_kind
-        - status
         - supplier_id
-        - currency
-        - metadata
       properties:
         agreement_number:
           type: string
           maxLength: 40
         agreement_kind:
-          type: string
-        status:
           type: string
         supplier_id:
           type: string
@@ -5128,8 +5102,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     UpdatePurchaseAgreementRequest:
       type: object
@@ -5139,7 +5111,6 @@ components:
         - status
         - supplier_id
         - currency
-        - metadata
       properties:
         agreement_number:
           type: string
@@ -5166,8 +5137,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     PatchPurchaseAgreementRequest:
       type: object
@@ -5197,8 +5166,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     PurchaseAgreementList:
       type: object
@@ -5259,8 +5226,6 @@ components:
         - item_id
         - quantity
         - rate
-        - qty_ordered
-        - metadata
       properties:
         agreement_id:
           type: string
@@ -5274,8 +5239,6 @@ components:
           type: string
         qty_ordered:
           type: string
-        metadata:
-          type: object
 
     UpdatePurchaseAgreementLineRequest:
       type: object
@@ -5285,7 +5248,6 @@ components:
         - quantity
         - rate
         - qty_ordered
-        - metadata
       properties:
         agreement_id:
           type: string
@@ -5299,8 +5261,6 @@ components:
           type: string
         qty_ordered:
           type: string
-        metadata:
-          type: object
 
     PatchPurchaseAgreementLineRequest:
       type: object
@@ -5317,8 +5277,6 @@ components:
           type: string
         qty_ordered:
           type: string
-        metadata:
-          type: object
 
     PurchaseAgreementLineList:
       type: object
@@ -5370,12 +5328,6 @@ components:
 
     CreatePurchaseCompanySettingRequest:
       type: object
-      required:
-        - double_validation
-        - double_validation_amount
-        - company_currency
-        - send_reminder
-        - metadata
       properties:
         double_validation:
           type: string
@@ -5386,8 +5338,6 @@ components:
           maxLength: 3
         send_reminder:
           type: boolean
-        metadata:
-          type: object
 
     UpdatePurchaseCompanySettingRequest:
       type: object
@@ -5396,7 +5346,6 @@ components:
         - double_validation_amount
         - company_currency
         - send_reminder
-        - metadata
       properties:
         double_validation:
           type: string
@@ -5407,8 +5356,6 @@ components:
           maxLength: 3
         send_reminder:
           type: boolean
-        metadata:
-          type: object
 
     PatchPurchaseCompanySettingRequest:
       type: object
@@ -5422,8 +5369,6 @@ components:
           maxLength: 3
         send_reminder:
           type: boolean
-        metadata:
-          type: object
 
     PurchaseCompanySettingList:
       type: object
@@ -5541,21 +5486,8 @@ components:
       type: object
       required:
         - po_number
-        - order_kind
         - supplier_id
-        - status
-        - receipt_status
-        - invoice_status
         - order_date
-        - currency
-        - currency_rate
-        - acknowledged
-        - locked
-        - subtotal
-        - tax_rate
-        - tax_amount
-        - total
-        - metadata
       properties:
         po_number:
           type: string
@@ -5573,12 +5505,6 @@ components:
         supplier_id:
           type: string
           format: uuid
-        status:
-          type: string
-        receipt_status:
-          type: string
-        invoice_status:
-          type: string
         order_date:
           type: string
           format: date
@@ -5619,8 +5545,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     UpdatePurchaseOrderRequest:
       type: object
@@ -5629,8 +5553,6 @@ components:
         - order_kind
         - supplier_id
         - status
-        - receipt_status
-        - invoice_status
         - order_date
         - currency
         - currency_rate
@@ -5640,7 +5562,6 @@ components:
         - tax_rate
         - tax_amount
         - total
-        - metadata
       properties:
         po_number:
           type: string
@@ -5659,10 +5580,6 @@ components:
           type: string
           format: uuid
         status:
-          type: string
-        receipt_status:
-          type: string
-        invoice_status:
           type: string
         order_date:
           type: string
@@ -5704,8 +5621,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     PatchPurchaseOrderRequest:
       type: object
@@ -5728,10 +5643,6 @@ components:
           format: uuid
         status:
           type: string
-        receipt_status:
-          type: string
-        invoice_status:
-          type: string
         order_date:
           type: string
           format: date
@@ -5772,8 +5683,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     PurchaseOrderList:
       type: object
@@ -5854,12 +5763,6 @@ components:
         - item_id
         - quantity
         - rate
-        - line_amount
-        - received_qty
-        - billed_qty
-        - qty_received_method
-        - purchase_method
-        - metadata
       properties:
         order_id:
           type: string
@@ -5889,8 +5792,6 @@ components:
           type: string
         purchase_method:
           type: string
-        metadata:
-          type: object
 
     UpdatePurchaseOrderItemRequest:
       type: object
@@ -5904,7 +5805,6 @@ components:
         - billed_qty
         - qty_received_method
         - purchase_method
-        - metadata
       properties:
         order_id:
           type: string
@@ -5934,8 +5834,6 @@ components:
           type: string
         purchase_method:
           type: string
-        metadata:
-          type: object
 
     PatchPurchaseOrderItemRequest:
       type: object
@@ -5968,8 +5866,6 @@ components:
           type: string
         purchase_method:
           type: string
-        metadata:
-          type: object
 
     PurchaseOrderItemList:
       type: object
@@ -6029,9 +5925,7 @@ components:
       type: object
       required:
         - rfq_number
-        - status
         - rfq_date
-        - metadata
       properties:
         rfq_number:
           type: string
@@ -6049,8 +5943,6 @@ components:
           nullable: true
           type: string
           format: date
-        metadata:
-          type: object
 
     UpdateRequestForQuotationRequest:
       type: object
@@ -6058,7 +5950,6 @@ components:
         - rfq_number
         - status
         - rfq_date
-        - metadata
       properties:
         rfq_number:
           type: string
@@ -6076,8 +5967,6 @@ components:
           nullable: true
           type: string
           format: date
-        metadata:
-          type: object
 
     PatchRequestForQuotationRequest:
       type: object
@@ -6098,8 +5987,6 @@ components:
           nullable: true
           type: string
           format: date
-        metadata:
-          type: object
 
     RequestForQuotationList:
       type: object
@@ -6153,7 +6040,6 @@ components:
         - rfq_id
         - item_id
         - quantity
-        - metadata
       properties:
         rfq_id:
           type: string
@@ -6163,8 +6049,6 @@ components:
           format: uuid
         quantity:
           type: string
-        metadata:
-          type: object
 
     UpdateRfqItemRequest:
       type: object
@@ -6172,7 +6056,6 @@ components:
         - rfq_id
         - item_id
         - quantity
-        - metadata
       properties:
         rfq_id:
           type: string
@@ -6182,8 +6065,6 @@ components:
           format: uuid
         quantity:
           type: string
-        metadata:
-          type: object
 
     PatchRfqItemRequest:
       type: object
@@ -6196,8 +6077,6 @@ components:
           format: uuid
         quantity:
           type: string
-        metadata:
-          type: object
 
     RfqItemList:
       type: object
@@ -6247,7 +6126,6 @@ components:
       required:
         - rfq_id
         - supplier_id
-        - metadata
       properties:
         rfq_id:
           type: string
@@ -6255,15 +6133,12 @@ components:
         supplier_id:
           type: string
           format: uuid
-        metadata:
-          type: object
 
     UpdateRfqSupplierRequest:
       type: object
       required:
         - rfq_id
         - supplier_id
-        - metadata
       properties:
         rfq_id:
           type: string
@@ -6271,8 +6146,6 @@ components:
         supplier_id:
           type: string
           format: uuid
-        metadata:
-          type: object
 
     PatchRfqSupplierRequest:
       type: object
@@ -6283,8 +6156,6 @@ components:
         supplier_id:
           type: string
           format: uuid
-        metadata:
-          type: object
 
     RfqSupplierList:
       type: object
@@ -6357,10 +6228,7 @@ components:
       required:
         - quotation_number
         - supplier_id
-        - status
         - quotation_date
-        - currency
-        - metadata
       properties:
         quotation_number:
           type: string
@@ -6372,8 +6240,6 @@ components:
         supplier_id:
           type: string
           format: uuid
-        status:
-          type: string
         quotation_date:
           type: string
           format: date
@@ -6388,8 +6254,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     UpdateSupplierQuotationRequest:
       type: object
@@ -6399,7 +6263,6 @@ components:
         - status
         - quotation_date
         - currency
-        - metadata
       properties:
         quotation_number:
           type: string
@@ -6427,8 +6290,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     PatchSupplierQuotationRequest:
       type: object
@@ -6459,8 +6320,6 @@ components:
           nullable: true
           type: string
           maxLength: 1000
-        metadata:
-          type: object
 
     SupplierQuotationList:
       type: object
@@ -6522,7 +6381,6 @@ components:
         - item_id
         - quantity
         - rate
-        - metadata
       properties:
         quotation_id:
           type: string
@@ -6538,8 +6396,6 @@ components:
           nullable: true
           type: integer
           format: int32
-        metadata:
-          type: object
 
     UpdateSupplierQuotationItemRequest:
       type: object
@@ -6548,7 +6404,6 @@ components:
         - item_id
         - quantity
         - rate
-        - metadata
       properties:
         quotation_id:
           type: string
@@ -6564,8 +6419,6 @@ components:
           nullable: true
           type: integer
           format: int32
-        metadata:
-          type: object
 
     PatchSupplierQuotationItemRequest:
       type: object
@@ -6584,8 +6437,6 @@ components:
           nullable: true
           type: integer
           format: int32
-        metadata:
-          type: object
 
     SupplierQuotationItemList:
       type: object
@@ -6637,9 +6488,6 @@ components:
       type: object
       required:
         - supplier_id
-        - receipt_reminder_email
-        - reminder_days_before
-        - metadata
       properties:
         supplier_id:
           type: string
@@ -6649,8 +6497,6 @@ components:
         reminder_days_before:
           type: integer
           format: int32
-        metadata:
-          type: object
 
     UpdateSupplierReminderSettingRequest:
       type: object
@@ -6658,7 +6504,6 @@ components:
         - supplier_id
         - receipt_reminder_email
         - reminder_days_before
-        - metadata
       properties:
         supplier_id:
           type: string
@@ -6668,8 +6513,6 @@ components:
         reminder_days_before:
           type: integer
           format: int32
-        metadata:
-          type: object
 
     PatchSupplierReminderSettingRequest:
       type: object
@@ -6682,8 +6525,6 @@ components:
         reminder_days_before:
           type: integer
           format: int32
-        metadata:
-          type: object
 
     SupplierReminderSettingList:
       type: object

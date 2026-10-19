@@ -172,6 +172,12 @@ impl super::Entity for PurchaseAgreementLine {
 }
 
 impl backbone_core::PersistentEntity for PurchaseAgreementLine {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("agreement_id", "buying.purchase_agreements", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

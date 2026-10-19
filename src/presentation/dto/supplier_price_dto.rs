@@ -37,6 +37,7 @@ pub struct CreateSupplierPriceDto {
     pub item_id: Uuid,
     pub price: Decimal,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
+    #[serde(default = "default_create_supplier_price_currency")]
     pub currency: String,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "agreement_id")]
@@ -44,6 +45,10 @@ pub struct CreateSupplierPriceDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "agreement_line_id")]
     pub agreement_line_id: Uuid,
+}
+
+fn default_create_supplier_price_currency() -> String {
+    "IDR".to_string()
 }
 
 // =============================================================================
@@ -280,12 +285,4 @@ impl backbone_core::ApplyUpdateDto<UpdateSupplierPriceDto> for SupplierPrice {
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to SupplierPrice here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

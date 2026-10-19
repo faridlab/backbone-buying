@@ -156,6 +156,12 @@ impl super::Entity for RfqSupplier {
 }
 
 impl backbone_core::PersistentEntity for RfqSupplier {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("rfq_id", "buying.request_for_quotations", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }

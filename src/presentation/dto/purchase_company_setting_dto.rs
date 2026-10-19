@@ -30,16 +30,32 @@ use crate::domain::entity::DoubleValidation;
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePurchaseCompanySettingDto {
-    #[serde(alias = "double_validation")]
+    #[serde(default = "default_create_purchase_company_setting_double_validation", alias = "double_validation")]
     pub double_validation: DoubleValidation,
-    #[serde(alias = "double_validation_amount")]
+    #[serde(default = "default_create_purchase_company_setting_double_validation_amount", alias = "double_validation_amount")]
     pub double_validation_amount: Decimal,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
-    #[serde(alias = "company_currency")]
+    #[serde(default = "default_create_purchase_company_setting_company_currency", alias = "company_currency")]
     pub company_currency: String,
     #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "send_reminder")]
+    #[serde(default = "default_create_purchase_company_setting_send_reminder", alias = "send_reminder")]
     pub send_reminder: bool,
+}
+
+fn default_create_purchase_company_setting_double_validation() -> DoubleValidation {
+    DoubleValidation::OneStep
+}
+
+fn default_create_purchase_company_setting_double_validation_amount() -> Decimal {
+    Decimal::from(5000_i64)
+}
+
+fn default_create_purchase_company_setting_company_currency() -> String {
+    "IDR".to_string()
+}
+
+fn default_create_purchase_company_setting_send_reminder() -> bool {
+    true
 }
 
 // =============================================================================
@@ -251,12 +267,4 @@ impl backbone_core::ApplyUpdateDto<UpdatePurchaseCompanySettingDto> for Purchase
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to PurchaseCompanySetting here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

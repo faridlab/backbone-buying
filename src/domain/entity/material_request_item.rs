@@ -162,6 +162,12 @@ impl super::Entity for MaterialRequestItem {
 }
 
 impl backbone_core::PersistentEntity for MaterialRequestItem {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("request_id", "buying.material_requests", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }
